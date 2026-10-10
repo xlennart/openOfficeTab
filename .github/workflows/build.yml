@@ -1,0 +1,24 @@
+name: Build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public test fixtures
+        run: python tests/check-fixtures.py
+      - name: Build native add-in
+        shell: pwsh
+        run: ./scripts/build.ps1 -Architecture x64
+      - name: Build and verify installers
+        shell: pwsh
+        run: ./scripts/package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openOfficetab-win-x64
+          path: delivery/*

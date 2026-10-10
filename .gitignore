@@ -1,0 +1,14 @@
+/build/
+/dist/
+/delivery/
+/artifacts/
+/reference/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.log
+~$*
+__pycache__/
+.vs/
+.vscode/

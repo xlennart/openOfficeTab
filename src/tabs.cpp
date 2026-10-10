@@ -1,0 +1,182 @@
+#include "tabs.h"
+#include <windowsx.h>
+
+HRESULT Tabs::QueryInterface(REFIID i,void** p){
+    if(!p)return E_POINTER;*p=nullptr;
+    if(i==IID_IUnknown||i==IID_IDispatch)*p=static_cast<IDispatch*>(this);
+    else if(i==IID_IOleObject)*p=static_cast<IOleObject*>(this);
+    else if(i==IID_IOleWindow||i==IID_IOleInPlaceObject)*p=static_cast<IOleInPlaceObject*>(this);
+    else if(i==IID_IOleInPlaceActiveObject)*p=static_cast<IOleInPlaceActiveObject*>(this);
+    else if(i==IID_IOleControl)*p=static_cast<IOleControl*>(this);
+    else if(i==IID_IViewObject||i==IID_IViewObject2)*p=static_cast<IViewObject2*>(this);
+    else if(i==IID_IPersist||i==IID_IPersistStream||i==IID_IPersistStreamInit)*p=static_cast<IPersistStreamInit*>(this);
+    else if(i==__uuidof(ITabBinding))*p=static_cast<ITabBinding*>(this);
+    if(!*p)return E_NOINTERFACE;AddRef();return S_OK;
+}
+void Tabs::destroy(){session=nullptr;Unmount();if(oleHwnd)DestroyWindow(oleHwnd);oleHwnd=nullptr;tooltip=nullptr;}
+bool Tabs::Mount(HWND frame){
+    if(!frame){compactFrame=nullptr;return true;}
+    if(!oleHwnd||!IsWindow(frame)||!hostWindow||!IsWindow(hostWindow))return false;
+    RECT reserved{};if(!GetWindowRect(frame,&reserved)||reserved.right<=reserved.left||reserved.bottom<=reserved.top)return false;
+    if(compactFrame==frame){layout();return true;}
+    // Keep rendering independent of Office's replaceable OLE/pane containers.
+    // The root child survives a pane rebuild; CTP continues to reserve space.
+    if(!hwnd){
+        auto context=SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(hostWindow));
+        hwnd=CreateWindowExW(0,L"openOfficetab.Tabs",L"文档标签",WS_CHILD|WS_CLIPSIBLINGS|WS_TABSTOP,0,0,1,1,hostWindow,nullptr,module,this);
+        if(context)SetThreadDpiAwarenessContext(context);
+        if(!hwnd){log(L"chrome.displayCreate.failed",HRESULT_FROM_WIN32(GetLastError()));return false;}
+        if(tooltip)DestroyWindow(tooltip);
+        tooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,hwnd,nullptr,module,nullptr);
+        TOOLINFOW t{sizeof(t)};t.uFlags=TTF_IDISHWND|TTF_SUBCLASS;t.hwnd=hwnd;t.uId=(UINT_PTR)hwnd;t.lpszText=LPSTR_TEXTCALLBACKW;SendMessageW(tooltip,TTM_ADDTOOLW,0,(LPARAM)&t);SendMessageW(tooltip,TTM_SETMAXTIPWIDTH,0,700);
+    }
+    compactFrame=frame;ShowWindow(oleHwnd,SW_HIDE);
+    layout();ShowWindow(hwnd,session&&session->showTabs(hostWindow)?SW_SHOWNOACTIVATE:SW_HIDE);return true;
+}
+void Tabs::Unmount(){
+    if(compactFrame&&IsWindow(compactFrame))ShowWindow(compactFrame,SW_SHOWNOACTIVATE);
+    compactFrame=nullptr;
+    if(tooltip)DestroyWindow(tooltip);tooltip=nullptr;if(hwnd&&IsWindow(hwnd))DestroyWindow(hwnd);hwnd=nullptr;
+}
+void Tabs::layout(){if(hwnd&&compactFrame&&IsWindow(compactFrame)&&!layingOut){
+    layingOut=true;
+    auto context=SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(hostWindow));RECT r{},current{};GetWindowRect(compactFrame,&r);MapWindowPoints(nullptr,hostWindow,(POINT*)&r,2);GetWindowRect(hwnd,&current);MapWindowPoints(nullptr,hostWindow,(POINT*)&current,2);
+    if(!EqualRect(&r,&current))SetWindowPos(hwnd,HWND_TOP,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOACTIVATE);
+    else if(::GetWindow(hostWindow,GW_CHILD)!=hwnd)SetWindowPos(hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+    if(GetWindowLongPtrW(compactFrame,GWL_STYLE)&WS_VISIBLE)ShowWindow(compactFrame,SW_HIDE);
+    if(context)SetThreadDpiAwarenessContext(context);
+    layingOut=false;
+}}
+HRESULT Tabs::activate(HWND parent,LPCRECT supplied,bool focus){
+    if(!site)return E_FAIL;
+    if(!inPlace)inPlace=site.as<IOleInPlaceSite>();
+    if(!inPlace)return E_NOINTERFACE;
+    RECT pos=supplied?*supplied:RECT{0,0,700,40},clip=pos;
+    if(!activated){HRESULT hr=inPlace->CanInPlaceActivate();if(FAILED(hr))return hr;inPlace->OnInPlaceActivate();activated=true;}
+    Ptr<IOleInPlaceFrame> frame;Ptr<IOleInPlaceUIWindow> doc;
+    OLEINPLACEFRAMEINFO fi{sizeof(fi)};
+    inPlace->GetWindowContext(frame.out(),doc.out(),&pos,&clip,&fi);
+    if(!parent)inPlace->GetWindow(&parent);
+    if(!oleHwnd){
+        WNDCLASSEXW c{sizeof(c)};c.lpfnWndProc=proc;c.hInstance=module;c.hCursor=LoadCursorW(nullptr,IDC_ARROW);c.lpszClassName=L"openOfficetab.Tabs";c.style=CS_DBLCLKS;RegisterClassExW(&c);
+        oleHwnd=CreateWindowExW(0,c.lpszClassName,L"文档标签",WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS|WS_TABSTOP,pos.left,pos.top,pos.right-pos.left,pos.bottom-pos.top,parent,nullptr,module,this);
+        if(!oleHwnd)return HRESULT_FROM_WIN32(GetLastError());
+    }else{if(!compactFrame)SetParent(oleHwnd,parent);SetObjectRects(&pos,&clip);if(!hwnd)ShowWindow(oleHwnd,SW_SHOW);}
+    site->ShowObject();
+    if(focus){inPlace->OnUIActivate();uiActive=true;if(frame)frame->SetActiveObject(this,L"openOfficetab");if(doc)doc->SetActiveObject(this,L"openOfficetab");SetFocus(NativeWindow());}
+    // Office may activate the OLE window after Visible/Add has returned. Do not
+    // leave the first layout waiting for the 750 ms recovery timer.
+    if(session)session->defer();
+    return S_OK;
+}
+HRESULT Tabs::DoVerb(LONG v,LPMSG,IOleClientSite* s,LONG,HWND p,LPCRECT r){
+    if(s)SetClientSite(s);
+    if(v==OLEIVERB_HIDE){if(oleHwnd)ShowWindow(oleHwnd,SW_HIDE);UIDeactivate();return S_OK;}
+    if(v==OLEIVERB_SHOW||v==OLEIVERB_INPLACEACTIVATE||v==OLEIVERB_PRIMARY||v==OLEIVERB_UIACTIVATE)return activate(p,r,v==OLEIVERB_UIACTIVATE);
+    return OLEOBJ_E_NOVERBS;
+}
+HRESULT Tabs::InPlaceDeactivate(){UIDeactivate();if(oleHwnd)ShowWindow(oleHwnd,SW_HIDE);if(activated&&inPlace)inPlace->OnInPlaceDeactivate();activated=false;inPlace.reset();return S_OK;}
+HRESULT Tabs::TranslateAccelerator(LPMSG m){
+    if(!m||!session||m->message!=WM_KEYDOWN)return S_FALSE;
+    if(m->wParam==VK_LEFT||m->wParam==VK_RIGHT){auto v=session->tabViews();if(v.empty())return S_FALSE;size_t idx=0;for(size_t i=0;i<v.size();i++)if(v[i]->id==session->activeTabId())idx=i;idx=m->wParam==VK_RIGHT?(idx+1)%v.size():(idx+v.size()-1)%v.size();session->activate(v[idx]->id);return S_OK;}
+    if(m->wParam==VK_DELETE){session->close(session->activeTabId());return S_OK;}
+    if(m->wParam==VK_ESCAPE){auto v=session->find(session->activeId);if(v)SetFocus(v->hwnd);return S_OK;}
+    return S_FALSE;
+}
+unsigned long long Tabs::at(POINT p)const{for(auto& x:hit)if(PtInRect(&x.second,p))return x.first;return 0;}
+static void fill(HDC d,RECT r,COLORREF c){HBRUSH b=CreateSolidBrush(c);FillRect(d,&r,b);DeleteObject(b);}
+static void text(HDC d,std::wstring s,RECT r,COLORREF c,UINT flags=DT_SINGLELINE|DT_VCENTER|DT_END_ELLIPSIS|DT_NOPREFIX){SetTextColor(d,c);DrawTextW(d,s.c_str(),(int)s.size(),&r,flags);}
+static Gdiplus::Color color(COLORREF c){return Gdiplus::Color(255,GetRValue(c),GetGValue(c),GetBValue(c));}
+static void rounded(HDC d,RECT r,int diameter,COLORREF bg,COLORREF border,bool outline=false){
+    using namespace Gdiplus;
+    if(r.right<=r.left||r.bottom<=r.top)return;
+    Graphics g(d);g.SetSmoothingMode(SmoothingModeAntiAlias);GraphicsPath path;
+    REAL x=(REAL)r.left+.5f,y=(REAL)r.top+.5f,w=(REAL)(r.right-r.left)-1.f,h=(REAL)(r.bottom-r.top)-1.f,a=(REAL)std::min<LONG>(diameter,std::min(r.right-r.left-1,r.bottom-r.top-1));
+    if(a<=0){fill(d,r,bg);return;}
+    path.AddArc(x,y,a,a,180,90);path.AddArc(x+w-a,y,a,a,270,90);path.AddArc(x+w-a,y+h-a,a,a,0,90);path.AddArc(x,y+h-a,a,a,90,90);path.CloseFigure();
+    SolidBrush brush(color(bg));g.FillPath(&brush,&path);if(outline){Pen pen(color(border),1.f);g.DrawPath(&pen,&path);}
+}
+void Tabs::paint(HDC target,RECT rc){
+    int width=rc.right-rc.left,height=rc.bottom-rc.top;if(width<=0||height<=0)return;
+    HDC d=CreateCompatibleDC(target);HBITMAP bmp=CreateCompatibleBitmap(target,width,height);auto oldBmp=SelectObject(d,bmp);
+    bool dark=session&&session->settings.dark;bool contrast=false;HIGHCONTRASTW hc{sizeof(hc)};if(SystemParametersInfoW(SPI_GETHIGHCONTRAST,sizeof(hc),&hc,0))contrast=(hc.dwFlags&HCF_HIGHCONTRASTON)!=0;
+    COLORREF bg=dark?RGB(39,39,39):RGB(255,255,255),fg=dark?RGB(235,235,235):RGB(50,50,50),selected=dark?RGB(58,58,58):RGB(237,237,237),accent=dark?RGB(112,166,242):RGB(35,91,180);
+    if(session&&session->host==Host::Excel)accent=dark?RGB(91,190,137):RGB(16,124,65);
+    if(session&&session->host==Host::PowerPoint)accent=dark?RGB(240,141,107):RGB(196,59,28);
+    if(contrast){bg=GetSysColor(COLOR_WINDOW);fg=GetSysColor(COLOR_WINDOWTEXT);selected=GetSysColor(COLOR_HIGHLIGHT);accent=GetSysColor(COLOR_HIGHLIGHTTEXT);}
+    int scale=dpi(hwnd),pad=MulDiv(8,scale,96),button=MulDiv(30,scale,96),tabH=height;
+    RECT local{0,0,width,height};fill(d,local,contrast?bg:(dark?RGB(30,30,30):RGB(237,235,233)));SetBkMode(d,TRANSPARENT);
+    int panelInset=MulDiv(8,scale,96),panelRadius=MulDiv(16,scale,96);
+    RECT panel{panelInset,MulDiv(1,scale,96),width-panelInset,height-MulDiv(1,scale,96)};
+    RECT shadow=panel;shadow.top+=MulDiv(1,scale,96);shadow.bottom+=MulDiv(1,scale,96);
+    rounded(d,shadow,panelRadius,dark?RGB(24,24,24):RGB(218,216,214),bg);
+    rounded(d,panel,panelRadius,bg,bg);
+    LOGFONTW lf{};lf.lfHeight=-MulDiv(12,scale,96);wcscpy_s(lf.lfFaceName,L"Microsoft YaHei UI");HFONT font=CreateFontIndirectW(&lf);auto oldFont=SelectObject(d,font);
+    hit.clear();int nextButton=panelInset+pad;
+    int available=std::max(0,width-panelInset-3*button-pad);
+    if(session){
+        auto views=session->tabViews();int tabW=std::min(MulDiv(120,scale,96),std::max(MulDiv(90,scale,96),available/(int)std::max<size_t>(1,std::min<size_t>(views.size(),8))));
+        int slots=std::max(1,available/std::max(1,tabW));offset=std::clamp(offset,0,std::max(0,(int)views.size()-slots));
+        int x=panelInset+pad;
+        for(int i=offset;i<(int)views.size()&&x<available;i++){
+            auto& v=views[i];RECT r{x,MulDiv(3,scale,96),std::min(available,x+tabW-MulDiv(3,scale,96)),tabH-MulDiv(3,scale,96)};if(r.right-r.left<40)break;
+            bool active=v->id==session->activeTabId();
+            COLORREF tabColor=active?selected:(v->id==hover?(dark?RGB(49,49,49):RGB(238,238,238)):bg);
+            rounded(d,r,MulDiv(16,scale,96),tabColor,dark?RGB(78,78,78):RGB(224,224,224),active);
+            if(active){int thick=std::max(2,MulDiv(2,scale,96));RECT line{r.left+pad,r.bottom-thick-MulDiv(1,scale,96),r.right-pad,r.bottom-MulDiv(1,scale,96)};HBRUSH b=CreateSolidBrush(accent);auto ob=SelectObject(d,b);auto op=SelectObject(d,GetStockObject(NULL_PEN));RoundRect(d,line.left,line.top,line.right,line.bottom,thick,thick);SelectObject(d,ob);SelectObject(d,op);DeleteObject(b);}
+            RECT label{r.left+pad,r.top,r.right-button,r.bottom-MulDiv(2,scale,96)};std::wstring title=std::wstring(v->locked?L"● ":L"")+(v->saved?L"":L"* ")+v->title;
+            text(d,title,label,contrast&&active?GetSysColor(COLOR_HIGHLIGHTTEXT):fg);
+            RECT closer{r.right-button,r.top,r.right,r.bottom};text(d,v->locked?L"●":L"×",closer,fg,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            hit.push_back({v->id,r});x+=tabW;
+        }
+        nextButton=x;
+    }
+    nextButton=std::min(nextButton,std::max(0,width-3*button));
+    addRect={nextButton,0,nextButton+button,tabH-MulDiv(2,scale,96)};listRect={nextButton+button,0,nextButton+2*button,tabH-MulDiv(2,scale,96)};settingsRect={nextButton+2*button,0,nextButton+3*button,tabH-MulDiv(2,scale,96)};
+    auto icon=[&](RECT r,int kind){
+        POINT cursor{};GetCursorPos(&cursor);ScreenToClient(hwnd,&cursor);
+        if(PtInRect(&r,cursor)){RECT hoverRect{r.left+2,r.top+MulDiv(3,scale,96),r.right-2,r.bottom-MulDiv(3,scale,96)};rounded(d,hoverRect,MulDiv(10,scale,96),dark?RGB(65,65,65):RGB(240,240,240),bg);}
+        using namespace Gdiplus;Graphics g(d);g.SetSmoothingMode(SmoothingModeAntiAlias);
+        REAL cx=(REAL)(r.left+r.right)/2,cy=(REAL)(r.top+r.bottom)/2,arm=(REAL)MulDiv(5,scale,96),stroke=(REAL)scale/96*1.5f;
+        Pen pen(color(fg),stroke);pen.SetStartCap(LineCapRound);pen.SetEndCap(LineCapRound);pen.SetLineJoin(LineJoinRound);
+        if(kind==0){g.DrawLine(&pen,cx-arm,cy,cx+arm,cy);g.DrawLine(&pen,cx,cy-arm,cx,cy+arm);}
+        else if(kind==1){PointF points[]{{cx-arm,cy-arm/2},{cx,cy+arm/2},{cx+arm,cy-arm/2}};g.DrawLines(&pen,points,3);}
+        else{SolidBrush brush(color(fg));REAL dot=(REAL)scale/96*2.5f;for(int i=-1;i<=1;i++)g.FillEllipse(&brush,cx+i*MulDiv(5,scale,96)-dot/2,cy-dot/2,dot,dot);}
+    };icon(addRect,0);icon(listRect,1);icon(settingsRect,2);
+    if(dragging){RECT marker{down.x-1,3,down.x+2,tabH-3};fill(d,marker,accent);}
+    BitBlt(target,rc.left,rc.top,width,height,d,0,0,SRCCOPY);SelectObject(d,oldFont);DeleteObject(font);SelectObject(d,oldBmp);DeleteObject(bmp);DeleteDC(d);
+}
+void Tabs::click(UINT msg,WPARAM,LPARAM lp){
+    if(!session)return;
+    POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};auto id=at(p);
+    if(msg==WM_MOUSEMOVE){if(hover!=id){hover=id;InvalidateRect(hwnd,nullptr,FALSE);}
+        if(pressed&&GetCapture()==hwnd&&(abs(p.x-down.x)>GetSystemMetrics(SM_CXDRAG)||abs(p.y-down.y)>GetSystemMetrics(SM_CYDRAG))&&!pressedClose){dragging=true;down=p;InvalidateRect(hwnd,nullptr,FALSE);}return;}
+    if(msg==WM_LBUTTONDOWN){pressed=id;down=p;pressedClose=false;for(auto& x:hit)if(x.first==id)pressedClose=p.x>=x.second.right-MulDiv(32,dpi(hwnd),96);if(id)SetCapture(hwnd);return;}
+    if(msg==WM_LBUTTONUP){auto was=pressed;bool moved=dragging,closeHit=pressedClose;pressed=0;dragging=false;if(GetCapture()==hwnd)ReleaseCapture();
+        if(moved&&id&&was&&id!=was)session->reorder(was,id);
+        else if(id&&id==was){if(closeHit)session->close(id);else session->activate(id);}
+        else if(!was&&PtInRect(&addRect,p))session->create();
+        else if(!was&&PtInRect(&settingsRect,p)){ClientToScreen(hwnd,&p);session->options(hwnd,p);}
+        else if(!was&&PtInRect(&listRect,p)){HMENU m=CreatePopupMenu();UINT n=1;std::vector<unsigned long long> ids;for(auto& v:session->tabViews()){AppendMenuW(m,MF_STRING|(v->id==session->activeTabId()?MF_CHECKED:0),n++,(v->title+(v->saved?L"":L" *")).c_str());ids.push_back(v->id);}ClientToScreen(hwnd,&p);UINT choice=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,hwnd,nullptr);DestroyMenu(m);if(choice&&choice<=ids.size())session->activate(ids[choice-1]);}InvalidateRect(hwnd,nullptr,FALSE);return;}
+    if(msg==WM_MBUTTONUP&&id){session->close(id);return;}
+    if(msg==WM_LBUTTONDBLCLK){if(id&&session->settings.doubleClose)session->close(id);else if(!id&&!PtInRect(&addRect,p)&&!PtInRect(&listRect,p)&&!PtInRect(&settingsRect,p))session->create();return;}
+    if(msg==WM_RBUTTONUP){ClientToScreen(hwnd,&p);if(id)session->menu(hwnd,id,p);else session->options(hwnd,p);}
+}
+LRESULT CALLBACK Tabs::proc(HWND w,UINT m,WPARAM a,LPARAM b){
+    auto self=(Tabs*)GetWindowLongPtrW(w,GWLP_USERDATA);
+    if(m==WM_NCCREATE){self=(Tabs*)((CREATESTRUCTW*)b)->lpCreateParams;SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)self);}
+    if(!self)return DefWindowProcW(w,m,a,b);
+    Ptr<Tabs> alive(self);
+    try{
+        if(m==WM_PAINT){PAINTSTRUCT ps;HDC d=BeginPaint(w,&ps);if(!self->hwnd||w==self->hwnd){RECT rc;GetClientRect(w,&rc);self->paint(d,rc);}EndPaint(w,&ps);return 0;}
+        if(m==WM_ERASEBKGND)return 1;
+        if(m==WM_SIZE||m==WM_DPICHANGED_AFTERPARENT){InvalidateRect(w,nullptr,FALSE);return 0;}
+        if(m==WM_MOUSEWHEEL){self->offset=std::max(0,self->offset+(GET_WHEEL_DELTA_WPARAM(a)>0?-1:1));InvalidateRect(w,nullptr,FALSE);return 0;}
+        if(m==WM_MOUSEMOVE||m==WM_LBUTTONDOWN||m==WM_LBUTTONUP||m==WM_MBUTTONUP||m==WM_RBUTTONUP||m==WM_LBUTTONDBLCLK){self->click(m,a,b);return 0;}
+        if(m==WM_KEYDOWN){MSG msg{w,m,a,b};if(self->TranslateAccelerator(&msg)==S_OK)return 0;}
+        if(m==WM_CAPTURECHANGED){self->pressed=0;self->dragging=false;}
+        if(m==WM_NOTIFY&&((NMHDR*)b)->code==TTN_GETDISPINFOW){auto info=(NMTTDISPINFOW*)b;POINT p;GetCursorPos(&p);ScreenToClient(w,&p);auto v=self->session?self->session->find(self->at(p)):nullptr;self->hint=v?(v->path.empty()?v->title:v->path):L"openOfficetab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作";info->lpszText=self->hint.data();return 0;}
+        if(m==WM_NCDESTROY){if(self->hwnd==w)self->hwnd=nullptr;if(self->oleHwnd==w)self->oleHwnd=nullptr;SetWindowLongPtrW(w,GWLP_USERDATA,0);}
+    }catch(const ComError& e){if(self->session)self->session->report(e);}catch(...){log(L"control.exception",E_FAIL);}
+    return DefWindowProcW(w,m,a,b);
+}
