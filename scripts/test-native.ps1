@@ -14,6 +14,10 @@ cd /d "$testBuild"
 cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT "$taskRoot\tests\layout-test.cpp" /Fe:"$testBuild\layout-test.exe"
 if errorlevel 1 exit /b 1
 "$testBuild\layout-test.exe"
+if errorlevel 1 exit /b 1
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\appearance-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" /Fe:"$testBuild\appearance-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+if errorlevel 1 exit /b 1
+"$testBuild\appearance-test.exe"
 "@
 $batchPath=Join-Path $testBuild 'test.cmd'
 [IO.File]::WriteAllText($batchPath,$batch,[Text.UTF8Encoding]::new($false))

@@ -81,10 +81,22 @@ HRESULT Tabs::TranslateAccelerator(LPMSG m){
     if(!m||!session||m->message!=WM_KEYDOWN)return S_FALSE;
     if(m->wParam==VK_LEFT||m->wParam==VK_RIGHT){auto v=session->tabViews(hostWindow);if(v.empty())return S_FALSE;size_t idx=0;for(size_t i=0;i<v.size();i++)if(v[i]->id==session->activeTabId(hostWindow))idx=i;idx=m->wParam==VK_RIGHT?(idx+1)%v.size():(idx+v.size()-1)%v.size();session->activate(v[idx]->id);return S_OK;}
     if(m->wParam==VK_DELETE){session->close(session->activeTabId(hostWindow));return S_OK;}
-    if(m->wParam==VK_ESCAPE){pressed=0;dragging=false;if(GetCapture()==hwnd)ReleaseCapture();auto v=session->find(session->activeId);if(v)SetFocus(v->hwnd);return S_OK;}
+    if(m->wParam==VK_ESCAPE){finishResize(true);pressed=0;dragging=false;if(GetCapture()==hwnd)ReleaseCapture();auto v=session->find(session->activeId);if(v)SetFocus(v->hwnd);return S_OK;}
     return S_FALSE;
 }
 unsigned long long Tabs::at(POINT p)const{for(auto& x:hit)if(PtInRect(&x.second,p))return x.first;return 0;}
+unsigned long long Tabs::edgeAt(POINT p)const{
+    int grip=std::max(3,MulDiv(4,dpi(hwnd),96));
+    for(auto& x:hit){RECT r{x.second.right-grip,x.second.top,x.second.right+grip,x.second.bottom};if(PtInRect(&r,p))return x.first;}
+    return 0;
+}
+void Tabs::finishResize(bool cancel){
+    auto id=resizing;resizing=0;
+    if(cancel&&session){auto v=session->find(id);if(v){v->manualTabWidth=resizeOriginalWidth;session->redraw();}}
+    if(id&&hwnd&&GetCapture()==hwnd)ReleaseCapture();
+    if(id&&hwnd&&GetFocus()==hwnd&&IsWindow(resizePreviousFocus))SetFocus(resizePreviousFocus);
+    if(id)resizePreviousFocus=nullptr;
+}
 static void fill(HDC d,RECT r,COLORREF c){HBRUSH b=CreateSolidBrush(c);FillRect(d,&r,b);DeleteObject(b);}
 static void text(HDC d,std::wstring s,RECT r,COLORREF c,UINT flags=DT_SINGLELINE|DT_VCENTER|DT_END_ELLIPSIS|DT_NOPREFIX){SetTextColor(d,c);DrawTextW(d,s.c_str(),(int)s.size(),&r,flags);}
 static Gdiplus::Color color(COLORREF c){return Gdiplus::Color(255,GetRValue(c),GetGValue(c),GetBValue(c));}
@@ -97,28 +109,49 @@ static void rounded(HDC d,RECT r,int diameter,COLORREF bg,COLORREF border,bool o
     path.AddArc(x,y,a,a,180,90);path.AddArc(x+w-a,y,a,a,270,90);path.AddArc(x+w-a,y+h-a,a,a,0,90);path.AddArc(x,y+h-a,a,a,90,90);path.CloseFigure();
     SolidBrush brush(color(bg));g.FillPath(&brush,&path);if(outline){Pen pen(color(border),1.f);g.DrawPath(&pen,&path);}
 }
+static void openTab(HDC d,RECT r,int radius,COLORREF bg,COLORREF border,bool towardTop){
+    using namespace Gdiplus;
+    Graphics g(d);g.SetSmoothingMode(SmoothingModeAntiAlias);
+    if(towardTop){g.TranslateTransform(0.f,(REAL)(r.top+r.bottom));g.ScaleTransform(1.f,-1.f);}
+    REAL x=(REAL)r.left+.5f,y=(REAL)r.top+.5f,w=(REAL)(r.right-r.left)-1.f,h=(REAL)(r.bottom-r.top),a=(REAL)std::max(1,std::min(radius,(int)(r.bottom-r.top)/2));
+    GraphicsPath path;
+    path.AddBezier(x-a,y+h,x,y+h,x,y+h,x,y+h-a);
+    path.AddLine(x,y+h-a,x,y+a);path.AddArc(x,y,a*2,a*2,180,90);
+    path.AddLine(x+a,y,x+w-a,y);path.AddArc(x+w-a*2,y,a*2,a*2,270,90);
+    path.AddLine(x+w,y+a,x+w,y+h-a);path.AddBezier(x+w,y+h-a,x+w,y+h,x+w,y+h,x+w+a,y+h);
+    SolidBrush brush(color(bg));g.FillPath(&brush,&path);
+    // Fill closes the outline; DrawPath intentionally leaves the content edge open.
+    Pen pen(color(border),1.f);g.DrawPath(&pen,&path);
+}
 void Tabs::paint(HDC target,RECT rc){
     int width=rc.right-rc.left,height=rc.bottom-rc.top;if(width<=0||height<=0)return;
     HDC d=CreateCompatibleDC(target);HBITMAP bmp=CreateCompatibleBitmap(target,width,height);auto oldBmp=SelectObject(d,bmp);
     bool dark=session&&session->settings.dark;bool contrast=false;HIGHCONTRASTW hc{sizeof(hc)};if(SystemParametersInfoW(SPI_GETHIGHCONTRAST,sizeof(hc),&hc,0))contrast=(hc.dwFlags&HCF_HIGHCONTRASTON)!=0;
-    COLORREF bg=dark?RGB(39,39,39):RGB(255,255,255),fg=dark?RGB(235,235,235):RGB(50,50,50),selected=dark?RGB(58,58,58):RGB(237,237,237),accent=dark?RGB(112,166,242):RGB(35,91,180);
+    bool blended=session&&session->settings.barStyle==1,towardTop=session&&session->settings.position==3;
+    COLORREF bg=blended?(dark?RGB(50,50,50):RGB(237,237,237)):(dark?RGB(39,39,39):RGB(255,255,255));
+    COLORREF fg=dark?RGB(235,235,235):RGB(50,50,50),selected=blended?(dark?RGB(38,38,38):RGB(255,255,255)):(dark?RGB(58,58,58):RGB(237,237,237)),accent=dark?RGB(112,166,242):RGB(35,91,180);
+    COLORREF border=dark?RGB(80,80,80):RGB(213,213,213);
     if(session&&session->host==Host::Excel)accent=dark?RGB(91,190,137):RGB(16,124,65);
     if(session&&session->host==Host::PowerPoint)accent=dark?RGB(240,141,107):RGB(196,59,28);
-    if(contrast){bg=GetSysColor(COLOR_WINDOW);fg=GetSysColor(COLOR_WINDOWTEXT);selected=GetSysColor(COLOR_HIGHLIGHT);accent=GetSysColor(COLOR_HIGHLIGHTTEXT);}
+    if(contrast){bg=GetSysColor(COLOR_WINDOW);fg=GetSysColor(COLOR_WINDOWTEXT);selected=GetSysColor(COLOR_HIGHLIGHT);accent=GetSysColor(COLOR_HIGHLIGHTTEXT);border=fg;}
     int scale=dpi(hwnd),pad=MulDiv(8,scale,96),button=MulDiv(30,scale,96),tabH=height;
-    RECT local{0,0,width,height};fill(d,local,contrast?bg:(dark?RGB(30,30,30):RGB(237,235,233)));SetBkMode(d,TRANSPARENT);
+    RECT local{0,0,width,height};fill(d,local,blended?bg:(contrast?bg:(dark?RGB(30,30,30):RGB(237,235,233))));SetBkMode(d,TRANSPARENT);
     int panelInset=MulDiv(8,scale,96),panelRadius=MulDiv(16,scale,96);
     RECT panel{panelInset,MulDiv(1,scale,96),width-panelInset,height-MulDiv(1,scale,96)};
-    RECT shadow=panel;shadow.top+=MulDiv(1,scale,96);shadow.bottom+=MulDiv(1,scale,96);
-    rounded(d,shadow,panelRadius,dark?RGB(24,24,24):RGB(218,216,214),bg);
-    rounded(d,panel,panelRadius,bg,bg);
+    if(!blended){
+        RECT shadow=panel;shadow.top+=MulDiv(1,scale,96);shadow.bottom+=MulDiv(1,scale,96);
+        rounded(d,shadow,panelRadius,dark?RGB(24,24,24):RGB(218,216,214),bg);
+        rounded(d,panel,panelRadius,bg,bg);
+    }else{
+        RECT baseline{panel.left,towardTop?0:height-1,panel.right,towardTop?1:height};fill(d,baseline,border);
+    }
     LOGFONTW lf{};lf.lfHeight=-MulDiv(12,scale,96);wcscpy_s(lf.lfFaceName,L"Microsoft YaHei UI");HFONT font=CreateFontIndirectW(&lf);auto oldFont=SelectObject(d,font);
     hit.clear();int nextButton=panelInset+pad;
     int contentLeft=panelInset+pad,contentRight=std::max<int>(contentLeft,panel.right-pad-3*button);
     int available=contentRight-contentLeft;
     if(session){
         auto views=session->tabViews(hostWindow);auto selectedId=session->activeTabId(hostWindow);
-        std::vector<int> widths;for(auto& v:views){SIZE textSize{};GetTextExtentPoint32W(d,v->title.c_str(),(int)v->title.size(),&textSize);widths.push_back(MulDiv(tablayout::preferred(session->settings.tabWidth,session->settings.widthMode,MulDiv(textSize.cx,96,scale),MulDiv(available,96,scale),(int)views.size()),scale,96));}
+        std::vector<int> widths;for(auto& v:views){SIZE textSize{};GetTextExtentPoint32W(d,v->title.c_str(),(int)v->title.size(),&textSize);int preferred=v->manualTabWidth?v->manualTabWidth:tablayout::preferred(session->settings.tabWidth,session->settings.widthMode,MulDiv(textSize.cx,96,scale),MulDiv(available,96,scale),(int)views.size());widths.push_back(MulDiv(preferred,scale,96));}
         offset=std::clamp(offset,0,std::max(0,(int)views.size()-1));
         if(lastSelected!=selectedId){lastSelected=selectedId;for(int i=0;i<(int)views.size();i++)if(views[i]->id==selectedId){if(i<offset)offset=i;int total=0;for(int j=offset;j<=i;j++)total+=widths[j];while(total>available&&offset<i)total-=widths[offset++];break;}}
         int x=contentLeft;
@@ -126,12 +159,16 @@ void Tabs::paint(HDC target,RECT rc){
             int tabW=widths[i];if(contentRight-x<MulDiv(tablayout::minWidth,scale,96))break;
             auto& v=views[i];RECT r{x,MulDiv(3,scale,96),std::min(contentRight,x+tabW-MulDiv(3,scale,96)),tabH-MulDiv(3,scale,96)};
             bool active=v->id==selectedId;
+            if(blended&&active){if(towardTop)r.top=0;else r.bottom=tabH;}
             COLORREF tabColor=active?selected:(v->id==hover?(dark?RGB(49,49,49):RGB(238,238,238)):bg);
-            rounded(d,r,MulDiv(16,scale,96),tabColor,dark?RGB(78,78,78):RGB(224,224,224),active);
-            if(active){int thick=std::max(2,MulDiv(2,scale,96));RECT line{r.left+pad,r.bottom-thick-MulDiv(1,scale,96),r.right-pad,r.bottom-MulDiv(1,scale,96)};HBRUSH b=CreateSolidBrush(accent);auto ob=SelectObject(d,b);auto op=SelectObject(d,GetStockObject(NULL_PEN));RoundRect(d,line.left,line.top,line.right,line.bottom,thick,thick);SelectObject(d,ob);SelectObject(d,op);DeleteObject(b);}
+            if(blended&&active)openTab(d,r,MulDiv(8,scale,96),tabColor,border,towardTop);
+            else rounded(d,r,MulDiv(16,scale,96),tabColor,border,active);
+            if(active&&session->settings.accentPosition!=2){int thick=std::max(2,MulDiv(2,scale,96));int y=session->settings.accentPosition==1?r.top+MulDiv(1,scale,96):r.bottom-thick-MulDiv(1,scale,96);RECT line{r.left+pad,y,r.right-pad,y+thick};HBRUSH b=CreateSolidBrush(accent);auto ob=SelectObject(d,b);auto op=SelectObject(d,GetStockObject(NULL_PEN));RoundRect(d,line.left,line.top,line.right,line.bottom,thick,thick);SelectObject(d,ob);SelectObject(d,op);DeleteObject(b);}
             RECT label{r.left+pad,r.top,r.right-button,r.bottom-MulDiv(2,scale,96)};std::wstring title=std::wstring(v->locked?L"● ":L"")+(v->saved?L"":L"* ")+v->title;
             text(d,title,label,contrast&&active?GetSysColor(COLOR_HIGHLIGHTTEXT):fg);
-            RECT closer{r.right-button,r.top,r.right,r.bottom};text(d,v->locked?L"●":L"×",closer,fg,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            RECT closer{r.right-button,r.top,r.right-MulDiv(4,scale,96),r.bottom};text(d,v->locked?L"●":L"×",closer,contrast&&active?GetSysColor(COLOR_HIGHLIGHTTEXT):fg,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            POINT cursor{};GetCursorPos(&cursor);ScreenToClient(hwnd,&cursor);
+            if(v->id==resizing||(cursor.x>=r.right-MulDiv(4,scale,96)&&cursor.x<=r.right+MulDiv(4,scale,96)&&cursor.y>=r.top&&cursor.y<r.bottom)){RECT grip{r.right-std::max(1,MulDiv(1,scale,96)),r.top+pad,r.right+std::max(1,MulDiv(1,scale,96)),r.bottom-pad};fill(d,grip,accent);}
             hit.push_back({v->id,r});x=std::min(contentRight,x+tabW);
         }
         nextButton=x;
@@ -155,6 +192,12 @@ void Tabs::click(UINT msg,WPARAM,LPARAM lp){
     if(!session)return;
     auto s=session->shared_from_this();HWND display=hwnd;
     POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};auto id=at(p);
+    if(msg==WM_MOUSEMOVE&&resizing){
+        auto v=s->find(resizing);if(v){v->manualTabWidth=tablayout::resized(resizeStartWidth,p.x-down.x,dpi(hwnd));s->redraw();}else finishResize(false);
+        SetCursor(LoadCursorW(nullptr,IDC_SIZEWE));return;
+    }
+    if(msg==WM_LBUTTONDOWN){auto edge=edgeAt(p);if(edge){auto v=s->find(edge);if(v){resizing=edge;resizeOriginalWidth=v->manualTabWidth;for(auto& x:hit)if(x.first==edge)resizeStartWidth=std::clamp(MulDiv(x.second.right-x.second.left+MulDiv(3,dpi(hwnd),96),96,dpi(hwnd)),tablayout::minWidth,tablayout::maxWidth);down=p;pressed=0;dragging=false;resizePreviousFocus=GetFocus();if(hwnd)SetFocus(hwnd);SetCapture(hwnd);SetCursor(LoadCursorW(nullptr,IDC_SIZEWE));}return;}}
+    if(msg==WM_LBUTTONUP&&resizing){finishResize(false);if(IsWindow(display))InvalidateRect(display,nullptr,FALSE);return;}
     if(msg==WM_MOUSEMOVE){if(hover!=id){hover=id;InvalidateRect(hwnd,nullptr,FALSE);}
         if(pressed&&GetCapture()==hwnd&&(abs(p.x-down.x)>GetSystemMetrics(SM_CXDRAG)||abs(p.y-down.y)>GetSystemMetrics(SM_CYDRAG))&&!pressedClose){dragging=true;down=p;InvalidateRect(hwnd,nullptr,FALSE);}return;}
     if(msg==WM_LBUTTONDOWN){pressed=id;down=p;pressedClose=false;for(auto& x:hit)if(x.first==id)pressedClose=p.x>=x.second.right-MulDiv(32,dpi(hwnd),96);if(id)SetCapture(hwnd);return;}
@@ -165,7 +208,7 @@ void Tabs::click(UINT msg,WPARAM,LPARAM lp){
         else if(!was&&PtInRect(&settingsRect,p)){ClientToScreen(display,&p);s->options(display,p);}
         else if(!was&&PtInRect(&listRect,p)){HMENU m=CreatePopupMenu();UINT n=1;std::vector<unsigned long long> ids;for(auto& v:s->tabViews(hostWindow)){AppendMenuW(m,MF_STRING|(v->id==s->activeTabId(hostWindow)?MF_CHECKED:0),n++,(v->title+(v->saved?L"":L" *")).c_str());ids.push_back(v->id);}ClientToScreen(display,&p);UINT choice=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,display,nullptr);DestroyMenu(m);if(choice&&choice<=ids.size())s->activate(ids[choice-1]);}if(IsWindow(display))InvalidateRect(display,nullptr,FALSE);return;}
     if(msg==WM_MBUTTONUP&&id){s->close(id);return;}
-    if(msg==WM_LBUTTONDBLCLK){if(id&&s->settings.doubleClose)s->close(id);else if(!id&&!PtInRect(&addRect,p)&&!PtInRect(&listRect,p)&&!PtInRect(&settingsRect,p))s->create(false,hostWindow);return;}
+    if(msg==WM_LBUTTONDBLCLK){if(edgeAt(p))return;if(id&&s->settings.doubleClose)s->close(id);else if(!id&&!PtInRect(&addRect,p)&&!PtInRect(&listRect,p)&&!PtInRect(&settingsRect,p))s->create(false,hostWindow);return;}
     if(msg==WM_RBUTTONUP){ClientToScreen(display,&p);if(id)s->menu(display,id,p);else s->options(display,p);}
 }
 LRESULT CALLBACK Tabs::proc(HWND w,UINT m,WPARAM a,LPARAM b){
@@ -180,7 +223,9 @@ LRESULT CALLBACK Tabs::proc(HWND w,UINT m,WPARAM a,LPARAM b){
         if(m==WM_MOUSEWHEEL){self->offset=std::max(0,self->offset+(GET_WHEEL_DELTA_WPARAM(a)>0?-1:1));InvalidateRect(w,nullptr,FALSE);return 0;}
         if(m==WM_MOUSEMOVE||m==WM_LBUTTONDOWN||m==WM_LBUTTONUP||m==WM_MBUTTONUP||m==WM_RBUTTONUP||m==WM_LBUTTONDBLCLK){self->click(m,a,b);return 0;}
         if(m==WM_KEYDOWN){MSG msg{w,m,a,b};if(self->TranslateAccelerator(&msg)==S_OK)return 0;}
-        if(m==WM_CAPTURECHANGED){self->pressed=0;self->dragging=false;}
+        if(m==WM_SETCURSOR&&LOWORD(b)==HTCLIENT){POINT p{};GetCursorPos(&p);ScreenToClient(w,&p);if(self->resizing||self->edgeAt(p)){SetCursor(LoadCursorW(nullptr,IDC_SIZEWE));return TRUE;}}
+        if(m==WM_CAPTURECHANGED){self->finishResize(true);self->pressed=0;self->dragging=false;}
+        if(m==WM_CANCELMODE){self->finishResize(true);self->pressed=0;self->dragging=false;if(GetCapture()==w)ReleaseCapture();return 0;}
         if(m==WM_NOTIFY&&((NMHDR*)b)->code==TTN_GETDISPINFOW){auto info=(NMTTDISPINFOW*)b;POINT p;GetCursorPos(&p);ScreenToClient(w,&p);auto v=self->session?self->session->find(self->at(p)):nullptr;self->hint=v?(v->path.empty()?v->title:v->path):L"openOfficetab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作";info->lpszText=self->hint.data();return 0;}
         if(m==WM_NCDESTROY){if(self->hwnd==w)self->hwnd=nullptr;if(self->oleHwnd==w)self->oleHwnd=nullptr;SetWindowLongPtrW(w,GWLP_USERDATA,0);}
     }catch(const ComError& e){if(self->session)self->session->report(e);}catch(...){log(L"control.exception",E_FAIL);}

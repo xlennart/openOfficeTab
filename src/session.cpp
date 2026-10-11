@@ -71,11 +71,16 @@ void Settings::load(){
     tabWidth=GetPrivateProfileIntW(L"openOfficetab",L"tabWidth",120,p.c_str());
     widthMode=GetPrivateProfileIntW(L"openOfficetab",L"widthMode",2,p.c_str());
     if(!tablayout::validWidth(tabWidth,widthMode)){tabWidth=120;widthMode=2;}
+    accentPosition=GetPrivateProfileIntW(L"openOfficetab",L"accentPosition",1,p.c_str());
+    barStyle=GetPrivateProfileIntW(L"openOfficetab",L"barStyle",1,p.c_str());
+    if(accentPosition<0||accentPosition>2)accentPosition=1;
+    if(barStyle<0||barStyle>1)barStyle=1;
 }
 void Settings::save()const{
     std::wstring file=dataDir()+L"\\settings.ini",temp=file+L"."+std::to_wstring(GetCurrentProcessId())+L".tmp";
-    std::wstring content=L"[openOfficetab]\r\nschemaVersion=1\r\nstyle=browser\r\nvisible="+std::to_wstring(visible)+L"\r\ngroup="+std::to_wstring(group)+L"\r\ndark="+std::to_wstring(dark)+L"\r\nautoHide="+std::to_wstring(autoHide)+L"\r\ndoubleClose="+std::to_wstring(doubleClose)+L"\r\nposition="+std::to_wstring(position)+L"\r\n";
+    std::wstring content=L"[openOfficetab]\r\nschemaVersion=1\r\nstyle="+std::wstring(barStyle==1?L"open":L"browser")+L"\r\nvisible="+std::to_wstring(visible)+L"\r\ngroup="+std::to_wstring(group)+L"\r\ndark="+std::to_wstring(dark)+L"\r\nautoHide="+std::to_wstring(autoHide)+L"\r\ndoubleClose="+std::to_wstring(doubleClose)+L"\r\nposition="+std::to_wstring(position)+L"\r\n";
     content+=L"tabWidth="+std::to_wstring(tabWidth)+L"\r\nwidthMode="+std::to_wstring(widthMode)+L"\r\n";
+    content+=L"accentPosition="+std::to_wstring(accentPosition)+L"\r\nbarStyle="+std::to_wstring(barStyle)+L"\r\n";
     HANDLE h=CreateFileW(temp.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(h==INVALID_HANDLE_VALUE){log(L"settings.write.failed",HRESULT_FROM_WIN32(GetLastError()));return;}
     WORD bom=0xfeff;DWORD n;WriteFile(h,&bom,2,&n,nullptr);WriteFile(h,content.data(),(DWORD)(content.size()*2),&n,nullptr);FlushFileBuffers(h);CloseHandle(h);
@@ -414,8 +419,8 @@ bool Session::recover(){
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.1.2\",\"host\":"+json(hostName(host))+L",\"style\":\"browser\",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
-    for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
+    std::wstring r=L"{\"version\":\"0.1.3\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
         if(i)r+=L",";auto& p=panes[i];HWND h=p.control?p.control->NativeWindow():nullptr;RECT rc{};if(h)GetWindowRect(h,&rc);
@@ -443,9 +448,19 @@ void Session::options(HWND owner,POINT pt){
     auto keep=shared_from_this();HMENU m=CreatePopupMenu();auto add=[&](UINT n,const wchar_t* t,bool check=false){AppendMenuW(m,MF_STRING|(check?MF_CHECKED:0),n,t);};
     add(1,L"显示标签栏",settings.visible);add(2,L"窗口跟随 / 单任务栏模式",settings.group);add(3,L"深色标签",settings.dark);add(4,L"单标签时自动隐藏",settings.autoHide);add(5,L"双击标签关闭",settings.doubleClose);AppendMenuW(m,MF_SEPARATOR,0,nullptr);
     add(6,L"标签置于顶部",settings.position==1);add(7,L"标签置于底部",settings.position==3);add(8,L"恢复窗口排列与任务栏");add(12,L"标签宽度…");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(13,L"加载诊断…");add(14,L"导出脱敏诊断…");add(15,L"恢复标签栏与窗口");add(16,L"新建为独立窗口");add(9,L"打开文档…");add(10,L"打开日志与设置文件夹");add(11,L"关于 openOfficetab");
+    HMENU appearance=CreatePopupMenu();
+    AppendMenuW(appearance,MF_STRING|(settings.barStyle==1?MF_CHECKED:0),23,L"融入应用背景（浅灰开口标签）");
+    AppendMenuW(appearance,MF_STRING|(settings.barStyle==0?MF_CHECKED:0),24,L"独立标签栏（白色圆角面板）");
+    AppendMenuW(appearance,MF_SEPARATOR,0,nullptr);
+    AppendMenuW(appearance,MF_STRING|(settings.accentPosition==1?MF_CHECKED:0),21,L"强调线：顶部");
+    AppendMenuW(appearance,MF_STRING|(settings.accentPosition==0?MF_CHECKED:0),20,L"强调线：底部");
+    AppendMenuW(appearance,MF_STRING|(settings.accentPosition==2?MF_CHECKED:0),22,L"强调线：无");
+    InsertMenuW(m,6,MF_BYPOSITION|MF_POPUP,(UINT_PTR)appearance,L"标签外观");
     UINT cmd=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,pt.x,pt.y,0,owner,nullptr);DestroyMenu(m);
     if(cmd==1)toggleVisible();if(cmd==2)toggleGroup();if(cmd==3){settings.dark=!settings.dark;changed();}if(cmd==4){settings.autoHide=!settings.autoHide;changed();}if(cmd==5){settings.doubleClose=!settings.doubleClose;changed();}
     if(cmd==6||cmd==7){settings.position=cmd==6?1:3;changed();}if(cmd==8){settings.group=false;restore();changed();}if(cmd==9)open();if(cmd==10)ShellExecuteW(owner,L"open",dataDir().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
     if(cmd==12)widthDialog(GetAncestor(owner,GA_ROOT));if(cmd==13)showDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==14)exportDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==15)recover();if(cmd==16)create(true,owner);
-    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.2\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
+    if(cmd>=20&&cmd<=22)setAppearance((int)cmd-20,settings.barStyle);
+    if(cmd==23||cmd==24)setAppearance(settings.accentPosition,cmd==23?1:0);
+    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.3\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
 }

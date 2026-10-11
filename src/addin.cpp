@@ -20,7 +20,7 @@ public:
     ULONG STDMETHODCALLTYPE Release()override{ULONG n=--refs;if(!n)delete this;return n;}
     DISPATCH_STUBS
     HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR* names,UINT n,LCID,DISPID* ids)override{
-        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab"};
+        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth"};
         if(!names||!ids)return E_POINTER;
         for(UINT i=0;i<n;i++){ids[i]=DISPID_UNKNOWN;for(size_t j=0;j<std::size(api);j++)if(!_wcsicmp(names[i],api[j]))ids[i]=(DISPID)j+1;if(ids[i]==DISPID_UNKNOWN)return DISP_E_UNKNOWNNAME;}return S_OK;
     }
@@ -57,6 +57,8 @@ public:
                 case 25:booleanResult(s->recover());break;
                 case 26:case 27:case 28:case 29:{auto v=s->find(s->activeId);HWND owner=v?v->hwnd:nullptr;if(id==26)s->showDiagnostics(owner);if(id==27)s->exportDiagnostics(owner);if(id==28)s->widthDialog(owner);if(id==29)s->chooseGroup(owner,s->activeId);break;}
                 case 30:{POINT point{arg(1).number(),arg(2).number()};booleanResult(s->drop((unsigned long long)arg(0).number(),point));break;}
+                case 31:booleanResult(s->setAppearance(arg(0).number(),arg(1).number()));break;
+                case 32:booleanResult(s->setViewWidth((unsigned long long)arg(0).number(),arg(1).number()));break;
                 default:return DISP_E_MEMBERNOTFOUND;
             }return S_OK;
         }catch(const ComError& e){s->report(e);return e.hr;}catch(...){log(L"addin.invoke.exception",E_FAIL);return E_FAIL;}

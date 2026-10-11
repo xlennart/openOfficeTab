@@ -20,6 +20,9 @@ class Tabs final:public IDispatch,public IOleObject,public IOleInPlaceObject,
     unsigned long long pressed=0,hover=0;
     POINT down{};
     bool dragging=false,pressedClose=false;
+    unsigned long long resizing=0;
+    int resizeStartWidth=0,resizeOriginalWidth=0;
+    HWND resizePreviousFocus=nullptr;
     int offset=0;
     unsigned long long lastSelected=0;
     HWND tooltip=nullptr;
@@ -29,6 +32,8 @@ public:
     Tabs(){objects++;Gdiplus::GdiplusStartupInput input;Gdiplus::GdiplusStartup(&graphicsToken,&input,nullptr);} ~Tabs(){destroy();if(graphicsToken)Gdiplus::GdiplusShutdown(graphicsToken);objects--;}
     void destroy();void paint(HDC dc,RECT rc);void click(UINT msg,WPARAM wp,LPARAM lp);
     unsigned long long at(POINT p)const;
+    unsigned long long edgeAt(POINT p)const;
+    void finishResize(bool cancel);
     static LRESULT CALLBACK proc(HWND,UINT,WPARAM,LPARAM);
     HRESULT activate(HWND parent,LPCRECT rc,bool focus);
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID,void**)override;

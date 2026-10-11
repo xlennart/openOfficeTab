@@ -25,6 +25,7 @@ pwsh -File scripts/package.ps1
 | `scripts/` | 构建、安装、卸载、打包和桌面上下文桥接 |
 | `installer/Setup.cs` | 按用户安装、卸载、加载诊断与修复的 WinForms 引导程序 |
 | `tests/fixtures/` | 清除个人元数据与绝对路径的空白 Office 示例 |
+| `tests/appearance-test.cpp` | 无 Office、无可见窗口的生产 GDI 绘制与标签边缘输入回归 |
 
 每个 Office 编辑窗口拥有自己的 CTP 占位与标签渲染窗口。插件只调整自有控件对应的窗格标题框；文档仍由 Office 管理。新建使用 `FileNewDefault`，Word 窗口激活事件提前初始化，周期刷新补齐遗漏事件。所有 Office COM 访问都保持在宿主 STA 内。
 

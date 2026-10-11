@@ -9,6 +9,7 @@ struct View {
     std::wstring title,path;
     bool saved=true,readOnly=false,locked=false,independent=false;
     unsigned groupId=1,lastGroupId=1;
+    int manualTabWidth=0; // DIP, current view only; 0 uses the shared width policy.
     WINDOWPLACEMENT original{sizeof(WINDOWPLACEMENT)},applied{sizeof(WINDOWPLACEMENT)};
     bool moved=false,taskbarRemoved=false;
 };
@@ -18,6 +19,7 @@ struct Settings {
     bool visible=true,group=false,dark=false,autoHide=false,doubleClose=false,shortcuts=false;
     int position=1; // msoCTPDockPositionTop
     int tabWidth=120,widthMode=2; // DIP; fixed, title, shrink
+    int accentPosition=1,barStyle=1; // 0 bottom / 1 top / 2 none; 0 panel / 1 blended
     void load();void save()const;
 };
 class EventSink;
@@ -75,6 +77,8 @@ public:
     std::wstring state()const;
     std::wstring diagnostics()const;
     bool recover();bool setTabWidth(int width,int mode);
+    bool setAppearance(int accent,int style);
+    bool setViewWidth(unsigned long long id,int width);
     void widthDialog(HWND owner);void showDiagnostics(HWND owner);void exportDiagnostics(HWND owner);
     void menu(HWND owner,unsigned long long id,POINT pt);
     void options(HWND owner,POINT pt);
