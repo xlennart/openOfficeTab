@@ -20,7 +20,7 @@ public:
     ULONG STDMETHODCALLTYPE Release()override{ULONG n=--refs;if(!n)delete this;return n;}
     DISPATCH_STUBS
     HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR* names,UINT n,LCID,DISPID* ids)override{
-        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument"};
+        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab"};
         if(!names||!ids)return E_POINTER;
         for(UINT i=0;i<n;i++){ids[i]=DISPID_UNKNOWN;for(size_t j=0;j<std::size(api);j++)if(!_wcsicmp(names[i],api[j]))ids[i]=(DISPID)j+1;if(ids[i]==DISPID_UNKNOWN)return DISP_E_UNKNOWNNAME;}return S_OK;
     }
@@ -43,12 +43,20 @@ public:
                 case 11:{auto v=s->find((unsigned long long)arg(0).number());if(v){v->locked=arg(1).boolean();s->redraw();}break;}
                 case 12:s->reorder((unsigned long long)arg(0).number(),(unsigned long long)arg(1).number());break;
                 case 13:s->saveAll();break;
-                case 14:{auto target=(unsigned long long)arg(0).number();std::vector<unsigned long long> ids;for(auto& v:s->tabViews())if(v->id!=target)ids.push_back(v->id);s->batchClose(ids);break;}
+                case 14:{auto target=(unsigned long long)arg(0).number();auto selected=s->find(target);if(!selected)break;std::vector<unsigned long long> ids;for(auto& v:s->tabViews(selected->hwnd))if(v->id!=target)ids.push_back(v->id);s->batchClose(ids);break;}
                 case 15:s->open();break;
                 case 16:s->settings.dark=arg(0).boolean();s->changed();break;
                 case 17:booleanResult(s->setIndependent((unsigned long long)arg(0).number(),arg(1).boolean()));break;
                 case 18:booleanResult(s->setIndependent(s->activeId,false));break;
                 case 19:booleanResult(s->setIndependent(s->activeId,true));break;
+                case 20:s->create(true);break;
+                case 21:booleanResult(s->newTabGroup((unsigned long long)arg(0).number()));break;
+                case 22:booleanResult(s->moveToGroup((unsigned long long)arg(0).number(),(unsigned)arg(1).number()));break;
+                case 23:booleanResult(s->setTabWidth(arg(0).number(),arg(1).number()));break;
+                case 24:if(result){result->vt=VT_BSTR;result->bstrVal=SysAllocString(s->diagnostics().c_str());}break;
+                case 25:booleanResult(s->recover());break;
+                case 26:case 27:case 28:case 29:{auto v=s->find(s->activeId);HWND owner=v?v->hwnd:nullptr;if(id==26)s->showDiagnostics(owner);if(id==27)s->exportDiagnostics(owner);if(id==28)s->widthDialog(owner);if(id==29)s->chooseGroup(owner,s->activeId);break;}
+                case 30:{POINT point{arg(1).number(),arg(2).number()};booleanResult(s->drop((unsigned long long)arg(0).number(),point));break;}
                 default:return DISP_E_MEMBERNOTFOUND;
             }return S_OK;
         }catch(const ComError& e){s->report(e);return e.hr;}catch(...){log(L"addin.invoke.exception",E_FAIL);return E_FAIL;}
@@ -65,7 +73,11 @@ public:
     HRESULT STDMETHODCALLTYPE CTPFactoryAvailable(IDispatch* f)override{pendingFactory=Ptr<IDispatch>(f);if(session)session->bindFactory(f);return S_OK;}
     HRESULT STDMETHODCALLTYPE GetCustomUI(BSTR,BSTR* xml)override{
         if(!xml)return E_POINTER;
-        const wchar_t* markup=LR"(<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui"><ribbon><tabs><tab id="ootTab" label="openOfficetab"><group id="ootDocs" label="文档标签"><button id="ootNew" label="新建文档" imageMso="FileNew" onAction="NewDocument"/><button id="ootOpen" label="打开文档" imageMso="FileOpen" onAction="OpenDocument"/><button id="ootSave" label="保存全部标签" imageMso="FileSave" onAction="SaveAll"/></group><group id="ootWindows" label="标签与窗口"><button id="ootShow" label="显示 / 隐藏标签栏" onAction="ToggleVisible"/><button id="ootGroup" label="窗口跟随模式" onAction="ToggleGroup"/><button id="ootDetach" label="独立窗口显示" onAction="DetachDocument"/><button id="ootJoin" label="加入标签组" onAction="JoinTabs"/><button id="ootRestore" label="恢复独立窗口" onAction="RestoreWindows"/></group><group id="ootOptions" label="设置"><button id="ootSettings" label="标签设置" imageMso="ControlProperties" onAction="ShowSettings"/><button id="ootRefresh" label="刷新标签" imageMso="RefreshAll" onAction="Refresh"/></group></tab></tabs></ribbon></customUI>)";
+        const wchar_t* markup=LR"(<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui"><ribbon><tabs><tab id="ootTab" label="openOfficetab">
+<group id="ootDocs" label="文档标签"><button id="ootNew" label="新建文档" imageMso="FileNew" onAction="NewDocument"/><button id="ootNewIndependent" label="新建为独立窗口" onAction="NewIndependentDocument"/><button id="ootOpen" label="打开文档" imageMso="FileOpen" onAction="OpenDocument"/><button id="ootSave" label="保存本组全部标签" imageMso="FileSave" onAction="SaveAll"/></group>
+<group id="ootWindows" label="标签与窗口"><button id="ootShow" label="显示 / 隐藏标签栏" onAction="ToggleVisible"/><button id="ootGroup" label="窗口跟随模式" onAction="ToggleGroup"/><button id="ootDetach" label="独立窗口显示" onAction="DetachDocument"/><button id="ootJoin" label="加入 / 移动到标签组" onAction="ChooseTabGroup"/><button id="ootRestore" label="恢复窗口排列" onAction="RestoreWindows"/></group>
+<group id="ootOptions" label="设置与恢复"><button id="ootWidth" label="标签宽度" onAction="ShowWidth"/><button id="ootSettings" label="标签设置" imageMso="ControlProperties" onAction="ShowSettings"/><button id="ootRefresh" label="刷新标签" imageMso="RefreshAll" onAction="Refresh"/><button id="ootDiagnose" label="加载诊断" onAction="ShowDiagnostics"/><button id="ootExport" label="导出脱敏诊断" onAction="ExportDiagnostics"/><button id="ootRecover" label="恢复标签栏与窗口" onAction="Recover"/></group>
+</tab></tabs></ribbon></customUI>)";
         *xml=SysAllocString(markup);return *xml?S_OK:E_OUTOFMEMORY;
     }
 };

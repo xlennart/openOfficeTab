@@ -13,7 +13,7 @@ foreach($architecture in 'x64','x86'){
     $dll=$null
     if(Test-Path -LiteralPath $bin){
         $dll=Get-ChildItem -LiteralPath $bin -Filter 'openOfficetab.dll' -File -Recurse |
-            Where-Object { $_.FullName.Substring($bin.Length+1) -match ('^0\.1\.[01](-[0-9a-f]{12})?\\'+$architecture+'\\openOfficetab\.dll$') } |
+            Where-Object { $_.FullName.Substring($bin.Length+1) -match ('^0\.1\.[012](-[0-9a-f]{12})?\\'+$architecture+'\\openOfficetab\.dll$') } |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
     }
     if($dll){

@@ -1,4 +1,5 @@
-﻿#include "model.h"
+#include "model.h"
+#include "layout.h"
 
 // Compact only the task pane reached through our own ActiveX ancestry. Office
 // draws the title inside its client area. A separate root child renders in the
@@ -43,10 +44,13 @@ public:
 
 namespace {
 constexpr UINT REFRESH=WM_APP+110;
+constexpr UINT NATIVE_CLOSE=WM_APP+111;
 LRESULT CALLBACK sessionProc(HWND w,UINT m,WPARAM a,LPARAM b){
     auto s=(Session*)GetWindowLongPtrW(w,GWLP_USERDATA);
     if(m==WM_NCCREATE){s=(Session*)((CREATESTRUCTW*)b)->lpCreateParams;SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)s);}
-    if(s&&(m==WM_TIMER||m==REFRESH)){if(m==REFRESH)s->refreshPending=false;if(m==WM_TIMER&&a==2)KillTimer(w,2);try{auto keep=s->shared_from_this();if(!s->refresh()&&(s->executing||s->refreshing)&&m==WM_TIMER&&a==2)SetTimer(w,2,20,nullptr);}catch(...){log(L"session.refresh.exception",E_FAIL);}return 0;}
+    if(s&&m==NATIVE_CLOSE){auto keep=s->shared_from_this();s->nativeClose();return 0;}
+    if(s&&m==WM_TIMER&&a==3){auto keep=s->shared_from_this();s->nativeClose();return 0;}
+    if(s&&(m==WM_TIMER||m==REFRESH)){if(m==REFRESH)s->refreshPending=false;if(m==WM_TIMER&&a==2)KillTimer(w,2);try{auto keep=s->shared_from_this();if(s->refresh())s->finishClose();else if((s->executing||s->refreshing)&&m==WM_TIMER&&a==2)SetTimer(w,2,20,nullptr);}catch(...){log(L"session.refresh.exception",E_FAIL);}return 0;}
     return DefWindowProcW(w,m,a,b);
 }
 struct Flag {bool& value;explicit Flag(bool& x):value(x){value=true;}~Flag(){value=false;}};
@@ -64,10 +68,14 @@ void Settings::load(){
     doubleClose=GetPrivateProfileIntW(L"openOfficetab",L"doubleClose",0,p.c_str())!=0;
     position=GetPrivateProfileIntW(L"openOfficetab",L"position",1,p.c_str());
     if(position!=1&&position!=3)position=1;
+    tabWidth=GetPrivateProfileIntW(L"openOfficetab",L"tabWidth",120,p.c_str());
+    widthMode=GetPrivateProfileIntW(L"openOfficetab",L"widthMode",2,p.c_str());
+    if(!tablayout::validWidth(tabWidth,widthMode)){tabWidth=120;widthMode=2;}
 }
 void Settings::save()const{
     std::wstring file=dataDir()+L"\\settings.ini",temp=file+L"."+std::to_wstring(GetCurrentProcessId())+L".tmp";
     std::wstring content=L"[openOfficetab]\r\nschemaVersion=1\r\nstyle=browser\r\nvisible="+std::to_wstring(visible)+L"\r\ngroup="+std::to_wstring(group)+L"\r\ndark="+std::to_wstring(dark)+L"\r\nautoHide="+std::to_wstring(autoHide)+L"\r\ndoubleClose="+std::to_wstring(doubleClose)+L"\r\nposition="+std::to_wstring(position)+L"\r\n";
+    content+=L"tabWidth="+std::to_wstring(tabWidth)+L"\r\nwidthMode="+std::to_wstring(widthMode)+L"\r\n";
     HANDLE h=CreateFileW(temp.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(h==INVALID_HANDLE_VALUE){log(L"settings.write.failed",HRESULT_FROM_WIN32(GetLastError()));return;}
     WORD bom=0xfeff;DWORD n;WriteFile(h,&bom,2,&n,nullptr);WriteFile(h,content.data(),(DWORD)(content.size()*2),&n,nullptr);FlushFileBuffers(h);CloseHandle(h);
@@ -104,6 +112,10 @@ void Session::stop(){
 void Session::defer(){if(timer&&!stopped&&!refreshPending){refreshPending=true;if(!PostMessageW(timer,REFRESH,0,0))refreshPending=false;}}
 void Session::bindFactory(IDispatch* f){factory=Ptr<IDispatch>(f);log(L"factory.available");defer();}
 void Session::event(DISPID id,DISPPARAMS* params){
+    if(host==Host::PowerPoint&&id==2004&&pendingCloseId&&params&&params->cArgs){
+        Var value;VariantCopyInd(&value.v,&params->rgvarg[0]);auto closing=value.disp();auto target=find(pendingCloseId);
+        if(target&&closing&&closing.as<IUnknown>().get()==target->document.as<IUnknown>().get())pendingCloseAccepted=true;
+    }
     if(stopped)return;
     // Word reports WindowActivate with a complete window/document pair. Mount
     // that view directly in the same STA event, before waiting for an idle
@@ -119,42 +131,61 @@ void Session::event(DISPID id,DISPPARAMS* params){
             for(auto& old:views)if(old->hwnd==root){view=old;break;}
             if(!view){
                 view=std::make_shared<View>();view->id=nextId++;view->hwnd=root;view->identity=window.as<IUnknown>();GetWindowPlacement(root,&view->original);
+                view->groupId=pendingNewDocument?newDocumentGroup:currentGroup();view->independent=view->groupId==0;view->lastGroupId=view->groupId?view->groupId:1;pendingNewDocument=false;
                 view->window=window;view->document=document;view->title=call(document.get(),L"Name").str();
                 view->saved=prop(document.get(),L"Saved").boolean(true);view->readOnly=prop(document.get(),L"ReadOnly").boolean();
                 view->path=prop(document.get(),L"Path").str().empty()?L"":prop(document.get(),L"FullName").str();views.push_back(view);
             }
-            activeId=view->id;if(!view->independent)groupActiveId=view->id;syncPanes();redraw();
+            activeId=view->id;if(!view->independent){groupActiveId=view->id;groupActives[view->groupId]=view->id;}syncPanes();redraw();
         }
     }
     defer();
 }
 std::shared_ptr<View> Session::find(unsigned long long id)const{for(auto& v:views)if(v->id==id)return v;return {};}
-std::vector<std::shared_ptr<View>> Session::tabViews()const{
-    std::vector<std::shared_ptr<View>> result;for(auto& v:views)if(!v->independent)result.push_back(v);return result;
+unsigned Session::groupForWindow(HWND root)const{
+    if(root)root=GetAncestor(root,GA_ROOT);for(auto& v:views)if(v->hwnd==root)return v->groupId;return currentGroup();
 }
-unsigned long long Session::activeTabId()const{
-    auto current=find(groupActiveId);if(current&&!current->independent)return current->id;
-    for(auto& v:views)if(!v->independent)return v->id;return 0;
+unsigned Session::currentGroup()const{auto v=find(activeId);return v?v->groupId:1;}
+std::vector<std::shared_ptr<View>> Session::tabViews(HWND root)const{
+    unsigned group=root?groupForWindow(root):0;
+    std::vector<std::shared_ptr<View>> result;for(auto& v:views)if(!v->independent&&(!root||v->groupId==group))result.push_back(v);return result;
+}
+unsigned long long Session::activeTabId(HWND root)const{
+    unsigned group=root?groupForWindow(root):currentGroup();
+    auto it=groupActives.find(group);auto current=it==groupActives.end()?nullptr:find(it->second);
+    if(current&&!current->independent&&current->groupId==group)return current->id;
+    for(auto& v:views)if(!v->independent&&v->groupId==group)return v->id;return 0;
 }
 bool Session::showTabs(HWND root)const{
-    for(auto& v:views)if(v->hwnd==root)return settings.visible&&!v->independent&&(!settings.autoHide||tabViews().size()>1);
+    for(auto& v:views)if(v->hwnd==root)return settings.visible&&!v->independent&&(!settings.autoHide||tabViews(root).size()>1);
     return false;
 }
 bool Session::setIndependent(unsigned long long id,bool independent){
+    auto v=find(id);if(!v)return false;return moveToGroup(id,independent?0:v->lastGroupId);
+}
+bool Session::moveToGroup(unsigned long long id,unsigned group){
     auto keep=shared_from_this();if(stopped||executing||refreshing)return false;
     auto v=find(id);if(!v||!valid(v->hwnd))return false;
-    if(v->independent==independent)return true;
+    if(v->groupId==group)return true;
+    if(group>=nextGroupId)return false;
+    std::shared_ptr<View> destination;
+    for(auto& candidate:views)if(candidate->groupId==group&&group&&candidate->id!=id){destination=candidate;if(candidate->id==activeTabId(candidate->hwnd))break;}
     try{
         Flag busy(executing);
-        v->independent=independent;
-        if(independent){restoreView(*v);if(groupActiveId==id)groupActiveId=0;}
-        else groupActiveId=id;
+        restoreView(*v);if(v->groupId)v->lastGroupId=v->groupId;
+        v->groupId=group;v->independent=group==0;
+        if(group){groupActiveId=id;groupActives[group]=id;v->lastGroupId=group;}
+        else if(groupActiveId==id)groupActiveId=0;
+        if(destination&&valid(destination->hwnd)&&IsWindowEnabled(destination->hwnd)){
+            WINDOWPLACEMENT desired{sizeof(desired)};
+            if(GetWindowPlacement(destination->hwnd,&desired)&&desired.showCmd!=SW_SHOWMINIMIZED){GetWindowPlacement(v->hwnd,&v->original);desired.flags=0;if(SetWindowPlacement(v->hwnd,&desired)){v->moved=true;GetWindowPlacement(v->hwnd,&v->applied);}}
+        }
         // Keep the original Office document, including unsaved edits. Only
         // membership, the reserved strip and grouping behavior are changed.
         syncPanes();updateTaskbar();redraw();
         call(v->window.get(),L"Activate",DISPATCH_METHOD);
     }catch(const ComError& e){report(e);}
-    refresh();return v->independent==independent;
+    refresh();auto actual=find(id);return actual&&actual->groupId==group;
 }
 bool Session::refresh(){
     if(stopped||refreshing||executing||!app)return false;
@@ -177,7 +208,9 @@ bool Session::refresh(){
             // Excel may expose a fresh Window COM wrapper on every enumeration.
             // The process-local top-level HWND identifies a live Office view.
             for(auto& old:views)if((h&&old->hwnd==h)||(host==Host::PowerPoint&&old->identity.get()==ident.get())){v=std::make_shared<View>(*old);break;}
-            if(!v){v=std::make_shared<View>();v->id=nextId++;v->hwnd=h;v->identity=ident;GetWindowPlacement(h,&v->original);}
+            if(!v){v=std::make_shared<View>();v->id=nextId++;v->hwnd=h;v->identity=ident;GetWindowPlacement(h,&v->original);
+                if(pendingNewDocument&&GetTickCount64()-pendingNewSince>5000)pendingNewDocument=false;
+                v->groupId=pendingNewDocument?newDocumentGroup:currentGroup();v->independent=v->groupId==0;v->lastGroupId=v->groupId?v->groupId:1;pendingNewDocument=false;}
             v->window=win;v->document=doc;v->title=call(doc.get(),L"Name").str();
             std::wstring caption=prop(win.get(),L"Caption").str();
             if(caption.find(L":")!=std::wstring::npos)v->title=caption;
@@ -199,16 +232,16 @@ bool Session::refresh(){
         bool visualChanged=views.size()!=ordered.size();
         for(size_t i=0;!visualChanged&&i<views.size();i++){
             auto& a=views[i];auto& b=ordered[i];
-            visualChanged=a->id!=b->id||a->title!=b->title||a->saved!=b->saved||a->readOnly!=b->readOnly||a->locked!=b->locked||a->independent!=b->independent;
+            visualChanged=a->id!=b->id||a->title!=b->title||a->saved!=b->saved||a->readOnly!=b->readOnly||a->locked!=b->locked||a->independent!=b->independent||a->groupId!=b->groupId;
         }
         views=std::move(ordered);
         auto active=prop(app.get(),L"ActiveWindow").disp();HWND activeWindow=handle(active.get());unsigned long long found=0;
         auto activeIdentity=active.as<IUnknown>();
         for(auto& v:views)if((activeWindow&&v->hwnd==activeWindow)||(host==Host::PowerPoint&&v->identity.get()==activeIdentity.get()))found=v->id;
         visualChanged=visualChanged||activeId!=found;activeId=found;
-        auto activeView=find(found);if(activeView&&!activeView->independent)groupActiveId=found;
+        auto activeView=find(found);if(activeView&&!activeView->independent){groupActiveId=found;groupActives[activeView->groupId]=found;}
         syncPanes();updateTaskbar();if(visualChanged)redraw();failures=0;return true;
-    }catch(const ComError& e){if(++failures==1||failures%80==0)log((L"refresh.rejected."+e.where).c_str(),e.hr);return false;}
+    }catch(const ComError& e){lastError=e.hr;lastOperation=L"refresh.rejected";if(++failures==1||failures%80==0)log((L"refresh.rejected."+e.where).c_str(),e.hr);return false;}
     catch(...){log(L"refresh.exception",E_FAIL);return false;}
 }
 void Session::syncPanes(){
@@ -230,7 +263,7 @@ void Session::syncPanes(){
             }catch(const ComError& e){log(L"pane.create.failed",e.hr);continue;}
         }
         try{
-            bool show=settings.visible&&!v->independent&&(!settings.autoHide||tabViews().size()>1);
+            bool show=showTabs(v->hwnd);
             if(prop(it->office.get(),L"Visible").boolean()!=show)put(it->office.get(),L"Visible",Var(show));
             // PowerPoint does not expose DocumentWindow.Hwnd. CreateCTP binds
             // this exact COM window; its own OLE ancestry gives an unambiguous
@@ -259,9 +292,9 @@ void Session::syncPanes(){
     }
 }
 void Session::redraw(){for(auto& p:panes)if(p.control){HWND h=p.control->NativeWindow();if(h)InvalidateRect(h,nullptr,FALSE);}}
-void Session::report(const ComError& e){log(L"command.rejected",e.hr);defer();}
+void Session::report(const ComError& e){lastError=e.hr;lastOperation=L"command.failed";log(L"command.rejected",e.hr);defer();}
 void Session::align(const std::shared_ptr<View>& target,const std::shared_ptr<View>& source){
-    if(!settings.group||!target||!source||target->independent||source->independent||source->hwnd==target->hwnd||!valid(source->hwnd)||!valid(target->hwnd))return;
+    if(!settings.group||!target||!source||target->independent||source->independent||target->groupId!=source->groupId||source->hwnd==target->hwnd||!valid(source->hwnd)||!valid(target->hwnd))return;
     if(!IsWindowEnabled(source->hwnd)||!IsWindowEnabled(target->hwnd))return;
     WINDOWPLACEMENT p{sizeof(p)};if(!GetWindowPlacement(source->hwnd,&p))return;
     if(p.showCmd==SW_SHOWMINIMIZED||p.showCmd==SW_MINIMIZE)return;
@@ -274,19 +307,65 @@ void Session::activate(unsigned long long id){
     refresh();
 }
 bool Session::close(unsigned long long id){
-    auto keep=shared_from_this();if(stopped||executing)return false;auto v=find(id);if(!v||v->locked)return false;
+    auto keep=shared_from_this();if(stopped||executing||pendingCloseId)return false;auto v=find(id);if(!v||v->locked)return false;
+    if(host==Host::PowerPoint){
+        if(!valid(v->hwnd)||!timer)return false;
+        pendingCloseId=id;pendingCloseAccepted=false;pendingCloseUntil=0;
+        if(!PostMessageW(timer,NATIVE_CLOSE,0,0)){pendingCloseId=0;return false;}
+        return true; // Accepted request; completion/cancellation occurs in the Office UI loop.
+    }
     try{
         Flag busy(executing);
         if(host==Host::Word)call(v->window.get(),L"Close",DISPATCH_METHOD,{Var(-2L)}); // wdPromptToSaveChanges
         else if(host==Host::Excel)call(v->window.get(),L"Close",DISPATCH_METHOD);
-        else { // PowerPoint's automation Close discards unsaved changes. Use native window close.
-            if(!valid(v->hwnd))return false;
-            call(v->window.get(),L"Activate",DISPATCH_METHOD);
-            SendMessageW(v->hwnd,WM_SYSCOMMAND,SC_CLOSE,0);
-        }
-    }catch(const ComError& e){report(e);return false;}
+    }catch(const ComError& e){pendingCloseId=0;pendingCloseAccepted=false;report(e);return false;}
     if(stopped)return true;
-    if(!refresh())return false;return !find(id);
+    if(!refresh()){defer();return pendingCloseAccepted;}
+    if(find(id)){
+        if(pendingCloseAccepted){defer();return true;}
+        pendingCloseId=0;return false;
+    }
+    pendingCloseId=0;pendingCloseAccepted=false;quitIfEmpty();return true;
+}
+void Session::nativeClose(){
+    if(stopped||!pendingCloseId)return;
+    if(executing||refreshing){SetTimer(timer,3,20,nullptr);return;}
+    KillTimer(timer,3);auto target=find(pendingCloseId);
+    if(!target||!valid(target->hwnd)){refresh();finishClose();return;}
+    try{
+        Flag busy(executing);
+        call(target->window.get(),L"Activate",DISPATCH_METHOD);
+        SendMessageW(target->hwnd,WM_CLOSE,0,0);
+    }catch(const ComError& e){report(e);pendingCloseId=0;pendingBatch.clear();return;}
+    if(stopped)return;
+    if(!refresh()){defer();return;}
+    // PowerPoint may post the final close even from its UI loop. Keep the
+    // cancellation observer alive until that native operation settles.
+    pendingCloseUntil=GetTickCount64()+1000;
+    finishClose();defer();
+}
+void Session::finishClose(){
+    if(stopped||executing||refreshing||!pendingCloseId)return;
+    if(find(pendingCloseId)){
+        if(!pendingCloseAccepted&&pendingCloseUntil&&GetTickCount64()>=pendingCloseUntil){pendingCloseId=0;pendingBatch.clear();}
+        return;
+    }
+    pendingCloseId=0;pendingCloseAccepted=false;
+    auto remaining=std::move(pendingBatch);pendingBatch.clear();
+    if(views.empty())quitIfEmpty();
+    if(!stopped&&!remaining.empty())batchClose(std::move(remaining));
+}
+void Session::quitIfEmpty(){
+    if(stopped||executing||!app||!views.empty())return;
+    try{
+        auto docs=call(app.get(),host==Host::Word?L"Documents":host==Host::Excel?L"Workbooks":L"Presentations").disp();
+        if(call(docs.get(),L"Count").number()!=0)return;
+        auto protectedViews=call(app.get(),L"ProtectedViewWindows").disp();
+        if(call(protectedViews.get(),L"Count").number()!=0)return;
+        auto application=app;Flag busy(executing);lastOperation=L"close.last.quit";lastError=S_OK;
+        if(host==Host::Word)call(application.get(),L"Quit",DISPATCH_METHOD,{Var(-2L)});
+        else call(application.get(),L"Quit",DISPATCH_METHOD);
+    }catch(const ComError& e){report(e);}
 }
 bool Session::save(unsigned long long id,bool saveAs){
     auto keep=shared_from_this();if(stopped||executing)return false;auto v=find(id);if(!v||v->readOnly)return false;
@@ -298,18 +377,19 @@ bool Session::save(unsigned long long id,bool saveAs){
     }catch(const ComError& e){report(e);return false;}
     if(!refresh())return false;auto actual=find(id);return actual&&actual->saved;
 }
-void Session::create(){
+void Session::create(bool independent,HWND owner){
     auto keep=shared_from_this();if(stopped||executing)return;
     try{
         Flag busy(executing),newCommand(creating);
+        pendingNewDocument=true;pendingNewSince=GetTickCount64();newDocumentGroup=independent?0:(owner?groupForWindow(owner):currentGroup());
         auto bars=call(app.get(),L"CommandBars").disp();
         call(bars.get(),L"ExecuteMso",DISPATCH_METHOD,{Var(std::wstring(L"FileNewDefault"))});
-    }catch(const ComError& e){report(e);}
+    }catch(const ComError& e){pendingNewDocument=false;report(e);}
     refresh();
 }
 void Session::open(){auto keep=shared_from_this();if(stopped||executing)return;try{Flag busy(executing);auto b=call(app.get(),L"CommandBars").disp();call(b.get(),L"ExecuteMso",DISPATCH_METHOD,{Var(std::wstring(L"FileOpen"))});}catch(const ComError& e){report(e);}refresh();}
-void Session::batchClose(std::vector<unsigned long long> ids){auto keep=shared_from_this();for(auto id:ids){auto v=find(id);if(!v||v->locked||v->independent)continue;if(!close(id))break;}}
-void Session::saveAll(){auto keep=shared_from_this();std::vector<unsigned long long> ids;std::vector<IUnknown*> docs;for(auto& v:tabViews()){auto i=v->document.as<IUnknown>();if(std::find(docs.begin(),docs.end(),i.get())==docs.end()){docs.push_back(i.get());if(!v->saved)ids.push_back(v->id);}}for(auto id:ids)if(!save(id))break;}
+void Session::batchClose(std::vector<unsigned long long> ids){auto keep=shared_from_this();if(pendingCloseId)return;for(size_t i=0;i<ids.size();i++){auto id=ids[i];auto v=find(id);if(!v||v->locked||v->independent)continue;if(!close(id))break;if(pendingCloseId){pendingBatch.assign(ids.begin()+i+1,ids.end());break;}}}
+void Session::saveAll(HWND owner){auto keep=shared_from_this();auto active=find(activeId);if(!owner&&active)owner=active->hwnd;std::vector<unsigned long long> ids;std::vector<IUnknown*> docs;for(auto& v:tabViews(owner)){auto i=v->document.as<IUnknown>();if(std::find(docs.begin(),docs.end(),i.get())==docs.end()){docs.push_back(i.get());if(!v->saved)ids.push_back(v->id);}}for(auto id:ids)if(!save(id))break;}
 void Session::reorder(unsigned long long from,unsigned long long to){auto a=std::find_if(views.begin(),views.end(),[&](auto& v){return v->id==from;});auto b=std::find_if(views.begin(),views.end(),[&](auto& v){return v->id==to;});if(a==views.end()||b==views.end())return;auto v=*a;size_t index=(size_t)(b-views.begin());views.erase(a);views.insert(views.begin()+index,v);redraw();}
 void Session::restoreView(View& v){
     if(valid(v.hwnd)){
@@ -321,43 +401,51 @@ void Session::restore(){for(auto& v:views)restoreView(*v);log(L"windows.restored
 void Session::updateTaskbar(){
     if(!taskbar)return;
     // Do not remove the only recovery entry when the bar is hidden or there is no active view.
-    auto selected=activeTabId();bool grouped=settings.group&&settings.visible&&selected&&(!settings.autoHide||tabViews().size()>1);
-    for(auto& v:views){bool remove=grouped&&!v->independent&&v->id!=selected;if(!valid(v->hwnd))continue;if(remove&&!v->taskbarRemoved){if(SUCCEEDED(taskbar->DeleteTab(v->hwnd)))v->taskbarRemoved=true;}else if(!remove&&v->taskbarRemoved){taskbar->AddTab(v->hwnd);v->taskbarRemoved=false;}}
+    for(auto& v:views){auto selected=activeTabId(v->hwnd);bool grouped=settings.group&&showTabs(v->hwnd)&&selected;bool remove=grouped&&!v->independent&&v->id!=selected;if(!valid(v->hwnd))continue;if(remove&&!v->taskbarRemoved){if(SUCCEEDED(taskbar->DeleteTab(v->hwnd)))v->taskbarRemoved=true;}else if(!remove&&v->taskbarRemoved){taskbar->AddTab(v->hwnd);v->taskbarRemoved=false;}}
 }
 void Session::toggleGroup(){settings.group=!settings.group;if(!settings.group)restore();changed();}
 void Session::toggleVisible(){settings.visible=!settings.visible;if(!settings.visible)restore();changed();}
 void Session::changed(){settings.save();for(auto& p:panes)try{put(p.office.get(),L"DockPosition",Var((long)settings.position));}catch(...){}syncPanes();updateTaskbar();redraw();}
+bool Session::recover(){
+    auto keep=shared_from_this();if(stopped||executing||refreshing)return false;
+    settings.group=false;settings.visible=true;settings.autoHide=false;restore();
+    // Rebuild only our own panes, retaining documents, membership and order.
+    for(auto& p:panes){if(p.control)p.control->Bind(nullptr,nullptr);p.chrome.reset();if(p.control)p.control->Unmount();try{call(p.office.get(),L"Delete",DISPATCH_METHOD);}catch(const ComError& e){report(e);}}
+    panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
+}
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.1.1\",\"host\":"+json(hostName(host))+L",\"style\":\"browser\",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
-    for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
+    std::wstring r=L"{\"version\":\"0.1.2\",\"host\":"+json(hostName(host))+L",\"style\":\"browser\",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
         if(i)r+=L",";auto& p=panes[i];HWND h=p.control?p.control->NativeWindow():nullptr;RECT rc{};if(h)GetWindowRect(h,&rc);
         r+=L"{\"viewId\":"+std::to_wstring(p.viewId)+L",\"controlHwnd\":"+std::to_wstring((UINT_PTR)h)+L",\"width\":"+std::to_wstring(rc.right-rc.left)+L",\"height\":"+std::to_wstring(rc.bottom-rc.top)+L",\"dpi\":"+std::to_wstring(dpi(h))+L",\"officeHeight\":"+std::to_wstring(prop(p.office.get(),L"Height").number())+L",\"ancestors\":[";
         for(int j=0;h&&j<10;j++){h=GetParent(h);if(!h)break;wchar_t cls[128];GetClassNameW(h,cls,128);GetWindowRect(h,&rc);RECT client{};GetClientRect(h,&client);if(j)r+=L",";r+=L"{\"class\":"+json(cls)+L",\"height\":"+std::to_wstring(rc.bottom-rc.top)+L",\"clientHeight\":"+std::to_wstring(client.bottom-client.top)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)h)+L"}";}
         HWND frame=p.chrome?p.chrome->window():nullptr;RECT reserved{},display{};if(frame)GetWindowRect(frame,&reserved);HWND native=p.control?p.control->NativeWindow():nullptr;if(native)GetWindowRect(native,&display);
-        r+=L"],\"reserveFrameHwnd\":"+std::to_wstring((UINT_PTR)frame)+L",\"reserveFrameVisible\":"+(IsWindowVisible(frame)?L"true":L"false")+L",\"displayVisible\":"+(native&&(GetWindowLongPtrW(native,GWL_STYLE)&WS_VISIBLE)?L"true":L"false")+L",\"officeVisible\":"+(prop(p.office.get(),L"Visible").boolean()?L"true":L"false")+L",\"matchesReservedRect\":"+(frame&&native&&EqualRect(&reserved,&display)?L"true":L"false")+L"}";
+        r+=L"],\"displayLeft\":"+std::to_wstring(display.left)+L",\"displayTop\":"+std::to_wstring(display.top)+L",\"reserveFrameHwnd\":"+std::to_wstring((UINT_PTR)frame)+L",\"reserveFrameVisible\":"+(IsWindowVisible(frame)?L"true":L"false")+L",\"displayVisible\":"+(native&&(GetWindowLongPtrW(native,GWL_STYLE)&WS_VISIBLE)?L"true":L"false")+L",\"officeVisible\":"+(prop(p.office.get(),L"Visible").boolean()?L"true":L"false")+L",\"matchesReservedRect\":"+(frame&&native&&EqualRect(&reserved,&display)?L"true":L"false")+L"}";
     }
-    return r+L"]}";
+    return r+L"],\"diagnostics\":"+diagnostics()+L"}";
 }
 void Session::menu(HWND owner,unsigned long long id,POINT pt){
     auto keep=shared_from_this();auto v=find(id);if(!v)return;
     HMENU m=CreatePopupMenu();auto add=[&](UINT n,const wchar_t* t,bool enabled=true,bool checked=false){AppendMenuW(m,MF_STRING|(enabled?0:MF_GRAYED)|(checked?MF_CHECKED:0),n,t);};
-    add(1,L"切换到此文档");add(12,L"在独立窗口中显示");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(2,L"保存",!v->readOnly);add(3,L"另存为…",!v->readOnly);add(4,L"保存全部标签");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
+    add(1,L"切换到此文档");add(12,L"在独立窗口中显示");add(13,L"移到新标签组窗口");add(14,L"移动到标签组…");add(15,L"新建为独立窗口");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(2,L"保存",!v->readOnly);add(3,L"另存为…",!v->readOnly);add(4,L"保存本组全部标签");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
     add(5,L"关闭",!v->locked);add(6,L"关闭其他标签");add(7,L"关闭左侧标签");add(8,L"关闭右侧标签");add(9,L"关闭全部标签");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
     add(10,L"锁定标签（防止从标签栏关闭）",true,v->locked);add(11,L"打开所在文件夹",!v->path.empty()&&v->path.find(L"://")==std::wstring::npos);
     UINT command=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,pt.x,pt.y,0,owner,nullptr);DestroyMenu(m);
-    if(command==1)activate(id);if(command==2)save(id);if(command==3)save(id,true);if(command==4)saveAll();if(command==5)close(id);if(command==12)setIndependent(id,true);
-    if(command>=6&&command<=9){std::vector<unsigned long long> ids;bool after=false;for(auto& x:tabViews()){if(x->id==id){after=true;if(command==9)ids.push_back(x->id);continue;}if(command==6||command==9||(command==7&&!after)||(command==8&&after))ids.push_back(x->id);}batchClose(ids);}
+    if(command==1)activate(id);if(command==2)save(id);if(command==3)save(id,true);if(command==4)saveAll(v->hwnd);if(command==5)close(id);if(command==12)setIndependent(id,true);
+    if(command>=6&&command<=9){std::vector<unsigned long long> ids;bool after=false;for(auto& x:tabViews(v->hwnd)){if(x->id==id){after=true;if(command==9)ids.push_back(x->id);continue;}if(command==6||command==9||(command==7&&!after)||(command==8&&after))ids.push_back(x->id);}batchClose(ids);}
     if(command==10){v->locked=!v->locked;redraw();}
     if(command==11){std::wstring parent=v->path.substr(0,v->path.find_last_of(L"\\/"));ShellExecuteW(owner,L"open",parent.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
+    if(command==13)newTabGroup(id);if(command==14)chooseGroup(owner,id);if(command==15)create(true,owner);
 }
 void Session::options(HWND owner,POINT pt){
     auto keep=shared_from_this();HMENU m=CreatePopupMenu();auto add=[&](UINT n,const wchar_t* t,bool check=false){AppendMenuW(m,MF_STRING|(check?MF_CHECKED:0),n,t);};
     add(1,L"显示标签栏",settings.visible);add(2,L"窗口跟随 / 单任务栏模式",settings.group);add(3,L"深色标签",settings.dark);add(4,L"单标签时自动隐藏",settings.autoHide);add(5,L"双击标签关闭",settings.doubleClose);AppendMenuW(m,MF_SEPARATOR,0,nullptr);
-    add(6,L"标签置于顶部",settings.position==1);add(7,L"标签置于底部",settings.position==3);add(8,L"恢复独立窗口");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(9,L"打开文档…");add(10,L"打开日志与设置文件夹");add(11,L"关于 openOfficetab");
+    add(6,L"标签置于顶部",settings.position==1);add(7,L"标签置于底部",settings.position==3);add(8,L"恢复窗口排列与任务栏");add(12,L"标签宽度…");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(13,L"加载诊断…");add(14,L"导出脱敏诊断…");add(15,L"恢复标签栏与窗口");add(16,L"新建为独立窗口");add(9,L"打开文档…");add(10,L"打开日志与设置文件夹");add(11,L"关于 openOfficetab");
     UINT cmd=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,pt.x,pt.y,0,owner,nullptr);DestroyMenu(m);
     if(cmd==1)toggleVisible();if(cmd==2)toggleGroup();if(cmd==3){settings.dark=!settings.dark;changed();}if(cmd==4){settings.autoHide=!settings.autoHide;changed();}if(cmd==5){settings.doubleClose=!settings.doubleClose;changed();}
     if(cmd==6||cmd==7){settings.position=cmd==6?1:3;changed();}if(cmd==8){settings.group=false;restore();changed();}if(cmd==9)open();if(cmd==10)ShellExecuteW(owner,L"open",dataDir().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
-    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.1\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
+    if(cmd==12)widthDialog(GetAncestor(owner,GA_ROOT));if(cmd==13)showDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==14)exportDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==15)recover();if(cmd==16)create(true,owner);
+    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.2\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
 }

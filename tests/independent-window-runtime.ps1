@@ -18,11 +18,11 @@ foreach($taskPair in @(@('Word','word-demo.docx'),@('Excel','excel-demo.xlsx'),@
         $taskFixture=[OfficeRot]::AttachFile($taskFixturePath)
         if($taskFixture.FullName -ne $taskFixturePath){throw 'Unexpected fixture; preserve all documents.'}
         $taskApp=$taskFixture.Application
-        $taskCollection=switch($taskPair[0]){'Word'{$taskApp.Documents};'Excel'{$taskApp.Workbooks};'PowerPoint'{$taskApp.Presentations}}
+        switch($taskPair[0]){'Word'{$taskCollection=$taskApp.Documents};'Excel'{$taskCollection=$taskApp.Workbooks};'PowerPoint'{$taskCollection=$taskApp.Presentations}}
         if($taskCollection.Count -ne 1){throw 'Other documents in this instance; preserved.'}
         $taskApi=$taskApp.COMAddIns.Item('openOfficetab.Connect').Object
         $taskBefore=Wait-TaskState $taskApi {param($s)$s.views.Count -eq 1 -and $s.paneMetrics[0].displayVisible}
-        if($taskBefore.version -ne '0.1.1'){throw 'Wrong add-in version loaded.'}
+        if($taskBefore.version -ne '0.1.2'){throw 'Wrong add-in version loaded.'}
         $taskBaseId=$taskBefore.views[0].id
         $taskApi.NewDocument()
         $taskAdded=Wait-TaskState $taskApi {param($s)$s.views.Count -eq 2 -and @($s.paneMetrics|Where-Object {$_.width -le 0 -or -not $_.displayVisible}).Count -eq 0}

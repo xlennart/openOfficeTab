@@ -1,4 +1,4 @@
-param([string]$Version='0.1.1')
+﻿param([string]$Version='0.1.2')
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
 if($Version -notmatch '^\d+\.\d+\.\d+$'){throw 'Invalid version.'}
@@ -9,7 +9,7 @@ $stage=Join-Path $taskRoot ('build\package-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $delivery,$stage,(Join-Path $stage 'scripts'),(Join-Path $stage 'dist\x64') -Force | Out-Null
 foreach($file in 'Install.cmd','Uninstall.cmd','LICENSE'){Copy-Item -LiteralPath (Join-Path $taskRoot $file) -Destination (Join-Path $stage $file)}
 Copy-Item -LiteralPath (Join-Path $taskRoot 'docs\installation.md') -Destination (Join-Path $stage 'README.md')
-foreach($file in 'install.ps1','uninstall.ps1','desktop-context.ps1'){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $stage ('scripts\'+$file))}
+foreach($file in 'install.ps1','uninstall.ps1','desktop-context.ps1','diagnose.ps1'){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $stage ('scripts\'+$file))}
 Copy-Item -LiteralPath $dll -Destination (Join-Path $stage 'dist\x64\openOfficetab.dll')
 $zip=Join-Path $delivery "openOfficetab-$Version-win-x64.zip"
 # ZipArchive produces forward-slash entry names for a portable payload.

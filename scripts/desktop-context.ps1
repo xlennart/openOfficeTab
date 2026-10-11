@@ -1,4 +1,4 @@
-# Packaged development tools can give child processes private HKCU/AppData
+﻿# Packaged development tools can give child processes private HKCU/AppData
 # views. Use the desktop user's WMI process provider for install/uninstall;
 # verify completion in the shared workspace, rather than the private registry.
 function Invoke-DesktopContextScript {

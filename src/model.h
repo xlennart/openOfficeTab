@@ -8,6 +8,7 @@ struct View {
     Ptr<IUnknown> identity;
     std::wstring title,path;
     bool saved=true,readOnly=false,locked=false,independent=false;
+    unsigned groupId=1,lastGroupId=1;
     WINDOWPLACEMENT original{sizeof(WINDOWPLACEMENT)},applied{sizeof(WINDOWPLACEMENT)};
     bool moved=false,taskbarRemoved=false;
 };
@@ -16,6 +17,7 @@ struct Pane {unsigned long long viewId=0;Ptr<IDispatch> office;Ptr<ITabBinding> 
 struct Settings {
     bool visible=true,group=false,dark=false,autoHide=false,doubleClose=false,shortcuts=false;
     int position=1; // msoCTPDockPositionTop
+    int tabWidth=120,widthMode=2; // DIP; fixed, title, shrink
     void load();void save()const;
 };
 class EventSink;
@@ -28,6 +30,16 @@ public:
     std::vector<std::shared_ptr<View>> views;
     std::vector<Pane> panes;
     unsigned long long nextId=1,activeId=0,groupActiveId=0;
+    unsigned nextGroupId=2,newDocumentGroup=1;
+    std::map<unsigned,unsigned long long> groupActives;
+    bool pendingNewDocument=false;
+    ULONGLONG pendingNewSince=0;
+    unsigned long long pendingCloseId=0;
+    bool pendingCloseAccepted=false;
+    ULONGLONG pendingCloseUntil=0;
+    std::vector<unsigned long long> pendingBatch;
+    HRESULT lastError=S_OK;
+    std::wstring lastOperation=L"startup";
     Ptr<IConnectionPoint> connection;
     Ptr<EventSink> sink;
     DWORD cookie=0;
@@ -41,20 +53,29 @@ public:
     void event(DISPID id,DISPPARAMS* params);
     void syncPanes();void redraw();
     std::shared_ptr<View> find(unsigned long long id)const;
-    std::vector<std::shared_ptr<View>> tabViews()const;
-    unsigned long long activeTabId()const;
+    unsigned groupForWindow(HWND root)const;
+    unsigned currentGroup()const;
+    std::vector<std::shared_ptr<View>> tabViews(HWND root=nullptr)const;
+    unsigned long long activeTabId(HWND root=nullptr)const;
     bool showTabs(HWND root)const;
     bool setIndependent(unsigned long long id,bool independent);
+    bool moveToGroup(unsigned long long id,unsigned group);
+    bool newTabGroup(unsigned long long id,const POINT* position=nullptr);
+    bool drop(unsigned long long id,POINT screen);
+    void chooseGroup(HWND owner,unsigned long long id);
     void activate(unsigned long long id);
     bool close(unsigned long long id);
     bool save(unsigned long long id,bool saveAs=false);
-    void create();void open();
+    void create(bool independent=false,HWND owner=nullptr);void open();void quitIfEmpty();void finishClose();void nativeClose();
     void batchClose(std::vector<unsigned long long> ids);
-    void saveAll();void reorder(unsigned long long from,unsigned long long to);
+    void saveAll(HWND owner=nullptr);void reorder(unsigned long long from,unsigned long long to);
     void toggleGroup();void restore();void toggleVisible();void changed();
     void align(const std::shared_ptr<View>& target,const std::shared_ptr<View>& source);
     void updateTaskbar();void restoreView(View&);
     std::wstring state()const;
+    std::wstring diagnostics()const;
+    bool recover();bool setTabWidth(int width,int mode);
+    void widthDialog(HWND owner);void showDiagnostics(HWND owner);void exportDiagnostics(HWND owner);
     void menu(HWND owner,unsigned long long id,POINT pt);
     void options(HWND owner,POINT pt);
     void report(const ComError& e);

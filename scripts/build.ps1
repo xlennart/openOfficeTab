@@ -14,7 +14,7 @@ $batch=@"
 call "$vcvars" $Architecture >nul
 if errorlevel 1 exit /b 1
 cd /d "$buildDir"
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /O2 /MT /DUNICODE /D_UNICODE /LD $($sources -join ' ') /link /OUT:"$outputDir\openOfficetab.dll" /DEF:"$taskRoot\src\exports.def" ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib shell32.lib advapi32.lib uuid.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /O2 /MT /DUNICODE /D_UNICODE /LD $($sources -join ' ') /link /OUT:"$outputDir\openOfficetab.dll" /DEF:"$taskRoot\src\exports.def" ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 "@
 $batchPath=Join-Path $buildDir 'build.cmd'
 [IO.File]::WriteAllText($batchPath,$batch,[Text.UTF8Encoding]::new($false))

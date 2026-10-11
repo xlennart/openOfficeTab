@@ -21,6 +21,7 @@ class Tabs final:public IDispatch,public IOleObject,public IOleInPlaceObject,
     POINT down{};
     bool dragging=false,pressedClose=false;
     int offset=0;
+    unsigned long long lastSelected=0;
     HWND tooltip=nullptr;
     std::wstring hint;
     ULONG_PTR graphicsToken=0;

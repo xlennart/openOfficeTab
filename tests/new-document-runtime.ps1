@@ -11,7 +11,7 @@ foreach($taskPair in @(@('Word','word-demo.docx'),@('Excel','excel-demo.xlsx'),@
         $taskFixture=[OfficeRot]::AttachFile($taskFixturePath)
         if($taskFixture.FullName -ne $taskFixturePath){throw 'Unexpected fixture; preserve all documents.'}
         $taskApp=$taskFixture.Application
-        $taskCollection=switch($taskPair[0]){'Word'{$taskApp.Documents};'Excel'{$taskApp.Workbooks};'PowerPoint'{$taskApp.Presentations}}
+        switch($taskPair[0]){'Word'{$taskCollection=$taskApp.Documents};'Excel'{$taskCollection=$taskApp.Workbooks};'PowerPoint'{$taskCollection=$taskApp.Presentations}}
         if($taskCollection.Count -ne 1){throw 'Project fixture instance contains other documents; preserve them.'}
         $taskApi=$taskApp.COMAddIns.Item('openOfficetab.Connect').Object
         $taskApi.Refresh()|Out-Null
