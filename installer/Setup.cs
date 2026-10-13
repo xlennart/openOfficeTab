@@ -12,8 +12,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("openOfficetab Setup")]
 [assembly: AssemblyDescription("Install openOfficetab for the current Windows user")]
 [assembly: AssemblyProduct("openOfficetab")]
-[assembly: AssemblyVersion("0.1.3.0")]
-[assembly: AssemblyFileVersion("0.1.3.0")]
+[assembly: AssemblyVersion("0.1.4.0")]
+[assembly: AssemblyFileVersion("0.1.4.0")]
 
 internal static class Setup {
     private const string PayloadName = "openOfficetab.Payload.zip";
@@ -53,7 +53,7 @@ internal static class Setup {
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             Controls.Add(new Label { Text = "openOfficetab", Font = new Font(Font.FontFamily, 23, FontStyle.Bold), Location = new Point(24, 18), AutoSize = true });
-            Controls.Add(new Label { Text = "Word / Excel / PowerPoint 文档标签 · 0.1.3 · x64", Location = new Point(26, 68), AutoSize = true });
+            Controls.Add(new Label { Text = "Word / Excel / PowerPoint 文档标签 · 0.1.4 · x64", Location = new Point(26, 68), AutoSize = true });
             Controls.Add(new Label { Text = "安装、卸载或修复前，请保存并退出三款 Office；加载诊断可直接运行。\n按当前用户安装，无需管理员权限；完成后重新打开文档。", Location = new Point(26, 103), Size = new Size(550, 55) });
             install.Text = "安装 / 更新";
             install.SetBounds(26, 170, 124, 40);

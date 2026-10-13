@@ -1,5 +1,6 @@
 #include "../src/tabs.h"
 #include "../src/layout.h"
+#include "../src/tab-color.h"
 #include <cassert>
 #include <iostream>
 
@@ -29,10 +30,17 @@ int main(){
     auto countAccent=[&](int top,int bottom,COLORREF expected=RGB(16,124,65)){int count=0;for(int y=top;y<bottom;y++)for(int x=24;x<100;x++)if(GetPixel(dc,x,y)==expected)count++;return count;};
     for(int style=0;style<=1;style++)for(int accent=0;accent<=2;accent++){
         session->settings.barStyle=style;session->settings.accentPosition=accent;paint();
-        assert(GetPixel(dc,500,20)==(style?RGB(237,237,237):RGB(255,255,255)));
+        assert(GetPixel(dc,500,20)==(style?RGB(240,240,240):RGB(255,255,255)));
         assert(accent==2 ? countAccent(0,40)==0 : countAccent(accent==1?0:30,accent==1?10:40)>50);
         if(style){assert(GetPixel(dc,60,39)==RGB(255,255,255));assert(GetPixel(dc,500,39)==RGB(213,213,213));}
     }
+    COLORREF custom=0;assert(tabcolor::parse(L"#F0F0F0",custom)&&custom==RGB(240,240,240));
+    assert(tabcolor::parse(L"12aBcD",custom)&&custom==RGB(18,171,205)&&tabcolor::format(custom)==L"#12ABCD");
+    for(auto invalid:{L"",L"#FFF",L"#0000000",L"FFGG00",L"#FFFFFF ",L"0x123456"})assert(!tabcolor::parse(invalid,custom));
+    assert(tabcolor::foreground(RGB(0,0,0))==RGB(245,245,245)&&tabcolor::foreground(RGB(255,255,255))==RGB(50,50,50));
+    session->settings.barColor=RGB(18,171,205);session->settings.customBarColor=true;
+    for(int style=0;style<=1;style++){session->settings.barStyle=style;paint();assert(GetPixel(dc,500,20)==RGB(18,171,205));}
+    session->settings.barColor=tabcolor::defaultBackground();session->settings.customBarColor=false;session->settings.barStyle=1;
     for(auto host:{Host::Word,Host::Excel,Host::PowerPoint}){
         session->host=host;session->settings.accentPosition=1;paint();
         COLORREF expected=host==Host::Word?RGB(35,91,180):host==Host::Excel?RGB(16,124,65):RGB(196,59,28);

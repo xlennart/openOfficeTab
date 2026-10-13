@@ -20,7 +20,7 @@ public:
     ULONG STDMETHODCALLTYPE Release()override{ULONG n=--refs;if(!n)delete this;return n;}
     DISPATCH_STUBS
     HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR* names,UINT n,LCID,DISPID* ids)override{
-        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth"};
+        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth",L"SetBarColor",L"ShowColor"};
         if(!names||!ids)return E_POINTER;
         for(UINT i=0;i<n;i++){ids[i]=DISPID_UNKNOWN;for(size_t j=0;j<std::size(api);j++)if(!_wcsicmp(names[i],api[j]))ids[i]=(DISPID)j+1;if(ids[i]==DISPID_UNKNOWN)return DISP_E_UNKNOWNNAME;}return S_OK;
     }
@@ -59,6 +59,8 @@ public:
                 case 30:{POINT point{arg(1).number(),arg(2).number()};booleanResult(s->drop((unsigned long long)arg(0).number(),point));break;}
                 case 31:booleanResult(s->setAppearance(arg(0).number(),arg(1).number()));break;
                 case 32:booleanResult(s->setViewWidth((unsigned long long)arg(0).number(),arg(1).number()));break;
+                case 33:{auto color=arg(0);if(color.v.vt!=VT_BSTR)throw ComError(DISP_E_TYPEMISMATCH,L"Color");booleanResult(s->setBarColor(color.str()));break;}
+                case 34:{auto v=s->find(s->activeId);s->colorDialog(v?v->hwnd:nullptr);break;}
                 default:return DISP_E_MEMBERNOTFOUND;
             }return S_OK;
         }catch(const ComError& e){s->report(e);return e.hr;}catch(...){log(L"addin.invoke.exception",E_FAIL);return E_FAIL;}
@@ -99,7 +101,7 @@ void registerClass(REFCLSID id,const wchar_t* prog,const std::wstring& path,bool
     std::wstring cls=L"Software\\Classes\\CLSID\\"+guid(id);
     regString(cls,nullptr,prog);regString(cls+L"\\InprocServer32",nullptr,path);regString(cls+L"\\InprocServer32",L"ThreadingModel",L"Apartment");regString(cls+L"\\ProgID",nullptr,prog);
     regString(std::wstring(L"Software\\Classes\\")+prog,nullptr,prog);regString(std::wstring(L"Software\\Classes\\")+prog+L"\\CLSID",nullptr,guid(id));
-    if(control){regString(cls+L"\\Control",nullptr,L"");regString(cls+L"\\MiscStatus\\1",nullptr,L"131473");regString(cls+L"\\Implemented Categories\\{40FC6ED4-2438-11CF-A3DB-080036F12502}",nullptr,L"");regString(cls+L"\\Insertable",nullptr,L"");}
+    if(control){regString(cls+L"\\Control",nullptr,L"");regString(cls+L"\\MiscStatus\\1",nullptr,std::to_wstring(OLEMISC_SETCLIENTSITEFIRST|OLEMISC_INSIDEOUT|OLEMISC_ACTIVATEWHENVISIBLE|OLEMISC_RECOMPOSEONRESIZE|OLEMISC_NOUIACTIVATE));regString(cls+L"\\Implemented Categories\\{40FC6ED4-2438-11CF-A3DB-080036F12502}",nullptr,L"");regString(cls+L"\\Insertable",nullptr,L"");}
 }
 }
 extern "C" HRESULT WINAPI DllGetClassObject(REFCLSID c,REFIID i,void** p){if(!p)return E_POINTER;*p=nullptr;if(c!=CLSID_Addin&&c!=CLSID_Tabs)return CLASS_E_CLASSNOTAVAILABLE;auto f=new(std::nothrow) Factory(c);if(!f)return E_OUTOFMEMORY;HRESULT hr=f->QueryInterface(i,p);f->Release();return hr;}

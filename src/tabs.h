@@ -14,7 +14,7 @@ class Tabs final:public IDispatch,public IOleObject,public IOleInPlaceObject,
     HWND hwnd=nullptr,hostWindow=nullptr;
     HWND compactFrame=nullptr,oleHwnd=nullptr;
     Session* session=nullptr;
-    bool activated=false,uiActive=false,layingOut=false;
+    bool activated=false,layingOut=false;
     std::vector<std::pair<unsigned long long,RECT>> hit;
     RECT addRect{},listRect{},settingsRect{};
     unsigned long long pressed=0,hover=0;
@@ -68,13 +68,13 @@ public:
     HRESULT STDMETHODCALLTYPE Advise(IAdviseSink* s,DWORD* c)override{if(!c)return E_POINTER;advise=Ptr<IAdviseSink>(s);*c=1;return S_OK;}
     HRESULT STDMETHODCALLTYPE Unadvise(DWORD)override{advise.reset();return S_OK;}
     HRESULT STDMETHODCALLTYPE EnumAdvise(IEnumSTATDATA**)override{return E_NOTIMPL;}
-    HRESULT STDMETHODCALLTYPE GetMiscStatus(DWORD,DWORD* p)override{if(!p)return E_POINTER;*p=OLEMISC_SETCLIENTSITEFIRST|OLEMISC_INSIDEOUT|OLEMISC_ACTIVATEWHENVISIBLE|OLEMISC_RECOMPOSEONRESIZE;return S_OK;}
+    HRESULT STDMETHODCALLTYPE GetMiscStatus(DWORD,DWORD* p)override{if(!p)return E_POINTER;*p=OLEMISC_SETCLIENTSITEFIRST|OLEMISC_INSIDEOUT|OLEMISC_ACTIVATEWHENVISIBLE|OLEMISC_RECOMPOSEONRESIZE|OLEMISC_NOUIACTIVATE;return S_OK;}
     HRESULT STDMETHODCALLTYPE SetColorScheme(LOGPALETTE*)override{return S_OK;}
     // IOleWindow / IOleInPlaceObject / IOleInPlaceActiveObject
     HRESULT STDMETHODCALLTYPE GetWindow(HWND* p)override{if(!p)return E_POINTER;*p=oleHwnd;return *p?S_OK:E_FAIL;}
     HRESULT STDMETHODCALLTYPE ContextSensitiveHelp(BOOL)override{return E_NOTIMPL;}
     HRESULT STDMETHODCALLTYPE InPlaceDeactivate()override;
-    HRESULT STDMETHODCALLTYPE UIDeactivate()override{if(uiActive&&inPlace)inPlace->OnUIDeactivate(FALSE);uiActive=false;return S_OK;}
+    HRESULT STDMETHODCALLTYPE UIDeactivate()override{return S_OK;}
     HRESULT STDMETHODCALLTYPE SetObjectRects(LPCRECT r,LPCRECT)override{if(!r)return E_POINTER;if(oleHwnd)SetWindowPos(oleHwnd,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);if(compactFrame)layout();return S_OK;}
     HRESULT STDMETHODCALLTYPE ReactivateAndUndo()override{return E_NOTIMPL;}
     HRESULT STDMETHODCALLTYPE TranslateAccelerator(LPMSG)override;

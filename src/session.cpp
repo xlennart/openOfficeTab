@@ -1,5 +1,7 @@
 #include "model.h"
 #include "layout.h"
+#include "window-layout.h"
+#include "tab-color.h"
 
 // Compact only the task pane reached through our own ActiveX ancestry. Office
 // draws the title inside its client area. A separate root child renders in the
@@ -13,7 +15,7 @@ class PaneChrome {
         // Office may show its reserve frame while rebuilding a document view.
         // Keep that frame hidden before the show is committed, rather than
         // showing its title chrome and immediately hiding it again.
-        if(m==WM_WINDOWPOSCHANGING&&keep&&keep->NativeWindow()!=keep->OleWindow()){
+        if(m==WM_WINDOWPOSCHANGING&&keep&&keep->NativeWindow()!=keep->OleWindow()&&windowlayout::reserveFrame(w,keep->OleWindow(),GetAncestor(keep->NativeWindow(),GA_ROOT))){
             auto pos=(WINDOWPOS*)b;
             if(pos->flags&SWP_SHOWWINDOW)pos->flags=(pos->flags&~SWP_SHOWWINDOW)|SWP_HIDEWINDOW;
         }
@@ -31,6 +33,7 @@ public:
             wchar_t cls[128];GetClassNameW(h,cls,128);
             if(!_wcsicmp(cls,L"MsoWorkPane"))foundContent=true;
             if(foundContent&&!_wcsicmp(cls,L"MsoCommandBar")){
+                if(!windowlayout::reserveFrame(h,binding->OleWindow(),GetAncestor(binding->NativeWindow(),GA_ROOT))){log(L"chrome.frameRejected");return false;}
                 if(!SetWindowSubclass(h,proc,110,(DWORD_PTR)this)){log((L"chrome.subclassFailed.current="+std::to_wstring(GetCurrentThreadId())+L".frame="+std::to_wstring(GetWindowThreadProcessId(h,nullptr))+L".control="+std::to_wstring(GetWindowThreadProcessId(binding->NativeWindow(),nullptr))).c_str(),HRESULT_FROM_WIN32(GetLastError()));return false;}
                 control=Ptr<ITabBinding>(binding);frame=h;
                 if(!control->Mount(h)){log(L"chrome.mountFailed");detach();return false;}
@@ -56,7 +59,6 @@ LRESULT CALLBACK sessionProc(HWND w,UINT m,WPARAM a,LPARAM b){
 struct Flag {bool& value;explicit Flag(bool& x):value(x){value=true;}~Flag(){value=false;}};
 bool valid(HWND h){DWORD pid=0;GetWindowThreadProcessId(h,&pid);return h&&IsWindow(h)&&pid==GetCurrentProcessId();}
 std::wstring hostName(Host h){return h==Host::Word?L"Word":h==Host::Excel?L"Excel":L"PowerPoint";}
-bool samePlacement(const WINDOWPLACEMENT& a,const WINDOWPLACEMENT& b){return a.showCmd==b.showCmd&&EqualRect(&a.rcNormalPosition,&b.rcNormalPosition);}
 }
 void Settings::load(){
     std::wstring p=dataDir()+L"\\settings.ini";
@@ -75,12 +77,16 @@ void Settings::load(){
     barStyle=GetPrivateProfileIntW(L"openOfficetab",L"barStyle",1,p.c_str());
     if(accentPosition<0||accentPosition>2)accentPosition=1;
     if(barStyle<0||barStyle>1)barStyle=1;
+    wchar_t color[32]{};GetPrivateProfileStringW(L"openOfficetab",L"barColor",L"#F0F0F0",color,32,p.c_str());
+    customBarColor=GetPrivateProfileIntW(L"openOfficetab",L"customBarColor",0,p.c_str())!=0;
+    if(!tabcolor::parse(color,barColor)){barColor=tabcolor::defaultBackground();customBarColor=false;}
 }
 void Settings::save()const{
     std::wstring file=dataDir()+L"\\settings.ini",temp=file+L"."+std::to_wstring(GetCurrentProcessId())+L".tmp";
     std::wstring content=L"[openOfficetab]\r\nschemaVersion=1\r\nstyle="+std::wstring(barStyle==1?L"open":L"browser")+L"\r\nvisible="+std::to_wstring(visible)+L"\r\ngroup="+std::to_wstring(group)+L"\r\ndark="+std::to_wstring(dark)+L"\r\nautoHide="+std::to_wstring(autoHide)+L"\r\ndoubleClose="+std::to_wstring(doubleClose)+L"\r\nposition="+std::to_wstring(position)+L"\r\n";
     content+=L"tabWidth="+std::to_wstring(tabWidth)+L"\r\nwidthMode="+std::to_wstring(widthMode)+L"\r\n";
     content+=L"accentPosition="+std::to_wstring(accentPosition)+L"\r\nbarStyle="+std::to_wstring(barStyle)+L"\r\n";
+    content+=L"barColor="+tabcolor::format(barColor)+L"\r\ncustomBarColor="+std::to_wstring(customBarColor)+L"\r\n";
     HANDLE h=CreateFileW(temp.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(h==INVALID_HANDLE_VALUE){log(L"settings.write.failed",HRESULT_FROM_WIN32(GetLastError()));return;}
     WORD bom=0xfeff;DWORD n;WriteFile(h,&bom,2,&n,nullptr);WriteFile(h,content.data(),(DWORD)(content.size()*2),&n,nullptr);FlushFileBuffers(h);CloseHandle(h);
@@ -182,8 +188,9 @@ bool Session::moveToGroup(unsigned long long id,unsigned group){
         if(group){groupActiveId=id;groupActives[group]=id;v->lastGroupId=group;}
         else if(groupActiveId==id)groupActiveId=0;
         if(destination&&valid(destination->hwnd)&&IsWindowEnabled(destination->hwnd)){
-            WINDOWPLACEMENT desired{sizeof(desired)};
-            if(GetWindowPlacement(destination->hwnd,&desired)&&desired.showCmd!=SW_SHOWMINIMIZED){GetWindowPlacement(v->hwnd,&v->original);desired.flags=0;if(SetWindowPlacement(v->hwnd,&desired)){v->moved=true;GetWindowPlacement(v->hwnd,&v->applied);}}
+            WINDOWPLACEMENT desired{sizeof(desired)};RECT bounds{};
+            if(windowlayout::capture(destination->hwnd,desired,bounds)&&!windowlayout::minimized(desired)&&windowlayout::capture(v->hwnd,v->original,v->originalBounds)){
+                if(windowlayout::apply(v->hwnd,desired,bounds)){v->moved=true;windowlayout::capture(v->hwnd,v->applied,v->appliedBounds);}}
         }
         // Keep the original Office document, including unsaved edits. Only
         // membership, the reserved strip and grouping behavior are changed.
@@ -299,16 +306,23 @@ void Session::syncPanes(){
 void Session::redraw(){for(auto& p:panes)if(p.control){HWND h=p.control->NativeWindow();if(h)InvalidateRect(h,nullptr,FALSE);}}
 void Session::report(const ComError& e){lastError=e.hr;lastOperation=L"command.failed";log(L"command.rejected",e.hr);defer();}
 void Session::align(const std::shared_ptr<View>& target,const std::shared_ptr<View>& source){
-    if(!settings.group||!target||!source||target->independent||source->independent||target->groupId!=source->groupId||source->hwnd==target->hwnd||!valid(source->hwnd)||!valid(target->hwnd))return;
+    if(!target||!source||target->independent||source->independent||target->groupId!=source->groupId||source->hwnd==target->hwnd||!valid(source->hwnd)||!valid(target->hwnd))return;
     if(!IsWindowEnabled(source->hwnd)||!IsWindowEnabled(target->hwnd))return;
-    WINDOWPLACEMENT p{sizeof(p)};if(!GetWindowPlacement(source->hwnd,&p))return;
-    if(p.showCmd==SW_SHOWMINIMIZED||p.showCmd==SW_MINIMIZE)return;
-    if(!target->moved)GetWindowPlacement(target->hwnd,&target->original);
-    p.flags=0;if(SetWindowPlacement(target->hwnd,&p)){target->moved=true;GetWindowPlacement(target->hwnd,&target->applied);}
+    WINDOWPLACEMENT p{sizeof(p)};RECT bounds{};if(!windowlayout::capture(source->hwnd,p,bounds)||windowlayout::minimized(p)||windowlayout::sameSlot(target->hwnd,p,bounds))return;
+    if(!target->moved&&!windowlayout::capture(target->hwnd,target->original,target->originalBounds))return;
+    if(windowlayout::apply(target->hwnd,p,bounds)){target->moved=true;windowlayout::capture(target->hwnd,target->applied,target->appliedBounds);}
 }
-void Session::activate(unsigned long long id){
+void Session::activate(unsigned long long id,HWND owner){
     auto keep=shared_from_this();if(stopped||executing)return;auto target=find(id);if(!target)return;
-    try{Flag busy(executing);auto source=find(activeId);align(target,source);call(target->window.get(),L"Activate",DISPATCH_METHOD);}catch(const ComError& e){report(e);}
+    // Use the clicked bar's root, not the globally last active document: Windows
+    // can expose another Office window while the previous pane is still visible.
+    if(owner)owner=GetAncestor(owner,GA_ROOT);else owner=GetForegroundWindow();
+    auto source=find(activeId);for(auto& v:views)if(v->hwnd==owner){source=v;break;}
+    try{Flag busy(executing);align(target,source);call(target->window.get(),L"Activate",DISPATCH_METHOD);align(target,source);
+        // PowerPoint can change ActiveWindow without raising its SDI root.
+        // Never raise a disabled root behind an Office modal dialog.
+        if(valid(target->hwnd)&&IsWindowEnabled(target->hwnd)&&GetForegroundWindow()!=target->hwnd)SetForegroundWindow(target->hwnd);
+    }catch(const ComError& e){report(e);}
     refresh();
 }
 bool Session::close(unsigned long long id){
@@ -399,7 +413,7 @@ void Session::reorder(unsigned long long from,unsigned long long to){auto a=std:
 void Session::restoreView(View& v){
     if(valid(v.hwnd)){
         if(v.taskbarRemoved&&taskbar)taskbar->AddTab(v.hwnd);
-        if(v.moved){WINDOWPLACEMENT now{sizeof(now)};if(GetWindowPlacement(v.hwnd,&now)&&samePlacement(now,v.applied))SetWindowPlacement(v.hwnd,&v.original);}
+        if(v.moved&&windowlayout::matches(v.hwnd,v.applied,v.appliedBounds))windowlayout::apply(v.hwnd,v.original,v.originalBounds);
     }v.taskbarRemoved=false;v.moved=false;
 }
 void Session::restore(){for(auto& v:views)restoreView(*v);log(L"windows.restored");}
@@ -419,7 +433,7 @@ bool Session::recover(){
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.1.3\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    std::wstring r=L"{\"version\":\"0.1.4\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
@@ -455,6 +469,7 @@ void Session::options(HWND owner,POINT pt){
     AppendMenuW(appearance,MF_STRING|(settings.accentPosition==1?MF_CHECKED:0),21,L"强调线：顶部");
     AppendMenuW(appearance,MF_STRING|(settings.accentPosition==0?MF_CHECKED:0),20,L"强调线：底部");
     AppendMenuW(appearance,MF_STRING|(settings.accentPosition==2?MF_CHECKED:0),22,L"强调线：无");
+    AppendMenuW(appearance,MF_SEPARATOR,0,nullptr);AppendMenuW(appearance,MF_STRING,25,L"标签栏颜色…");AppendMenuW(appearance,MF_STRING,26,L"恢复默认颜色");
     InsertMenuW(m,6,MF_BYPOSITION|MF_POPUP,(UINT_PTR)appearance,L"标签外观");
     UINT cmd=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,pt.x,pt.y,0,owner,nullptr);DestroyMenu(m);
     if(cmd==1)toggleVisible();if(cmd==2)toggleGroup();if(cmd==3){settings.dark=!settings.dark;changed();}if(cmd==4){settings.autoHide=!settings.autoHide;changed();}if(cmd==5){settings.doubleClose=!settings.doubleClose;changed();}
@@ -462,5 +477,6 @@ void Session::options(HWND owner,POINT pt){
     if(cmd==12)widthDialog(GetAncestor(owner,GA_ROOT));if(cmd==13)showDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==14)exportDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==15)recover();if(cmd==16)create(true,owner);
     if(cmd>=20&&cmd<=22)setAppearance((int)cmd-20,settings.barStyle);
     if(cmd==23||cmd==24)setAppearance(settings.accentPosition,cmd==23?1:0);
-    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.3\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
+    if(cmd==25)colorDialog(GetAncestor(owner,GA_ROOT));if(cmd==26)setBarColor(L"");
+    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.4\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
 }

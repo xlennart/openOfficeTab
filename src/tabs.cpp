@@ -1,5 +1,7 @@
 #include "tabs.h"
 #include "layout.h"
+#include "window-layout.h"
+#include "tab-color.h"
 #include <windowsx.h>
 
 HRESULT Tabs::QueryInterface(REFIID i,void** p){
@@ -14,10 +16,18 @@ HRESULT Tabs::QueryInterface(REFIID i,void** p){
     else if(i==__uuidof(ITabBinding))*p=static_cast<ITabBinding*>(this);
     if(!*p)return E_NOINTERFACE;AddRef();return S_OK;
 }
-void Tabs::destroy(){session=nullptr;Unmount();if(oleHwnd)DestroyWindow(oleHwnd);oleHwnd=nullptr;tooltip=nullptr;}
+void Tabs::destroy(){
+    session=nullptr;
+    // Destruction can start at refcount zero. Detach window callbacks before
+    // DestroyWindow dispatches WM_NCDESTROY; proc must not AddRef/Release an
+    // already destructing control and delete it a second time.
+    if(hwnd&&IsWindow(hwnd))SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);
+    if(oleHwnd&&IsWindow(oleHwnd))SetWindowLongPtrW(oleHwnd,GWLP_USERDATA,0);
+    Unmount();if(oleHwnd&&IsWindow(oleHwnd))DestroyWindow(oleHwnd);oleHwnd=nullptr;tooltip=nullptr;
+}
 bool Tabs::Mount(HWND frame){
     if(!frame){compactFrame=nullptr;return true;}
-    if(!oleHwnd||!IsWindow(frame)||!hostWindow||!IsWindow(hostWindow))return false;
+    if(!windowlayout::reserveFrame(frame,oleHwnd,hostWindow))return false;
     RECT reserved{};if(!GetWindowRect(frame,&reserved)||reserved.right<=reserved.left||reserved.bottom<=reserved.top)return false;
     if(compactFrame==frame){layout();return true;}
     // Keep rendering independent of Office's replaceable OLE/pane containers.
@@ -44,7 +54,7 @@ void Tabs::layout(){if(hwnd&&compactFrame&&IsWindow(compactFrame)&&!layingOut){
     auto context=SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(hostWindow));RECT r{},current{};GetWindowRect(compactFrame,&r);MapWindowPoints(nullptr,hostWindow,(POINT*)&r,2);GetWindowRect(hwnd,&current);MapWindowPoints(nullptr,hostWindow,(POINT*)&current,2);
     if(!EqualRect(&r,&current))SetWindowPos(hwnd,HWND_TOP,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOACTIVATE);
     else if(::GetWindow(hostWindow,GW_CHILD)!=hwnd)SetWindowPos(hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
-    if(GetWindowLongPtrW(compactFrame,GWL_STYLE)&WS_VISIBLE)ShowWindow(compactFrame,SW_HIDE);
+    if(windowlayout::reserveFrame(compactFrame,oleHwnd,hostWindow)&&(GetWindowLongPtrW(compactFrame,GWL_STYLE)&WS_VISIBLE))ShowWindow(compactFrame,SW_HIDE);
     if(context)SetThreadDpiAwarenessContext(context);
     layingOut=false;
 }}
@@ -64,7 +74,10 @@ HRESULT Tabs::activate(HWND parent,LPCRECT supplied,bool focus){
         if(!oleHwnd)return HRESULT_FROM_WIN32(GetLastError());
     }else{if(!compactFrame)SetParent(oleHwnd,parent);SetObjectRects(&pos,&clip);if(!hwnd)ShowWindow(oleHwnd,SW_SHOW);}
     site->ShowObject();
-    if(focus){inPlace->OnUIActivate();uiActive=true;if(frame)frame->SetActiveObject(this,L"openOfficetab");if(doc)doc->SetActiveObject(this,L"openOfficetab");SetFocus(NativeWindow());}
+    // The OLE window only reserves space. Requesting UI activation asks Office
+    // to remove its document menus/tools, although this control has none to
+    // replace them with. Keyboard focus belongs to our separate native child.
+    if(focus&&hwnd)SetFocus(hwnd);
     // Office may activate the OLE window after Visible/Add has returned. Do not
     // leave the first layout waiting for the 750 ms recovery timer.
     if(session)session->defer();
@@ -79,7 +92,7 @@ HRESULT Tabs::DoVerb(LONG v,LPMSG,IOleClientSite* s,LONG,HWND p,LPCRECT r){
 HRESULT Tabs::InPlaceDeactivate(){UIDeactivate();if(oleHwnd)ShowWindow(oleHwnd,SW_HIDE);if(activated&&inPlace)inPlace->OnInPlaceDeactivate();activated=false;inPlace.reset();return S_OK;}
 HRESULT Tabs::TranslateAccelerator(LPMSG m){
     if(!m||!session||m->message!=WM_KEYDOWN)return S_FALSE;
-    if(m->wParam==VK_LEFT||m->wParam==VK_RIGHT){auto v=session->tabViews(hostWindow);if(v.empty())return S_FALSE;size_t idx=0;for(size_t i=0;i<v.size();i++)if(v[i]->id==session->activeTabId(hostWindow))idx=i;idx=m->wParam==VK_RIGHT?(idx+1)%v.size():(idx+v.size()-1)%v.size();session->activate(v[idx]->id);return S_OK;}
+    if(m->wParam==VK_LEFT||m->wParam==VK_RIGHT){auto v=session->tabViews(hostWindow);if(v.empty())return S_FALSE;size_t idx=0;for(size_t i=0;i<v.size();i++)if(v[i]->id==session->activeTabId(hostWindow))idx=i;idx=m->wParam==VK_RIGHT?(idx+1)%v.size():(idx+v.size()-1)%v.size();session->activate(v[idx]->id,hostWindow);return S_OK;}
     if(m->wParam==VK_DELETE){session->close(session->activeTabId(hostWindow));return S_OK;}
     if(m->wParam==VK_ESCAPE){finishResize(true);pressed=0;dragging=false;if(GetCapture()==hwnd)ReleaseCapture();auto v=session->find(session->activeId);if(v)SetFocus(v->hwnd);return S_OK;}
     return S_FALSE;
@@ -128,11 +141,13 @@ void Tabs::paint(HDC target,RECT rc){
     HDC d=CreateCompatibleDC(target);HBITMAP bmp=CreateCompatibleBitmap(target,width,height);auto oldBmp=SelectObject(d,bmp);
     bool dark=session&&session->settings.dark;bool contrast=false;HIGHCONTRASTW hc{sizeof(hc)};if(SystemParametersInfoW(SPI_GETHIGHCONTRAST,sizeof(hc),&hc,0))contrast=(hc.dwFlags&HCF_HIGHCONTRASTON)!=0;
     bool blended=session&&session->settings.barStyle==1,towardTop=session&&session->settings.position==3;
-    COLORREF bg=blended?(dark?RGB(50,50,50):RGB(237,237,237)):(dark?RGB(39,39,39):RGB(255,255,255));
+    COLORREF lightBackground=session?session->settings.barColor:tabcolor::defaultBackground();
+    COLORREF bg=blended?(dark?RGB(50,50,50):lightBackground):(dark?RGB(39,39,39):(session&&session->settings.customBarColor?lightBackground:RGB(255,255,255)));
     COLORREF fg=dark?RGB(235,235,235):RGB(50,50,50),selected=blended?(dark?RGB(38,38,38):RGB(255,255,255)):(dark?RGB(58,58,58):RGB(237,237,237)),accent=dark?RGB(112,166,242):RGB(35,91,180);
     COLORREF border=dark?RGB(80,80,80):RGB(213,213,213);
     if(session&&session->host==Host::Excel)accent=dark?RGB(91,190,137):RGB(16,124,65);
     if(session&&session->host==Host::PowerPoint)accent=dark?RGB(240,141,107):RGB(196,59,28);
+    if(!dark)fg=tabcolor::foreground(bg);
     if(contrast){bg=GetSysColor(COLOR_WINDOW);fg=GetSysColor(COLOR_WINDOWTEXT);selected=GetSysColor(COLOR_HIGHLIGHT);accent=GetSysColor(COLOR_HIGHLIGHTTEXT);border=fg;}
     int scale=dpi(hwnd),pad=MulDiv(8,scale,96),button=MulDiv(30,scale,96),tabH=height;
     RECT local{0,0,width,height};fill(d,local,blended?bg:(contrast?bg:(dark?RGB(30,30,30):RGB(237,235,233))));SetBkMode(d,TRANSPARENT);
@@ -165,8 +180,9 @@ void Tabs::paint(HDC target,RECT rc){
             else rounded(d,r,MulDiv(16,scale,96),tabColor,border,active);
             if(active&&session->settings.accentPosition!=2){int thick=std::max(2,MulDiv(2,scale,96));int y=session->settings.accentPosition==1?r.top+MulDiv(1,scale,96):r.bottom-thick-MulDiv(1,scale,96);RECT line{r.left+pad,y,r.right-pad,y+thick};HBRUSH b=CreateSolidBrush(accent);auto ob=SelectObject(d,b);auto op=SelectObject(d,GetStockObject(NULL_PEN));RoundRect(d,line.left,line.top,line.right,line.bottom,thick,thick);SelectObject(d,ob);SelectObject(d,op);DeleteObject(b);}
             RECT label{r.left+pad,r.top,r.right-button,r.bottom-MulDiv(2,scale,96)};std::wstring title=std::wstring(v->locked?L"● ":L"")+(v->saved?L"":L"* ")+v->title;
-            text(d,title,label,contrast&&active?GetSysColor(COLOR_HIGHLIGHTTEXT):fg);
-            RECT closer{r.right-button,r.top,r.right-MulDiv(4,scale,96),r.bottom};text(d,v->locked?L"●":L"×",closer,contrast&&active?GetSysColor(COLOR_HIGHLIGHTTEXT):fg,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            COLORREF tabForeground=contrast?(active?GetSysColor(COLOR_HIGHLIGHTTEXT):fg):tabcolor::foreground(tabColor);
+            text(d,title,label,tabForeground);
+            RECT closer{r.right-button,r.top,r.right-MulDiv(4,scale,96),r.bottom};text(d,v->locked?L"●":L"×",closer,tabForeground,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
             POINT cursor{};GetCursorPos(&cursor);ScreenToClient(hwnd,&cursor);
             if(v->id==resizing||(cursor.x>=r.right-MulDiv(4,scale,96)&&cursor.x<=r.right+MulDiv(4,scale,96)&&cursor.y>=r.top&&cursor.y<r.bottom)){RECT grip{r.right-std::max(1,MulDiv(1,scale,96)),r.top+pad,r.right+std::max(1,MulDiv(1,scale,96)),r.bottom-pad};fill(d,grip,accent);}
             hit.push_back({v->id,r});x=std::min(contentRight,x+tabW);
@@ -203,10 +219,10 @@ void Tabs::click(UINT msg,WPARAM,LPARAM lp){
     if(msg==WM_LBUTTONDOWN){pressed=id;down=p;pressedClose=false;for(auto& x:hit)if(x.first==id)pressedClose=p.x>=x.second.right-MulDiv(32,dpi(hwnd),96);if(id)SetCapture(hwnd);return;}
     if(msg==WM_LBUTTONUP){auto was=pressed;bool moved=dragging,closeHit=pressedClose;pressed=0;dragging=false;if(GetCapture()==hwnd)ReleaseCapture();
         if(moved&&was){if(id){if(id!=was)s->reorder(was,id);}else{RECT client{};GetClientRect(display,&client);if(!PtInRect(&client,p)){POINT screen=p;ClientToScreen(display,&screen);s->drop(was,screen);}}}
-        else if(id&&id==was){if(closeHit)s->close(id);else s->activate(id);}
+        else if(id&&id==was){if(closeHit)s->close(id);else s->activate(id,hostWindow);}
         else if(!was&&PtInRect(&addRect,p))s->create(false,hostWindow);
         else if(!was&&PtInRect(&settingsRect,p)){ClientToScreen(display,&p);s->options(display,p);}
-        else if(!was&&PtInRect(&listRect,p)){HMENU m=CreatePopupMenu();UINT n=1;std::vector<unsigned long long> ids;for(auto& v:s->tabViews(hostWindow)){AppendMenuW(m,MF_STRING|(v->id==s->activeTabId(hostWindow)?MF_CHECKED:0),n++,(v->title+(v->saved?L"":L" *")).c_str());ids.push_back(v->id);}ClientToScreen(display,&p);UINT choice=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,display,nullptr);DestroyMenu(m);if(choice&&choice<=ids.size())s->activate(ids[choice-1]);}if(IsWindow(display))InvalidateRect(display,nullptr,FALSE);return;}
+        else if(!was&&PtInRect(&listRect,p)){HMENU m=CreatePopupMenu();UINT n=1;std::vector<unsigned long long> ids;for(auto& v:s->tabViews(hostWindow)){AppendMenuW(m,MF_STRING|(v->id==s->activeTabId(hostWindow)?MF_CHECKED:0),n++,(v->title+(v->saved?L"":L" *")).c_str());ids.push_back(v->id);}ClientToScreen(display,&p);UINT choice=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,display,nullptr);DestroyMenu(m);if(choice&&choice<=ids.size())s->activate(ids[choice-1],hostWindow);}if(IsWindow(display))InvalidateRect(display,nullptr,FALSE);return;}
     if(msg==WM_MBUTTONUP&&id){s->close(id);return;}
     if(msg==WM_LBUTTONDBLCLK){if(edgeAt(p))return;if(id&&s->settings.doubleClose)s->close(id);else if(!id&&!PtInRect(&addRect,p)&&!PtInRect(&listRect,p)&&!PtInRect(&settingsRect,p))s->create(false,hostWindow);return;}
     if(msg==WM_RBUTTONUP){ClientToScreen(display,&p);if(id)s->menu(display,id,p);else s->options(display,p);}

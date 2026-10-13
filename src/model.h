@@ -11,6 +11,7 @@ struct View {
     unsigned groupId=1,lastGroupId=1;
     int manualTabWidth=0; // DIP, current view only; 0 uses the shared width policy.
     WINDOWPLACEMENT original{sizeof(WINDOWPLACEMENT)},applied{sizeof(WINDOWPLACEMENT)};
+    RECT originalBounds{},appliedBounds{};
     bool moved=false,taskbarRemoved=false;
 };
 class PaneChrome;
@@ -20,6 +21,8 @@ struct Settings {
     int position=1; // msoCTPDockPositionTop
     int tabWidth=120,widthMode=2; // DIP; fixed, title, shrink
     int accentPosition=1,barStyle=1; // 0 bottom / 1 top / 2 none; 0 panel / 1 blended
+    COLORREF barColor=RGB(240,240,240);
+    bool customBarColor=false;
     void load();void save()const;
 };
 class EventSink;
@@ -65,7 +68,7 @@ public:
     bool newTabGroup(unsigned long long id,const POINT* position=nullptr);
     bool drop(unsigned long long id,POINT screen);
     void chooseGroup(HWND owner,unsigned long long id);
-    void activate(unsigned long long id);
+    void activate(unsigned long long id,HWND owner=nullptr);
     bool close(unsigned long long id);
     bool save(unsigned long long id,bool saveAs=false);
     void create(bool independent=false,HWND owner=nullptr);void open();void quitIfEmpty();void finishClose();void nativeClose();
@@ -78,6 +81,7 @@ public:
     std::wstring diagnostics()const;
     bool recover();bool setTabWidth(int width,int mode);
     bool setAppearance(int accent,int style);
+    bool setBarColor(const std::wstring& color);void colorDialog(HWND owner);
     bool setViewWidth(unsigned long long id,int width);
     void widthDialog(HWND owner);void showDiagnostics(HWND owner);void exportDiagnostics(HWND owner);
     void menu(HWND owner,unsigned long long id,POINT pt);

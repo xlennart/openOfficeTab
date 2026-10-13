@@ -15,7 +15,7 @@ jobs:
       - name: Build native add-in
         shell: pwsh
         run: ./scripts/build.ps1 -Architecture x64
-      - name: Test tab width policies
+      - name: Test layout, appearance and window state
         shell: pwsh
         run: ./scripts/test-native.ps1
       - name: Build and verify installers
