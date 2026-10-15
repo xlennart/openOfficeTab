@@ -44,6 +44,11 @@ public:
 HWND window(const wchar_t* cls,HWND parent,int x,int y,int width,int height){return CreateWindowExW(0,cls,L"",parent?WS_CHILD:WS_OVERLAPPEDWINDOW,x,y,width,height,parent,nullptr,module,nullptr);}
 int main(){
     CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
+    RECT reserved{14,358,2866,438},ribbonBounds{14,0,2866,358},edge{};
+    assert(windowlayout::seamBounds(reserved,ribbonBounds,192,edge)&&edge.top==352&&edge.bottom==358);
+    assert(!windowlayout::seamBounds(reserved,RECT{14,0,2866,100},192,edge));
+    assert(!windowlayout::seamBounds(reserved,RECT{14,0,100,358},192,edge));
+    assert(!windowlayout::seamBounds(reserved,RECT{14,0,2866,340},192,edge));
     windowlayout::PhysicalCoordinates context;
     HWND root=window(L"STATIC",nullptr,100,100,900,700),other=window(L"STATIC",nullptr,900,100,500,600);
     assert(root&&other);

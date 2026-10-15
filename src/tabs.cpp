@@ -23,10 +23,11 @@ void Tabs::destroy(){
     // already destructing control and delete it a second time.
     if(hwnd&&IsWindow(hwnd))SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);
     if(oleHwnd&&IsWindow(oleHwnd))SetWindowLongPtrW(oleHwnd,GWLP_USERDATA,0);
+    if(seamWindow&&IsWindow(seamWindow))SetWindowLongPtrW(seamWindow,GWLP_USERDATA,0);
     Unmount();if(oleHwnd&&IsWindow(oleHwnd))DestroyWindow(oleHwnd);oleHwnd=nullptr;tooltip=nullptr;
 }
 bool Tabs::Mount(HWND frame){
-    if(!frame){compactFrame=nullptr;return true;}
+    if(!frame){compactFrame=nullptr;if(seamWindow)ShowWindow(seamWindow,SW_HIDE);return true;}
     if(!windowlayout::reserveFrame(frame,oleHwnd,hostWindow))return false;
     RECT reserved{};if(!GetWindowRect(frame,&reserved)||reserved.right<=reserved.left||reserved.bottom<=reserved.top)return false;
     if(compactFrame==frame){layout();return true;}
@@ -45,19 +46,40 @@ bool Tabs::Mount(HWND frame){
     layout();ShowWindow(hwnd,session&&session->showTabs(hostWindow)?SW_SHOWNOACTIVATE:SW_HIDE);return true;
 }
 void Tabs::Unmount(){
-    if(compactFrame&&IsWindow(compactFrame))ShowWindow(compactFrame,SW_SHOWNOACTIVATE);
+    if(windowlayout::reserveFrame(compactFrame,oleHwnd,hostWindow))ShowWindow(compactFrame,SW_SHOWNOACTIVATE);
     compactFrame=nullptr;
+    if(seamWindow&&IsWindow(seamWindow)){SetWindowLongPtrW(seamWindow,GWLP_USERDATA,0);DestroyWindow(seamWindow);}seamWindow=nullptr;
     if(tooltip)DestroyWindow(tooltip);tooltip=nullptr;if(hwnd&&IsWindow(hwnd))DestroyWindow(hwnd);hwnd=nullptr;
 }
 void Tabs::layout(){if(hwnd&&compactFrame&&IsWindow(compactFrame)&&!layingOut){
+    if(!windowlayout::reserveFrame(compactFrame,oleHwnd,hostWindow)){if(seamWindow)ShowWindow(seamWindow,SW_HIDE);ShowWindow(hwnd,SW_HIDE);return;}
     layingOut=true;
     auto context=SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(hostWindow));RECT r{},current{};GetWindowRect(compactFrame,&r);MapWindowPoints(nullptr,hostWindow,(POINT*)&r,2);GetWindowRect(hwnd,&current);MapWindowPoints(nullptr,hostWindow,(POINT*)&current,2);
     if(!EqualRect(&r,&current))SetWindowPos(hwnd,HWND_TOP,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOACTIVATE);
-    else if(::GetWindow(hostWindow,GW_CHILD)!=hwnd)SetWindowPos(hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+    else if(::GetWindow(hostWindow,GW_CHILD)!=hwnd&&::GetWindow(hostWindow,GW_CHILD)!=seamWindow)SetWindowPos(hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
     if(windowlayout::reserveFrame(compactFrame,oleHwnd,hostWindow)&&(GetWindowLongPtrW(compactFrame,GWL_STYLE)&WS_VISIBLE))ShowWindow(compactFrame,SW_HIDE);
+    layoutSeam();
     if(context)SetThreadDpiAwarenessContext(context);
     layingOut=false;
 }}
+void Tabs::layoutSeam(){
+    RECT r{};HIGHCONTRASTW contrast{sizeof(contrast)};SystemParametersInfoW(SPI_GETHIGHCONTRAST,sizeof(contrast),&contrast,0);
+    bool show=session&&session->settings.barStyle==1&&session->settings.position==1&&session->showTabs(hostWindow)&&!(contrast.dwFlags&HCF_HIGHCONTRASTON)&&windowlayout::seamRect(compactFrame,oleHwnd,hostWindow,r);
+    if(!show){if(seamWindow)ShowWindow(seamWindow,SW_HIDE);return;}
+    if(!seamWindow){WNDCLASSEXW c{sizeof(c)};c.hInstance=module;c.lpszClassName=L"openOfficetab.Seam";c.lpfnWndProc=seamProc;RegisterClassExW(&c);
+        seamWindow=CreateWindowExW(WS_EX_TRANSPARENT|WS_EX_NOACTIVATE,c.lpszClassName,L"",WS_CHILD|WS_CLIPSIBLINGS,r.left,r.top,r.right-r.left,r.bottom-r.top,hostWindow,nullptr,module,this);}
+    if(seamWindow){RECT current{};GetWindowRect(seamWindow,&current);MapWindowPoints(nullptr,hostWindow,(POINT*)&current,2);
+        if(!EqualRect(&r,&current))SetWindowPos(seamWindow,HWND_TOP,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOACTIVATE);
+        else{HWND first=::GetWindow(hostWindow,GW_CHILD);if(first!=seamWindow&&!(first==hwnd&&::GetWindow(hwnd,GW_HWNDNEXT)==seamWindow))SetWindowPos(seamWindow,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
+        ShowWindow(seamWindow,SW_SHOWNOACTIVATE);InvalidateRect(seamWindow,nullptr,FALSE);}
+}
+LRESULT CALLBACK Tabs::seamProc(HWND w,UINT message,WPARAM wp,LPARAM lp){
+    auto self=(Tabs*)GetWindowLongPtrW(w,GWLP_USERDATA);if(message==WM_NCCREATE){self=(Tabs*)((CREATESTRUCTW*)lp)->lpCreateParams;SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)self);}
+    if(message==WM_NCHITTEST)return HTTRANSPARENT;if(message==WM_MOUSEACTIVATE)return MA_NOACTIVATE;if(message==WM_ERASEBKGND)return 1;
+    if(message==WM_PAINT){PAINTSTRUCT ps;HDC dc=BeginPaint(w,&ps);RECT rect{};GetClientRect(w,&rect);COLORREF background=self&&self->session&&self->session->settings.dark?RGB(30,30,30):RGB(237,235,233);HBRUSH brush=CreateSolidBrush(background);FillRect(dc,&rect,brush);DeleteObject(brush);EndPaint(w,&ps);return 0;}
+    if(message==WM_NCDESTROY){if(self&&self->seamWindow==w)self->seamWindow=nullptr;SetWindowLongPtrW(w,GWLP_USERDATA,0);}
+    return DefWindowProcW(w,message,wp,lp);
+}
 HRESULT Tabs::activate(HWND parent,LPCRECT supplied,bool focus){
     if(!site)return E_FAIL;
     if(!inPlace)inPlace=site.as<IOleInPlaceSite>();
@@ -106,6 +128,7 @@ unsigned long long Tabs::edgeAt(POINT p)const{
 void Tabs::finishResize(bool cancel){
     auto id=resizing;resizing=0;
     if(cancel&&session){auto v=session->find(id);if(v){v->manualTabWidth=resizeOriginalWidth;session->redraw();}}
+    if(id&&!cancel&&session){auto view=session->find(id);if(view)session->persistView(*view);}
     if(id&&hwnd&&GetCapture()==hwnd)ReleaseCapture();
     if(id&&hwnd&&GetFocus()==hwnd&&IsWindow(resizePreviousFocus))SetFocus(resizePreviousFocus);
     if(id)resizePreviousFocus=nullptr;
@@ -137,6 +160,8 @@ static void openTab(HDC d,RECT r,int radius,COLORREF bg,COLORREF border,bool tow
     Pen pen(color(border),1.f);g.DrawPath(&pen,&path);
 }
 void Tabs::paint(HDC target,RECT rc){
+    if(hwnd&&compactFrame&&!layingOut)layoutSeam();
+    if(seamWindow)InvalidateRect(seamWindow,nullptr,FALSE);
     int width=rc.right-rc.left,height=rc.bottom-rc.top;if(width<=0||height<=0)return;
     HDC d=CreateCompatibleDC(target);HBITMAP bmp=CreateCompatibleBitmap(target,width,height);auto oldBmp=SelectObject(d,bmp);
     bool dark=session&&session->settings.dark;bool contrast=false;HIGHCONTRASTW hc{sizeof(hc)};if(SystemParametersInfoW(SPI_GETHIGHCONTRAST,sizeof(hc),&hc,0))contrast=(hc.dwFlags&HCF_HIGHCONTRASTON)!=0;
@@ -150,16 +175,19 @@ void Tabs::paint(HDC target,RECT rc){
     if(!dark)fg=tabcolor::foreground(bg);
     if(contrast){bg=GetSysColor(COLOR_WINDOW);fg=GetSysColor(COLOR_WINDOWTEXT);selected=GetSysColor(COLOR_HIGHLIGHT);accent=GetSysColor(COLOR_HIGHLIGHTTEXT);border=fg;}
     int scale=dpi(hwnd),pad=MulDiv(8,scale,96),button=MulDiv(30,scale,96),tabH=height;
-    RECT local{0,0,width,height};fill(d,local,blended?bg:(contrast?bg:(dark?RGB(30,30,30):RGB(237,235,233))));SetBkMode(d,TRANSPARENT);
+    RECT local{0,0,width,height};fill(d,local,contrast?bg:(dark?RGB(30,30,30):RGB(237,235,233)));SetBkMode(d,TRANSPARENT);
     int panelInset=MulDiv(8,scale,96),panelRadius=MulDiv(16,scale,96);
     RECT panel{panelInset,MulDiv(1,scale,96),width-panelInset,height-MulDiv(1,scale,96)};
     if(!blended){
         RECT shadow=panel;shadow.top+=MulDiv(1,scale,96);shadow.bottom+=MulDiv(1,scale,96);
         rounded(d,shadow,panelRadius,dark?RGB(24,24,24):RGB(218,216,214),bg);
         rounded(d,panel,panelRadius,bg,bg);
-    }else{
-        RECT baseline{panel.left,towardTop?0:height-1,panel.right,towardTop?1:height};fill(d,baseline,border);
-    }
+    }else rounded(d,panel,panelRadius,bg,bg);
+    // Both styles share Office's 8 DIP side insets and rounded outer card.
+    // Clip open-tab feet to that card so they cannot flatten its corners.
+    int savedClip=SaveDC(d);
+    if(!contrast){HRGN clip=CreateRoundRectRgn(panel.left,panel.top,panel.right+1,panel.bottom+1,panelRadius,panelRadius);ExtSelectClipRgn(d,clip,RGN_AND);DeleteObject(clip);}
+    if(blended){tabH=panel.bottom;RECT baseline{panel.left,towardTop?panel.top:panel.bottom-1,panel.right,towardTop?panel.top+1:panel.bottom};fill(d,baseline,border);}
     LOGFONTW lf{};lf.lfHeight=-MulDiv(12,scale,96);wcscpy_s(lf.lfFaceName,L"Microsoft YaHei UI");HFONT font=CreateFontIndirectW(&lf);auto oldFont=SelectObject(d,font);
     hit.clear();int nextButton=panelInset+pad;
     int contentLeft=panelInset+pad,contentRight=std::max<int>(contentLeft,panel.right-pad-3*button);
@@ -174,7 +202,7 @@ void Tabs::paint(HDC target,RECT rc){
             int tabW=widths[i];if(contentRight-x<MulDiv(tablayout::minWidth,scale,96))break;
             auto& v=views[i];RECT r{x,MulDiv(3,scale,96),std::min(contentRight,x+tabW-MulDiv(3,scale,96)),tabH-MulDiv(3,scale,96)};
             bool active=v->id==selectedId;
-            if(blended&&active){if(towardTop)r.top=0;else r.bottom=tabH;}
+            if(blended&&active){if(towardTop)r.top=panel.top;else r.bottom=tabH;}
             COLORREF tabColor=active?selected:(v->id==hover?(dark?RGB(49,49,49):RGB(238,238,238)):bg);
             if(blended&&active)openTab(d,r,MulDiv(8,scale,96),tabColor,border,towardTop);
             else rounded(d,r,MulDiv(16,scale,96),tabColor,border,active);
@@ -202,7 +230,7 @@ void Tabs::paint(HDC target,RECT rc){
         else{SolidBrush brush(color(fg));REAL dot=(REAL)scale/96*2.5f;for(int i=-1;i<=1;i++)g.FillEllipse(&brush,cx+i*MulDiv(5,scale,96)-dot/2,cy-dot/2,dot,dot);}
     };icon(addRect,0);icon(listRect,1);icon(settingsRect,2);
     if(dragging){RECT marker{down.x-1,3,down.x+2,tabH-3};fill(d,marker,accent);}
-    BitBlt(target,rc.left,rc.top,width,height,d,0,0,SRCCOPY);SelectObject(d,oldFont);DeleteObject(font);SelectObject(d,oldBmp);DeleteObject(bmp);DeleteDC(d);
+    SelectObject(d,oldFont);DeleteObject(font);RestoreDC(d,savedClip);BitBlt(target,rc.left,rc.top,width,height,d,0,0,SRCCOPY);SelectObject(d,oldBmp);DeleteObject(bmp);DeleteDC(d);
 }
 void Tabs::click(UINT msg,WPARAM,LPARAM lp){
     if(!session)return;

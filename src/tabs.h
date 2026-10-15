@@ -12,7 +12,7 @@ class Tabs final:public IDispatch,public IOleObject,public IOleInPlaceObject,
     DWORD adviseAspect=0,adviseFlags=0;
     SIZEL extent{15000,1100};
     HWND hwnd=nullptr,hostWindow=nullptr;
-    HWND compactFrame=nullptr,oleHwnd=nullptr;
+    HWND compactFrame=nullptr,oleHwnd=nullptr,seamWindow=nullptr;
     Session* session=nullptr;
     bool activated=false,layingOut=false;
     std::vector<std::pair<unsigned long long,RECT>> hit;
@@ -48,6 +48,8 @@ public:
     bool STDMETHODCALLTYPE Mount(HWND)override;
     void STDMETHODCALLTYPE Unmount()override;
     void layout();
+    void layoutSeam();static LRESULT CALLBACK seamProc(HWND,UINT,WPARAM,LPARAM);
+    HWND STDMETHODCALLTYPE SeamWindow()override{return seamWindow;}
     // IOleObject
     HRESULT STDMETHODCALLTYPE SetClientSite(IOleClientSite* s)override{site=Ptr<IOleClientSite>(s);return S_OK;}
     HRESULT STDMETHODCALLTYPE GetClientSite(IOleClientSite** s)override{if(!s)return E_POINTER;*s=site.get();if(*s)(*s)->AddRef();return S_OK;}

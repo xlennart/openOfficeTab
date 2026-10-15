@@ -43,6 +43,7 @@ struct __declspec(uuid("6AD815EB-5317-4C5E-85A3-2832C8988BA1")) ITabBinding : IU
     virtual HWND STDMETHODCALLTYPE OleWindow() = 0;
     virtual bool STDMETHODCALLTYPE Mount(HWND) = 0;
     virtual void STDMETHODCALLTYPE Unmount() = 0;
+    virtual HWND STDMETHODCALLTYPE SeamWindow() = 0;
 };
 
 template<class T> class Ptr {

@@ -15,7 +15,7 @@ $source=Join-Path $taskRoot "dist\$Architecture\openOfficetab.dll"
 if(-not (Test-Path -LiteralPath $source)){throw "找不到插件：$source"}
 $sourceHash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
 $buildHash=$sourceHash.Substring(0,12).ToLowerInvariant()
-$destination=Join-Path $env:LOCALAPPDATA "openOfficetab\bin\0.1.4-$buildHash\$Architecture"
+$destination=Join-Path $env:LOCALAPPDATA "openOfficetab\bin\0.1.5-$buildHash\$Architecture"
 New-Item -ItemType Directory -Force $destination | Out-Null
 $installed=Join-Path $destination 'openOfficetab.dll'
 if(Test-Path -LiteralPath $installed){
@@ -33,6 +33,6 @@ $results=foreach($app in 'Word','Excel','PowerPoint'){
     if($entry.LoadBehavior -ne 3){throw "$app 自动加载注册未通过。"}
     [pscustomobject]@{Application=$app;LoadBehavior=$entry.LoadBehavior}
 }
-Write-Host "openOfficetab 0.1.4 已安装到：$installed"
+Write-Host "openOfficetab 0.1.5 已安装到：$installed"
 $results | Format-Table
 Write-Host '重新打开 Office 后，标签会出现在功能区下方。可从 openOfficetab 功能区隐藏、设置或恢复窗口。'

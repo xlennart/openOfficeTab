@@ -81,3 +81,13 @@ powershell -NoProfile -File tests/ribbon-runtime.ps1 -HostName PowerPoint
 修改源码后执行相应构建及运行验证；仅文档、安装器或打包变更不必重复所有 Office 流程。发布前检查源码、图片和 ZIP 不含个人路径、账号、日志或未审阅的截图。
 
 手动创建版本标签，上传 `delivery/` 中 EXE、ZIP、SHA256SUMS；CI 仅生成构建产物，不自动发布。版本号当前同步维护于源码、安装脚本、安装器、打包默认值和 README。
+
+## 0.1.5 存储与同步
+
+`src/storage.cpp` 提供带命名互斥的读改写、UTF-16 原子替换和文件偏好 / 最近关闭的 schema；`src/settings.cpp` 按加载基线合并变化键；`src/persistence.cpp` 负责确认关闭记录、重开、首次保存继承和延迟写入重试。测试可注入存储目录，不接触用户配置。`documents.ini` 含路径历史，只编码不加密，禁止提交到仓库或附在公共诊断中。
+
+`GetRecentlyClosed` 开发接口返回本机路径，不能用于公开诊断。`GetDiagnostics` 只返回计数和设置写入状态。`ReopenClosed` 索引从 0 开始；菜单捕获路径快照，避免列表并发更新后选错文件。
+
+原生测试新增两个隐藏子进程竞争写入、陈旧设置增量合并、取消关闭 / 隐藏视图排除、重开偏好和首次保存继承。功能区边缘补绘只在验证自有占位和完整 Ribbon 后启用，3 DIP、高对比度关闭，命中穿透，卸载销毁。
+
+0.1.5 实机回归：依次运行 `persistence-runtime.ps1 -HostName Word|Excel|PowerPoint`（每次填一个宿主名），再运行 `first-save-runtime.ps1` 的同名宿主检查，最后运行 `settings-sync-runtime.ps1`。只接受唯一已保存的公开空白示例；保存测试仅写入 `artifacts/` 中唯一命名的空白副本，不退出含私人文档的宿主。实机回归不会由 CI 执行。

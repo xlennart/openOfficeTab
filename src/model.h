@@ -1,5 +1,6 @@
 #pragma once
 #include "com.h"
+#include "storage.h"
 enum class Host {Word,Excel,PowerPoint};
 struct View {
     unsigned long long id=0;
@@ -9,7 +10,7 @@ struct View {
     std::wstring title,path;
     bool saved=true,readOnly=false,locked=false,independent=false;
     unsigned groupId=1,lastGroupId=1;
-    int manualTabWidth=0; // DIP, current view only; 0 uses the shared width policy.
+    int manualTabWidth=0; // DIP, remembered by saved file; 0 uses the shared width policy.
     WINDOWPLACEMENT original{sizeof(WINDOWPLACEMENT)},applied{sizeof(WINDOWPLACEMENT)};
     RECT originalBounds{},appliedBounds{};
     bool moved=false,taskbarRemoved=false;
@@ -23,7 +24,10 @@ struct Settings {
     int accentPosition=1,barStyle=1; // 0 bottom / 1 top / 2 none; 0 panel / 1 blended
     COLORREF barColor=RGB(240,240,240);
     bool customBarColor=false;
-    void load();void save()const;
+    std::wstring root;
+    mutable storage::Section baseline;
+    mutable bool savePending=false;
+    bool load();bool save()const;bool synchronize();
 };
 class EventSink;
 class Session : public std::enable_shared_from_this<Session> {
@@ -32,6 +36,11 @@ public:
     Host host=Host::Word;
     HWND timer=nullptr;
     Settings settings;
+    std::wstring storageRoot;
+    unsigned long long settingsStamp=0;
+    ULONGLONG lastSettingsPoll=0;
+    std::map<std::wstring,storage::FilePreference> pendingPreferences;
+    std::vector<std::wstring> pendingRecent;
     std::vector<std::shared_ptr<View>> views;
     std::vector<Pane> panes;
     unsigned long long nextId=1,activeId=0,groupActiveId=0;
@@ -51,7 +60,7 @@ public:
     Ptr<ITaskbarList> taskbar;
     bool refreshing=false,executing=false,creating=false,stopped=false,refreshPending=false;
     int failures=0;
-    Session(IDispatch* application);
+    Session(IDispatch* application,const std::wstring& root=L"");
     ~Session();
     void start();void stop();void defer();bool refresh();
     void bindFactory(IDispatch* f);
@@ -87,6 +96,10 @@ public:
     void menu(HWND owner,unsigned long long id,POINT pt);
     void options(HWND owner,POINT pt);
     void report(const ComError& e);
+    void persistView(const View& view);void initializePreference(View& view,bool isNew,const std::wstring& oldPath);
+    void pollPersistence();void flushPersistence(unsigned milliseconds=0);bool resetFilePreferences(unsigned long long id);bool resetAllFilePreferences();
+    std::vector<std::wstring> recentlyClosed()const;bool reopenClosed(unsigned index);bool reopenPath(const std::wstring& path);bool clearRecentlyClosed();
+    void rememberClosed(const std::wstring& path);void recentMenu(HWND owner,POINT point);
 };
 class EventSink:public IDispatch {
     ULONG refs=1;Session* session;IID eventId;

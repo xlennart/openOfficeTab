@@ -40,4 +40,23 @@ inline bool reserveFrame(HWND frame,HWND ole,HWND host){
     // Only compact our short CTP strip, never a large/shared Office toolbar.
     return GetWindowRect(frame,&bounds)&&bounds.right>bounds.left&&bounds.bottom>bounds.top&&bounds.bottom-bounds.top<=MulDiv(96,dpi(frame),96);
 }
+inline bool seamBounds(const RECT& reserved,const RECT& ribbon,int scale,RECT& result){
+    int edge=std::max(1,MulDiv(3,scale,96));
+    if(reserved.right<=reserved.left||ribbon.bottom-ribbon.top<MulDiv(96,scale,96)||abs(ribbon.bottom-reserved.top)>edge)return false;
+    int left=std::max(ribbon.left,reserved.left),right=std::min(ribbon.right,reserved.right);if(right-left<(reserved.right-reserved.left)*9/10)return false;
+    result={left,ribbon.bottom-edge,right,ribbon.bottom};return true;
+}
+inline bool seamRect(HWND frame,HWND ole,HWND host,RECT& result){
+    if(!reserveFrame(frame,ole,host))return false;
+    PhysicalCoordinates context;RECT reserved{};if(!GetWindowRect(frame,&reserved))return false;
+    HWND parent=GetParent(frame);
+    // The full ribbon is a sibling in this dock. Touch only its final 3 DIP,
+    // and reject collapsed ribbons, foreign roots and non-adjacent toolbars.
+    for(HWND candidate=GetWindow(parent,GW_CHILD);candidate;candidate=GetWindow(candidate,GW_HWNDNEXT)){
+        if(candidate==frame||GetAncestor(candidate,GA_ROOT)!=host||!IsWindowVisible(candidate)||GetWindowThreadProcessId(candidate,nullptr)!=GetCurrentThreadId())continue;
+        wchar_t cls[128]{};GetClassNameW(candidate,cls,128);if(_wcsicmp(cls,L"MsoCommandBar"))continue;
+        RECT ribbon{};if(!GetWindowRect(candidate,&ribbon)||!seamBounds(reserved,ribbon,dpi(host),result))continue;
+        MapWindowPoints(nullptr,host,(POINT*)&result,2);return true;
+    }return false;
+}
 }

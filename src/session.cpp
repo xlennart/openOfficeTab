@@ -60,45 +60,13 @@ struct Flag {bool& value;explicit Flag(bool& x):value(x){value=true;}~Flag(){val
 bool valid(HWND h){DWORD pid=0;GetWindowThreadProcessId(h,&pid);return h&&IsWindow(h)&&pid==GetCurrentProcessId();}
 std::wstring hostName(Host h){return h==Host::Word?L"Word":h==Host::Excel?L"Excel":L"PowerPoint";}
 }
-void Settings::load(){
-    std::wstring p=dataDir()+L"\\settings.ini";
-    if(GetPrivateProfileIntW(L"openOfficetab",L"schemaVersion",1,p.c_str())!=1){log(L"settings.schema.unsupported");return;}
-    visible=GetPrivateProfileIntW(L"openOfficetab",L"visible",1,p.c_str())!=0;
-    group=GetPrivateProfileIntW(L"openOfficetab",L"group",0,p.c_str())!=0;
-    dark=GetPrivateProfileIntW(L"openOfficetab",L"dark",0,p.c_str())!=0;
-    autoHide=GetPrivateProfileIntW(L"openOfficetab",L"autoHide",0,p.c_str())!=0;
-    doubleClose=GetPrivateProfileIntW(L"openOfficetab",L"doubleClose",0,p.c_str())!=0;
-    position=GetPrivateProfileIntW(L"openOfficetab",L"position",1,p.c_str());
-    if(position!=1&&position!=3)position=1;
-    tabWidth=GetPrivateProfileIntW(L"openOfficetab",L"tabWidth",120,p.c_str());
-    widthMode=GetPrivateProfileIntW(L"openOfficetab",L"widthMode",2,p.c_str());
-    if(!tablayout::validWidth(tabWidth,widthMode)){tabWidth=120;widthMode=2;}
-    accentPosition=GetPrivateProfileIntW(L"openOfficetab",L"accentPosition",1,p.c_str());
-    barStyle=GetPrivateProfileIntW(L"openOfficetab",L"barStyle",1,p.c_str());
-    if(accentPosition<0||accentPosition>2)accentPosition=1;
-    if(barStyle<0||barStyle>1)barStyle=1;
-    wchar_t color[32]{};GetPrivateProfileStringW(L"openOfficetab",L"barColor",L"#F0F0F0",color,32,p.c_str());
-    customBarColor=GetPrivateProfileIntW(L"openOfficetab",L"customBarColor",0,p.c_str())!=0;
-    if(!tabcolor::parse(color,barColor)){barColor=tabcolor::defaultBackground();customBarColor=false;}
-}
-void Settings::save()const{
-    std::wstring file=dataDir()+L"\\settings.ini",temp=file+L"."+std::to_wstring(GetCurrentProcessId())+L".tmp";
-    std::wstring content=L"[openOfficetab]\r\nschemaVersion=1\r\nstyle="+std::wstring(barStyle==1?L"open":L"browser")+L"\r\nvisible="+std::to_wstring(visible)+L"\r\ngroup="+std::to_wstring(group)+L"\r\ndark="+std::to_wstring(dark)+L"\r\nautoHide="+std::to_wstring(autoHide)+L"\r\ndoubleClose="+std::to_wstring(doubleClose)+L"\r\nposition="+std::to_wstring(position)+L"\r\n";
-    content+=L"tabWidth="+std::to_wstring(tabWidth)+L"\r\nwidthMode="+std::to_wstring(widthMode)+L"\r\n";
-    content+=L"accentPosition="+std::to_wstring(accentPosition)+L"\r\nbarStyle="+std::to_wstring(barStyle)+L"\r\n";
-    content+=L"barColor="+tabcolor::format(barColor)+L"\r\ncustomBarColor="+std::to_wstring(customBarColor)+L"\r\n";
-    HANDLE h=CreateFileW(temp.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
-    if(h==INVALID_HANDLE_VALUE){log(L"settings.write.failed",HRESULT_FROM_WIN32(GetLastError()));return;}
-    WORD bom=0xfeff;DWORD n;WriteFile(h,&bom,2,&n,nullptr);WriteFile(h,content.data(),(DWORD)(content.size()*2),&n,nullptr);FlushFileBuffers(h);CloseHandle(h);
-    if(!MoveFileExW(temp.c_str(),file.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))log(L"settings.replace.failed",HRESULT_FROM_WIN32(GetLastError()));
-}
-Session::Session(IDispatch* application):app(application){
+Session::Session(IDispatch* application,const std::wstring& root):app(application),storageRoot(root.empty()?dataDir():root){
     std::wstring name=call(app.get(),L"Name").str();
     if(name.find(L"Excel")!=std::wstring::npos)host=Host::Excel;
     else if(name.find(L"PowerPoint")!=std::wstring::npos)host=Host::PowerPoint;
     else if(name.find(L"Word")!=std::wstring::npos)host=Host::Word;
     else throw ComError(E_NOTIMPL,L"Unsupported Office host");
-    settings.load();
+    settings.root=storageRoot;settings.load();settingsStamp=storage::Store(storageRoot).stamp(L"settings.ini");
 }
 Session::~Session(){stop();}
 void Session::start(){
@@ -114,6 +82,7 @@ void Session::start(){
 }
 void Session::stop(){
     if(stopped)return;stopped=true;
+    try{flushPersistence(200);}catch(...){log(L"state.shutdown.flushFailed",E_FAIL);}
     if(timer){KillTimer(timer,1);KillTimer(timer,2);DestroyWindow(timer);timer=nullptr;}
     if(sink)sink->detach();if(connection&&cookie)connection->Unadvise(cookie);cookie=0;connection.reset();sink.reset();
     restore();
@@ -123,6 +92,16 @@ void Session::stop(){
 void Session::defer(){if(timer&&!stopped&&!refreshPending){refreshPending=true;if(!PostMessageW(timer,REFRESH,0,0))refreshPending=false;}}
 void Session::bindFactory(IDispatch* f){factory=Ptr<IDispatch>(f);log(L"factory.available");defer();}
 void Session::event(DISPID id,DISPPARAMS* params){
+    if(!stopped&&params&&params->cArgs&&((host==Host::Word&&id==11&&params->cArgs>=2)||(host==Host::Excel&&id==2911&&params->cArgs>=2)||(host==Host::PowerPoint&&(id==2005||id==2031)))){
+        UINT index=(host==Host::Word||host==Host::Excel)?1:0;Var document;VariantCopyInd(&document.v,&params->rgvarg[index]);auto object=document.disp();
+        auto path=prop(object.get(),L"Path").str().empty()?L"":prop(object.get(),L"FullName").str();
+        if(!path.empty())for(auto& view:views)if(object&&object.as<IUnknown>().get()==view->document.as<IUnknown>().get()){
+            auto old=view->path;view->path=path;initializePreference(*view,false,old);}
+    }
+    if(host==Host::PowerPoint&&id==2031&&params&&params->cArgs){
+        Var value;VariantCopyInd(&value.v,&params->rgvarg[0]);auto closing=value.disp();
+        for(auto& view:views)if(closing&&closing.as<IUnknown>().get()==view->document.as<IUnknown>().get()){rememberClosed(view->path);break;}
+    }
     if(host==Host::PowerPoint&&id==2004&&pendingCloseId&&params&&params->cArgs){
         Var value;VariantCopyInd(&value.v,&params->rgvarg[0]);auto closing=value.disp();auto target=find(pendingCloseId);
         if(target&&closing&&closing.as<IUnknown>().get()==target->document.as<IUnknown>().get())pendingCloseAccepted=true;
@@ -145,7 +124,7 @@ void Session::event(DISPID id,DISPPARAMS* params){
                 view->groupId=pendingNewDocument?newDocumentGroup:currentGroup();view->independent=view->groupId==0;view->lastGroupId=view->groupId?view->groupId:1;pendingNewDocument=false;
                 view->window=window;view->document=document;view->title=call(document.get(),L"Name").str();
                 view->saved=prop(document.get(),L"Saved").boolean(true);view->readOnly=prop(document.get(),L"ReadOnly").boolean();
-                view->path=prop(document.get(),L"Path").str().empty()?L"":prop(document.get(),L"FullName").str();views.push_back(view);
+                view->path=prop(document.get(),L"Path").str().empty()?L"":prop(document.get(),L"FullName").str();initializePreference(*view,true,L"");views.push_back(view);
             }
             activeId=view->id;if(!view->independent){groupActiveId=view->id;groupActives[view->groupId]=view->id;}syncPanes();redraw();
         }
@@ -194,7 +173,7 @@ bool Session::moveToGroup(unsigned long long id,unsigned group){
         }
         // Keep the original Office document, including unsaved edits. Only
         // membership, the reserved strip and grouping behavior are changed.
-        syncPanes();updateTaskbar();redraw();
+        persistView(*v);syncPanes();updateTaskbar();redraw();
         call(v->window.get(),L"Activate",DISPATCH_METHOD);
     }catch(const ComError& e){report(e);}
     refresh();auto actual=find(id);return actual&&actual->groupId==group;
@@ -205,6 +184,12 @@ bool Session::refresh(){
     try{
         // Enumeration is transactional: a rejected/partial Office call must not remove live tabs.
         if(host==Host::Excel&&!prop(app.get(),L"Ready").boolean(true))return false;
+        pollPersistence();
+        // A hidden workbook or another editing view is not a closed document.
+        std::set<std::wstring> openPaths;
+        auto documents=call(app.get(),host==Host::Word?L"Documents":host==Host::Excel?L"Workbooks":L"Presentations").disp();
+        long documentCount=call(documents.get(),L"Count").number();
+        for(long i=1;i<=documentCount;i++){auto document=item(documents.get(),i);if(!call(document.get(),L"Path").str().empty())openPaths.insert(storage::normalize(call(document.get(),L"FullName").str()));}
         auto handle=[&](IDispatch* window)->HWND{
             if(host!=Host::PowerPoint)return (HWND)(UINT_PTR)(DWORD)prop(window,L"Hwnd").number();
             auto identity=Ptr<IDispatch>(window).as<IUnknown>();
@@ -220,6 +205,7 @@ bool Session::refresh(){
             // Excel may expose a fresh Window COM wrapper on every enumeration.
             // The process-local top-level HWND identifies a live Office view.
             for(auto& old:views)if((h&&old->hwnd==h)||(host==Host::PowerPoint&&old->identity.get()==ident.get())){v=std::make_shared<View>(*old);break;}
+            bool isNew=!v;std::wstring oldPath=v?v->path:L"";
             if(!v){v=std::make_shared<View>();v->id=nextId++;v->hwnd=h;v->identity=ident;GetWindowPlacement(h,&v->original);
                 if(pendingNewDocument&&GetTickCount64()-pendingNewSince>5000)pendingNewDocument=false;
                 v->groupId=pendingNewDocument?newDocumentGroup:currentGroup();v->independent=v->groupId==0;v->lastGroupId=v->groupId?v->groupId:1;pendingNewDocument=false;}
@@ -228,6 +214,7 @@ bool Session::refresh(){
             if(caption.find(L":")!=std::wstring::npos)v->title=caption;
             v->saved=call(doc.get(),L"Saved").boolean(true);v->readOnly=prop(doc.get(),L"ReadOnly").boolean();
             v->path=prop(doc.get(),L"Path").str().empty()?L"":prop(doc.get(),L"FullName").str();
+            initializePreference(*v,isNew,oldPath);
             if(std::none_of(discovered.begin(),discovered.end(),[&](auto& x){return (h&&x->hwnd==h)||x->identity.get()==ident.get();}))discovered.push_back(v);
         };
         if(host==Host::Excel){
@@ -239,7 +226,7 @@ bool Session::refresh(){
         }
         // Preserve the displayed order, independent of Office's changing collection indexes.
         std::vector<std::shared_ptr<View>> ordered;
-        for(auto& v:views){auto it=std::find_if(discovered.begin(),discovered.end(),[&](auto& x){return v->id==x->id;});if(it!=discovered.end())ordered.push_back(*it);else restoreView(*v);}
+        for(auto& v:views){auto it=std::find_if(discovered.begin(),discovered.end(),[&](auto& x){return v->id==x->id;});if(it!=discovered.end())ordered.push_back(*it);else{if(!v->path.empty()&&!openPaths.count(storage::normalize(v->path)))rememberClosed(v->path);restoreView(*v);}}
         for(auto& v:discovered)if(std::none_of(ordered.begin(),ordered.end(),[&](auto& x){return x->id==v->id;}))ordered.push_back(v);
         bool visualChanged=views.size()!=ordered.size();
         for(size_t i=0;!visualChanged&&i<views.size();i++){
@@ -297,8 +284,8 @@ void Session::syncPanes(){
                 long desired=MulDiv(32,dpi(v->hwnd),96);
                 // Respect an Office minimum instead of repeatedly fighting it.
                 if(it->requestedHeight!=desired){put(it->office.get(),L"Height",Var(desired));it->requestedHeight=desired;}
-                if(it->chrome)it->chrome->layout();
             }
+            if(it->chrome)it->chrome->layout();
             HWND display=it->control->NativeWindow();if(display&&((GetWindowLongPtrW(display,GWL_STYLE)&WS_VISIBLE)!=0)!=show)ShowWindow(display,show?SW_SHOWNOACTIVATE:SW_HIDE);
         }catch(...){}
     }
@@ -433,7 +420,7 @@ bool Session::recover(){
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.1.4\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    std::wstring r=L"{\"version\":\"0.1.5\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
@@ -441,7 +428,7 @@ std::wstring Session::state()const{
         r+=L"{\"viewId\":"+std::to_wstring(p.viewId)+L",\"controlHwnd\":"+std::to_wstring((UINT_PTR)h)+L",\"width\":"+std::to_wstring(rc.right-rc.left)+L",\"height\":"+std::to_wstring(rc.bottom-rc.top)+L",\"dpi\":"+std::to_wstring(dpi(h))+L",\"officeHeight\":"+std::to_wstring(prop(p.office.get(),L"Height").number())+L",\"ancestors\":[";
         for(int j=0;h&&j<10;j++){h=GetParent(h);if(!h)break;wchar_t cls[128];GetClassNameW(h,cls,128);GetWindowRect(h,&rc);RECT client{};GetClientRect(h,&client);if(j)r+=L",";r+=L"{\"class\":"+json(cls)+L",\"height\":"+std::to_wstring(rc.bottom-rc.top)+L",\"clientHeight\":"+std::to_wstring(client.bottom-client.top)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)h)+L"}";}
         HWND frame=p.chrome?p.chrome->window():nullptr;RECT reserved{},display{};if(frame)GetWindowRect(frame,&reserved);HWND native=p.control?p.control->NativeWindow():nullptr;if(native)GetWindowRect(native,&display);
-        r+=L"],\"displayLeft\":"+std::to_wstring(display.left)+L",\"displayTop\":"+std::to_wstring(display.top)+L",\"reserveFrameHwnd\":"+std::to_wstring((UINT_PTR)frame)+L",\"reserveFrameVisible\":"+(IsWindowVisible(frame)?L"true":L"false")+L",\"displayVisible\":"+(native&&(GetWindowLongPtrW(native,GWL_STYLE)&WS_VISIBLE)?L"true":L"false")+L",\"officeVisible\":"+(prop(p.office.get(),L"Visible").boolean()?L"true":L"false")+L",\"matchesReservedRect\":"+(frame&&native&&EqualRect(&reserved,&display)?L"true":L"false")+L"}";
+        r+=L"],\"displayLeft\":"+std::to_wstring(display.left)+L",\"displayTop\":"+std::to_wstring(display.top)+L",\"reserveFrameHwnd\":"+std::to_wstring((UINT_PTR)frame)+L",\"reserveFrameVisible\":"+(IsWindowVisible(frame)?L"true":L"false")+L",\"displayVisible\":"+(native&&(GetWindowLongPtrW(native,GWL_STYLE)&WS_VISIBLE)?L"true":L"false")+L",\"officeVisible\":"+(prop(p.office.get(),L"Visible").boolean()?L"true":L"false")+L",\"seamVisible\":"+(p.control&&IsWindowVisible(p.control->SeamWindow())?L"true":L"false")+L",\"seamHwnd\":"+std::to_wstring((UINT_PTR)(p.control?p.control->SeamWindow():nullptr))+L",\"matchesReservedRect\":"+(frame&&native&&EqualRect(&reserved,&display)?L"true":L"false")+L"}";
     }
     return r+L"],\"diagnostics\":"+diagnostics()+L"}";
 }
@@ -451,17 +438,19 @@ void Session::menu(HWND owner,unsigned long long id,POINT pt){
     add(1,L"切换到此文档");add(12,L"在独立窗口中显示");add(13,L"移到新标签组窗口");add(14,L"移动到标签组…");add(15,L"新建为独立窗口");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(2,L"保存",!v->readOnly);add(3,L"另存为…",!v->readOnly);add(4,L"保存本组全部标签");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
     add(5,L"关闭",!v->locked);add(6,L"关闭其他标签");add(7,L"关闭左侧标签");add(8,L"关闭右侧标签");add(9,L"关闭全部标签");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
     add(10,L"锁定标签（防止从标签栏关闭）",true,v->locked);add(11,L"打开所在文件夹",!v->path.empty()&&v->path.find(L"://")==std::wstring::npos);
+    AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(17,L"最近关闭…");add(18,L"重置此文件的标签设置",storage::localFile(v->path));
     UINT command=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,pt.x,pt.y,0,owner,nullptr);DestroyMenu(m);
     if(command==1)activate(id);if(command==2)save(id);if(command==3)save(id,true);if(command==4)saveAll(v->hwnd);if(command==5)close(id);if(command==12)setIndependent(id,true);
     if(command>=6&&command<=9){std::vector<unsigned long long> ids;bool after=false;for(auto& x:tabViews(v->hwnd)){if(x->id==id){after=true;if(command==9)ids.push_back(x->id);continue;}if(command==6||command==9||(command==7&&!after)||(command==8&&after))ids.push_back(x->id);}batchClose(ids);}
     if(command==10){v->locked=!v->locked;redraw();}
     if(command==11){std::wstring parent=v->path.substr(0,v->path.find_last_of(L"\\/"));ShellExecuteW(owner,L"open",parent.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
     if(command==13)newTabGroup(id);if(command==14)chooseGroup(owner,id);if(command==15)create(true,owner);
+    if(command==17)recentMenu(owner,pt);if(command==18)resetFilePreferences(id);
 }
 void Session::options(HWND owner,POINT pt){
     auto keep=shared_from_this();HMENU m=CreatePopupMenu();auto add=[&](UINT n,const wchar_t* t,bool check=false){AppendMenuW(m,MF_STRING|(check?MF_CHECKED:0),n,t);};
     add(1,L"显示标签栏",settings.visible);add(2,L"窗口跟随 / 单任务栏模式",settings.group);add(3,L"深色标签",settings.dark);add(4,L"单标签时自动隐藏",settings.autoHide);add(5,L"双击标签关闭",settings.doubleClose);AppendMenuW(m,MF_SEPARATOR,0,nullptr);
-    add(6,L"标签置于顶部",settings.position==1);add(7,L"标签置于底部",settings.position==3);add(8,L"恢复窗口排列与任务栏");add(12,L"标签宽度…");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(13,L"加载诊断…");add(14,L"导出脱敏诊断…");add(15,L"恢复标签栏与窗口");add(16,L"新建为独立窗口");add(9,L"打开文档…");add(10,L"打开日志与设置文件夹");add(11,L"关于 openOfficetab");
+    add(6,L"标签置于顶部",settings.position==1);add(7,L"标签置于底部",settings.position==3);add(8,L"恢复窗口排列与任务栏");add(12,L"默认标签宽度…");add(17,L"最近关闭…");add(18,L"清除本应用已记住的文件设置");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(13,L"加载诊断…");add(14,L"导出脱敏诊断…");add(15,L"恢复标签栏与窗口");add(16,L"新建为独立窗口");add(9,L"打开文档…");add(10,L"打开日志与设置文件夹");add(11,L"关于 openOfficetab");
     HMENU appearance=CreatePopupMenu();
     AppendMenuW(appearance,MF_STRING|(settings.barStyle==1?MF_CHECKED:0),23,L"融入应用背景（浅灰开口标签）");
     AppendMenuW(appearance,MF_STRING|(settings.barStyle==0?MF_CHECKED:0),24,L"独立标签栏（白色圆角面板）");
@@ -478,5 +467,6 @@ void Session::options(HWND owner,POINT pt){
     if(cmd>=20&&cmd<=22)setAppearance((int)cmd-20,settings.barStyle);
     if(cmd==23||cmd==24)setAppearance(settings.accentPosition,cmd==23?1:0);
     if(cmd==25)colorDialog(GetAncestor(owner,GA_ROOT));if(cmd==26)setBarColor(L"");
-    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.4\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
+    if(cmd==17)recentMenu(owner,pt);if(cmd==18)resetAllFilePreferences();
+    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.5\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
 }

@@ -32,7 +32,11 @@ int main(){
         session->settings.barStyle=style;session->settings.accentPosition=accent;paint();
         assert(GetPixel(dc,500,20)==(style?RGB(240,240,240):RGB(255,255,255)));
         assert(accent==2 ? countAccent(0,40)==0 : countAccent(accent==1?0:30,accent==1?10:40)>50);
-        if(style){assert(GetPixel(dc,60,39)==RGB(255,255,255));assert(GetPixel(dc,500,39)==RGB(213,213,213));}
+        if(style){assert(GetPixel(dc,60,37)==RGB(255,255,255));assert(GetPixel(dc,500,38)==RGB(213,213,213));}
+        assert(GetPixel(dc,0,20)==RGB(237,235,233));
+        assert(GetPixel(dc,8,1)==RGB(237,235,233));
+        assert(GetPixel(dc,711,1)==RGB(237,235,233));
+        assert(GetPixel(dc,500,3)==(style?RGB(240,240,240):RGB(255,255,255)));
     }
     COLORREF custom=0;assert(tabcolor::parse(L"#F0F0F0",custom)&&custom==RGB(240,240,240));
     assert(tabcolor::parse(L"12aBcD",custom)&&custom==RGB(18,171,205)&&tabcolor::format(custom)==L"#12ABCD");
@@ -49,7 +53,7 @@ int main(){
     session->host=Host::Excel;session->settings.dark=true;paint();assert(GetPixel(dc,500,20)==RGB(50,50,50));
     session->settings.dark=false;
     session->settings.position=3;session->settings.barStyle=1;session->settings.accentPosition=2;paint();
-    assert(GetPixel(dc,60,0)==RGB(255,255,255));assert(GetPixel(dc,500,0)==RGB(213,213,213));
+    assert(GetPixel(dc,60,2)==RGB(255,255,255));assert(GetPixel(dc,500,1)==RGB(213,213,213));
     session->settings.position=1;paint();
     POINT edge{132,20};assert(tabs->edgeAt(edge)==1);assert(tabs->edgeAt(POINT{110,20})==0);
     auto mouse=[](int x,int y){return MAKELPARAM(x,y);};

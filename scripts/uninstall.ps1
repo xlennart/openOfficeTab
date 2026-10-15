@@ -25,5 +25,5 @@ foreach($architecture in 'x64','x86'){
 # Delete only our explicitly resolved bin directory, after validating its identity.
 $expected=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'openOfficetab\bin'))
 if(Test-Path -LiteralPath $bin){$resolved=(Resolve-Path -LiteralPath $bin).Path;if($resolved -ne $expected){throw '卸载路径校验失败。'};Remove-Item -LiteralPath $resolved -Recurse -Force}
-if($RemoveSettings){foreach($name in 'settings.ini','runtime.log'){$file=Join-Path $installRoot $name;if(Test-Path -LiteralPath $file){Remove-Item -LiteralPath $file -Force}}}
+if($RemoveSettings){foreach($name in 'settings.ini','documents.ini','runtime.log'){$file=Join-Path $installRoot $name;if(Test-Path -LiteralPath $file){Remove-Item -LiteralPath $file -Force}}}
 Write-Host 'openOfficetab 已卸载。默认保留设置和日志；使用 -RemoveSettings 可清除它们。'
