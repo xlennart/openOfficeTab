@@ -48,12 +48,15 @@ public:
 namespace {
 constexpr UINT REFRESH=WM_APP+110;
 constexpr UINT NATIVE_CLOSE=WM_APP+111;
+constexpr UINT FRAME_CLOSE=WM_APP+112;
 LRESULT CALLBACK sessionProc(HWND w,UINT m,WPARAM a,LPARAM b){
     auto s=(Session*)GetWindowLongPtrW(w,GWLP_USERDATA);
     if(m==WM_NCCREATE){s=(Session*)((CREATESTRUCTW*)b)->lpCreateParams;SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)s);}
+    if(s&&m==FRAME_CLOSE){auto keep=s->shared_from_this();s->processFrameClose();return 0;}
     if(s&&m==NATIVE_CLOSE){auto keep=s->shared_from_this();s->nativeClose();return 0;}
     if(s&&m==WM_TIMER&&a==3){auto keep=s->shared_from_this();s->nativeClose();return 0;}
-    if(s&&(m==WM_TIMER||m==REFRESH)){if(m==REFRESH)s->refreshPending=false;if(m==WM_TIMER&&a==2)KillTimer(w,2);try{auto keep=s->shared_from_this();if(s->refresh())s->finishClose();else if((s->executing||s->refreshing)&&m==WM_TIMER&&a==2)SetTimer(w,2,20,nullptr);}catch(...){log(L"session.refresh.exception",E_FAIL);}return 0;}
+    if(s&&m==WM_TIMER&&a==4){try{auto keep=s->shared_from_this();s->processWindowLayout();}catch(...){log(L"session.layout.exception",E_FAIL);}return 0;}
+    if(s&&(m==WM_TIMER||m==REFRESH)){if(m==REFRESH)s->refreshPending=false;if(m==WM_TIMER&&a==2)KillTimer(w,2);try{auto keep=s->shared_from_this();if(s->windowFrameBusy()||s->coordinatingWindows){SetTimer(w,2,80,nullptr);return 0;}if(s->refresh()){s->finishClose();}else if((s->executing||s->refreshing)&&m==WM_TIMER&&a==2)SetTimer(w,2,20,nullptr);}catch(...){log(L"session.refresh.exception",E_FAIL);}return 0;}
     return DefWindowProcW(w,m,a,b);
 }
 struct Flag {bool& value;explicit Flag(bool& x):value(x){value=true;}~Flag(){value=false;}};
@@ -66,7 +69,7 @@ Session::Session(IDispatch* application,const std::wstring& root):app(applicatio
     else if(name.find(L"PowerPoint")!=std::wstring::npos)host=Host::PowerPoint;
     else if(name.find(L"Word")!=std::wstring::npos)host=Host::Word;
     else throw ComError(E_NOTIMPL,L"Unsupported Office host");
-    settings.root=storageRoot;settings.load();settingsStamp=storage::Store(storageRoot).stamp(L"settings.ini");
+    settings.root=storageRoot;settings.load();pollTheme(true);settingsStamp=storage::Store(storageRoot).stamp(L"settings.ini");
 }
 Session::~Session(){stop();}
 void Session::start(){
@@ -77,11 +80,11 @@ void Session::start(){
     IID events;CLSIDFromString(host==Host::Word?L"{00020A01-0000-0000-C000-000000000046}":host==Host::Excel?L"{00024413-0000-0000-C000-000000000046}":L"{914934C2-5A91-11CF-8700-00AA0060263B}",&events);
     auto cp=app.as<IConnectionPointContainer>();
     if(cp&&SUCCEEDED(cp->FindConnectionPoint(events,connection.out()))){sink=Ptr<EventSink>(new EventSink(this,events),false);HRESULT hr=connection->Advise(sink.get(),&cookie);if(FAILED(hr)){connection.reset();sink.reset();log(L"events.advise.failed",hr);}else log(L"events.connected");}
-    HRESULT hr=CoCreateInstance(CLSID_TaskbarList,nullptr,CLSCTX_INPROC_SERVER,IID_ITaskbarList,(void**)taskbar.out());if(SUCCEEDED(hr))taskbar->HrInit();
+    HRESULT hr=CoCreateInstance(CLSID_TaskbarList,nullptr,CLSCTX_INPROC_SERVER,IID_ITaskbarList,(void**)taskbar.out());if(SUCCEEDED(hr)&&FAILED(taskbar->HrInit()))taskbar.reset();
     SetTimer(timer,1,750,nullptr);defer();log(L"session.started");
 }
 void Session::stop(){
-    if(stopped)return;stopped=true;
+    if(stopped)return;stopped=true;detachWindowObservers();
     try{flushPersistence(200);}catch(...){log(L"state.shutdown.flushFailed",E_FAIL);}
     if(timer){KillTimer(timer,1);KillTimer(timer,2);DestroyWindow(timer);timer=nullptr;}
     if(sink)sink->detach();if(connection&&cookie)connection->Unadvise(cookie);cookie=0;connection.reset();sink.reset();
@@ -111,7 +114,7 @@ void Session::event(DISPID id,DISPPARAMS* params){
     // that view directly in the same STA event, before waiting for an idle
     // full-collection refresh. NewDocument arrives too early for a window.
     if(host==Host::Word&&id==9)return;
-    if(host==Host::Word&&id==10&&params&&params->cArgs>=2&&!refreshing&&(!executing||creating)){
+    if(host==Host::Word&&id==10&&params&&params->cArgs>=2&&!coordinatingWindows&&!windowFrameBusy()&&!refreshing&&(!executing||creating)){
         Var w,d;VariantCopy(&w.v,&params->rgvarg[0]);VariantCopy(&d.v,&params->rgvarg[1]);
         auto window=w.disp(),document=d.disp();
         HWND root=(HWND)(UINT_PTR)(DWORD)prop(window.get(),L"Hwnd").number();
@@ -126,7 +129,7 @@ void Session::event(DISPID id,DISPPARAMS* params){
                 view->saved=prop(document.get(),L"Saved").boolean(true);view->readOnly=prop(document.get(),L"ReadOnly").boolean();
                 view->path=prop(document.get(),L"Path").str().empty()?L"":prop(document.get(),L"FullName").str();initializePreference(*view,true,L"");views.push_back(view);
             }
-            activeId=view->id;if(!view->independent){groupActiveId=view->id;groupActives[view->groupId]=view->id;}syncPanes();redraw();
+            activeId=view->id;if(!view->independent){groupActiveId=view->id;groupActives[view->groupId]=view->id;}syncPanes();syncWindowObservers();redraw();
         }
     }
     defer();
@@ -158,6 +161,7 @@ bool Session::moveToGroup(unsigned long long id,unsigned group){
     auto v=find(id);if(!v||!valid(v->hwnd))return false;
     if(v->groupId==group)return true;
     if(group>=nextGroupId)return false;
+    restoreWindowMasks();
     std::shared_ptr<View> destination;
     for(auto& candidate:views)if(candidate->groupId==group&&group&&candidate->id!=id){destination=candidate;if(candidate->id==activeTabId(candidate->hwnd))break;}
     try{
@@ -179,7 +183,7 @@ bool Session::moveToGroup(unsigned long long id,unsigned group){
     refresh();auto actual=find(id);return actual&&actual->groupId==group;
 }
 bool Session::refresh(){
-    if(stopped||refreshing||executing||!app)return false;
+    if(stopped||refreshing||executing||coordinatingWindows||windowFrameBusy()||!app)return false;
     Flag busy(refreshing);
     try{
         // Enumeration is transactional: a rejected/partial Office call must not remove live tabs.
@@ -237,9 +241,14 @@ bool Session::refresh(){
         auto active=prop(app.get(),L"ActiveWindow").disp();HWND activeWindow=handle(active.get());unsigned long long found=0;
         auto activeIdentity=active.as<IUnknown>();
         for(auto& v:views)if((activeWindow&&v->hwnd==activeWindow)||(host==Host::PowerPoint&&v->identity.get()==activeIdentity.get()))found=v->id;
+        auto candidate=find(found);
+        if(settings.group&&candidate&&!candidate->independent){
+            auto members=tabViews(candidate->hwnd);bool allMinimized=!members.empty()&&std::all_of(members.begin(),members.end(),[](auto& v){return IsIconic(v->hwnd)!=FALSE;});
+            auto previous=find(activeTabId(candidate->hwnd));if(allMinimized&&previous)found=previous->id;
+        }
         visualChanged=visualChanged||activeId!=found;activeId=found;
         auto activeView=find(found);if(activeView&&!activeView->independent){groupActiveId=found;groupActives[activeView->groupId]=found;}
-        syncPanes();updateTaskbar();if(visualChanged)redraw();failures=0;return true;
+        syncPanes();syncWindowObservers();updateTaskbar();if(visualChanged)redraw();failures=0;return true;
     }catch(const ComError& e){lastError=e.hr;lastOperation=L"refresh.rejected";if(++failures==1||failures%80==0)log((L"refresh.rejected."+e.where).c_str(),e.hr);return false;}
     catch(...){log(L"refresh.exception",E_FAIL);return false;}
 }
@@ -305,15 +314,24 @@ void Session::activate(unsigned long long id,HWND owner){
     // can expose another Office window while the previous pane is still visible.
     if(owner)owner=GetAncestor(owner,GA_ROOT);else owner=GetForegroundWindow();
     auto source=find(activeId);for(auto& v:views)if(v->hwnd==owner){source=v;break;}
+    restoreWindowMasks();
     try{Flag busy(executing);align(target,source);call(target->window.get(),L"Activate",DISPATCH_METHOD);align(target,source);
         // PowerPoint can change ActiveWindow without raising its SDI root.
         // Never raise a disabled root behind an Office modal dialog.
-        if(valid(target->hwnd)&&IsWindowEnabled(target->hwnd)&&GetForegroundWindow()!=target->hwnd)SetForegroundWindow(target->hwnd);
+        if(valid(target->hwnd)&&IsWindowEnabled(target->hwnd)){
+            // In PowerPoint, DocumentWindow.Activate alone can leave its SDI
+            // frame inactive when all frames already share identical bounds.
+            if(GetWindowThreadProcessId(target->hwnd,nullptr)==GetCurrentThreadId())SetActiveWindow(target->hwnd);
+            if(GetForegroundWindow()!=target->hwnd)SetForegroundWindow(target->hwnd);
+        }
+        // A deliberate tab selection supersedes an older, deferred restore
+        // command from another frame in the same group.
+        if(queuedLayoutRoot&&groupForWindow(queuedLayoutRoot)==target->groupId){queuedLayoutRoot=nullptr;queuedLayoutCommand=false;if(timer)KillTimer(timer,4);}
     }catch(const ComError& e){report(e);}
-    refresh();
+    refresh();auto current=find(id);if(current)rootLayoutChanged(current->hwnd);
 }
-bool Session::close(unsigned long long id){
-    auto keep=shared_from_this();if(stopped||executing||pendingCloseId)return false;auto v=find(id);if(!v||v->locked)return false;
+bool Session::close(unsigned long long id,bool fromFrame){
+    auto keep=shared_from_this();if(stopped||executing||pendingCloseId)return false;auto v=find(id);if(!v||(v->locked&&!fromFrame))return false;
     if(host==Host::PowerPoint){
         if(!valid(v->hwnd)||!timer)return false;
         pendingCloseId=id;pendingCloseAccepted=false;pendingCloseUntil=0;
@@ -342,7 +360,7 @@ void Session::nativeClose(){
         Flag busy(executing);
         call(target->window.get(),L"Activate",DISPATCH_METHOD);
         SendMessageW(target->hwnd,WM_CLOSE,0,0);
-    }catch(const ComError& e){report(e);pendingCloseId=0;pendingBatch.clear();return;}
+    }catch(const ComError& e){report(e);pendingCloseId=0;pendingBatch.clear();frameBatch=false;return;}
     if(stopped)return;
     if(!refresh()){defer();return;}
     // PowerPoint may post the final close even from its UI loop. Keep the
@@ -353,13 +371,13 @@ void Session::nativeClose(){
 void Session::finishClose(){
     if(stopped||executing||refreshing||!pendingCloseId)return;
     if(find(pendingCloseId)){
-        if(!pendingCloseAccepted&&pendingCloseUntil&&GetTickCount64()>=pendingCloseUntil){pendingCloseId=0;pendingBatch.clear();}
+        if(!pendingCloseAccepted&&pendingCloseUntil&&GetTickCount64()>=pendingCloseUntil){pendingCloseId=0;pendingBatch.clear();frameBatch=false;}
         return;
     }
     pendingCloseId=0;pendingCloseAccepted=false;
-    auto remaining=std::move(pendingBatch);pendingBatch.clear();
+    bool fromFrame=frameBatch;frameBatch=false;auto remaining=std::move(pendingBatch);pendingBatch.clear();
     if(views.empty())quitIfEmpty();
-    if(!stopped&&!remaining.empty())batchClose(std::move(remaining));
+    if(!stopped&&!remaining.empty())batchClose(std::move(remaining),fromFrame);
 }
 void Session::quitIfEmpty(){
     if(stopped||executing||!app||!views.empty())return;
@@ -394,7 +412,13 @@ void Session::create(bool independent,HWND owner){
     refresh();
 }
 void Session::open(){auto keep=shared_from_this();if(stopped||executing)return;try{Flag busy(executing);auto b=call(app.get(),L"CommandBars").disp();call(b.get(),L"ExecuteMso",DISPATCH_METHOD,{Var(std::wstring(L"FileOpen"))});}catch(const ComError& e){report(e);}refresh();}
-void Session::batchClose(std::vector<unsigned long long> ids){auto keep=shared_from_this();if(pendingCloseId)return;for(size_t i=0;i<ids.size();i++){auto id=ids[i];auto v=find(id);if(!v||v->locked||v->independent)continue;if(!close(id))break;if(pendingCloseId){pendingBatch.assign(ids.begin()+i+1,ids.end());break;}}}
+void Session::batchClose(std::vector<unsigned long long> ids,bool fromFrame){
+    auto keep=shared_from_this();if(pendingCloseId)return;frameBatch=fromFrame;
+    for(size_t i=0;i<ids.size();i++){auto id=ids[i];auto v=find(id);if(!v||(v->locked&&!fromFrame)||v->independent)continue;
+        if(!close(id,fromFrame)){frameBatch=false;return;}
+        if(pendingCloseId){pendingBatch.assign(ids.begin()+i+1,ids.end());return;}
+    }frameBatch=false;
+}
 void Session::saveAll(HWND owner){auto keep=shared_from_this();auto active=find(activeId);if(!owner&&active)owner=active->hwnd;std::vector<unsigned long long> ids;std::vector<IUnknown*> docs;for(auto& v:tabViews(owner)){auto i=v->document.as<IUnknown>();if(std::find(docs.begin(),docs.end(),i.get())==docs.end()){docs.push_back(i.get());if(!v->saved)ids.push_back(v->id);}}for(auto id:ids)if(!save(id))break;}
 void Session::reorder(unsigned long long from,unsigned long long to){auto a=std::find_if(views.begin(),views.end(),[&](auto& v){return v->id==from;});auto b=std::find_if(views.begin(),views.end(),[&](auto& v){return v->id==to;});if(a==views.end()||b==views.end())return;auto v=*a;size_t index=(size_t)(b-views.begin());views.erase(a);views.insert(views.begin()+index,v);redraw();}
 void Session::restoreView(View& v){
@@ -403,24 +427,37 @@ void Session::restoreView(View& v){
         if(v.moved&&windowlayout::matches(v.hwnd,v.applied,v.appliedBounds))windowlayout::apply(v.hwnd,v.original,v.originalBounds);
     }v.taskbarRemoved=false;v.moved=false;
 }
-void Session::restore(){for(auto& v:views)restoreView(*v);log(L"windows.restored");}
+void Session::restore(){restoreWindowMasks();bool previous=coordinatingWindows;coordinatingWindows=true;groupSlots.clear();for(auto& v:views)restoreView(*v);coordinatingWindows=previous;log(L"windows.restored");}
 void Session::updateTaskbar(){
     if(!taskbar)return;
-    // Do not remove the only recovery entry when the bar is hidden or there is no active view.
-    for(auto& v:views){auto selected=activeTabId(v->hwnd);bool grouped=settings.group&&showTabs(v->hwnd)&&selected;bool remove=grouped&&!v->independent&&v->id!=selected;if(!valid(v->hwnd))continue;if(remove&&!v->taskbarRemoved){if(SUCCEEDED(taskbar->DeleteTab(v->hwnd)))v->taskbarRemoved=true;}else if(!remove&&v->taskbarRemoved){taskbar->AddTab(v->hwnd);v->taskbarRemoved=false;}}
+    // Office can register a window again after activation, or after Explorer
+    // recreates the taskbar. taskbarRemoved records our responsibility to
+    // restore it, not proof of the shell's current state. Reconcile at idle.
+    // Establish each group's recovery entry before removing any siblings.
+    std::set<unsigned> ready;
+    for(auto& v:views){
+        if(!valid(v->hwnd))continue;
+        bool grouped=settings.group&&showTabs(v->hwnd)&&!v->independent;
+        if(grouped&&v->id==activeTabId(v->hwnd)){
+            if(SUCCEEDED(taskbar->AddTab(v->hwnd))){v->taskbarRemoved=false;ready.insert(v->groupId);}
+        }else if(!grouped&&v->taskbarRemoved&&SUCCEEDED(taskbar->AddTab(v->hwnd)))v->taskbarRemoved=false;
+    }
+    for(auto& v:views)if(valid(v->hwnd)&&ready.count(v->groupId)&&!v->independent&&v->id!=activeTabId(v->hwnd)){
+        if(SUCCEEDED(taskbar->DeleteTab(v->hwnd)))v->taskbarRemoved=true;
+    }
 }
-void Session::toggleGroup(){settings.group=!settings.group;if(!settings.group)restore();changed();}
+void Session::toggleGroup(){settings.synchronize();settings.group=!settings.group;if(!settings.group)restore();changed();}
 void Session::toggleVisible(){settings.visible=!settings.visible;if(!settings.visible)restore();changed();}
 void Session::changed(){settings.save();for(auto& p:panes)try{put(p.office.get(),L"DockPosition",Var((long)settings.position));}catch(...){}syncPanes();updateTaskbar();redraw();}
 bool Session::recover(){
     auto keep=shared_from_this();if(stopped||executing||refreshing)return false;
-    settings.group=false;settings.visible=true;settings.autoHide=false;restore();
+    settings.visible=true;settings.autoHide=false;restore();
     // Rebuild only our own panes, retaining documents, membership and order.
     for(auto& p:panes){if(p.control)p.control->Bind(nullptr,nullptr);p.chrome.reset();if(p.control)p.control->Unmount();try{call(p.office.get(),L"Delete",DISPATCH_METHOD);}catch(const ComError& e){report(e);}}
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.1.5\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    std::wstring r=L"{\"version\":\"0.1.6\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
@@ -449,7 +486,7 @@ void Session::menu(HWND owner,unsigned long long id,POINT pt){
 }
 void Session::options(HWND owner,POINT pt){
     auto keep=shared_from_this();HMENU m=CreatePopupMenu();auto add=[&](UINT n,const wchar_t* t,bool check=false){AppendMenuW(m,MF_STRING|(check?MF_CHECKED:0),n,t);};
-    add(1,L"显示标签栏",settings.visible);add(2,L"窗口跟随 / 单任务栏模式",settings.group);add(3,L"深色标签",settings.dark);add(4,L"单标签时自动隐藏",settings.autoHide);add(5,L"双击标签关闭",settings.doubleClose);AppendMenuW(m,MF_SEPARATOR,0,nullptr);
+    add(1,L"显示标签栏",settings.visible);add(2,L"单任务栏模式",settings.group);add(4,L"单标签时自动隐藏",settings.autoHide);add(5,L"双击标签关闭",settings.doubleClose);AppendMenuW(m,MF_SEPARATOR,0,nullptr);
     add(6,L"标签置于顶部",settings.position==1);add(7,L"标签置于底部",settings.position==3);add(8,L"恢复窗口排列与任务栏");add(12,L"默认标签宽度…");add(17,L"最近关闭…");add(18,L"清除本应用已记住的文件设置");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(13,L"加载诊断…");add(14,L"导出脱敏诊断…");add(15,L"恢复标签栏与窗口");add(16,L"新建为独立窗口");add(9,L"打开文档…");add(10,L"打开日志与设置文件夹");add(11,L"关于 openOfficetab");
     HMENU appearance=CreatePopupMenu();
     AppendMenuW(appearance,MF_STRING|(settings.barStyle==1?MF_CHECKED:0),23,L"融入应用背景（浅灰开口标签）");
@@ -459,14 +496,23 @@ void Session::options(HWND owner,POINT pt){
     AppendMenuW(appearance,MF_STRING|(settings.accentPosition==0?MF_CHECKED:0),20,L"强调线：底部");
     AppendMenuW(appearance,MF_STRING|(settings.accentPosition==2?MF_CHECKED:0),22,L"强调线：无");
     AppendMenuW(appearance,MF_SEPARATOR,0,nullptr);AppendMenuW(appearance,MF_STRING,25,L"标签栏颜色…");AppendMenuW(appearance,MF_STRING,26,L"恢复默认颜色");
-    InsertMenuW(m,6,MF_BYPOSITION|MF_POPUP,(UINT_PTR)appearance,L"标签外观");
+    HMENU theme=CreatePopupMenu();
+    const wchar_t* themes[]={L"跟随 Office / 系统（默认）",L"始终浅色",L"始终深色",L"仅跟随系统"};
+    for(int i=0;i<4;i++)AppendMenuW(theme,MF_STRING|(settings.themeMode==i?MF_CHECKED:0),30+i,themes[i]);
+    AppendMenuW(appearance,MF_SEPARATOR,0,nullptr);AppendMenuW(appearance,MF_POPUP,(UINT_PTR)theme,L"明暗主题");
+    HMENU closing=CreatePopupMenu();
+    const wchar_t* actions[]={L"每次询问",L"只关闭当前文档",L"关闭本组全部文档"};
+    for(int i=0;i<3;i++)AppendMenuW(closing,MF_STRING|(settings.frameCloseAction==i?MF_CHECKED:0),40+i,actions[i]);
+    InsertMenuW(m,3,MF_BYPOSITION|MF_POPUP,(UINT_PTR)closing,L"点击窗口关闭按钮时");
+    InsertMenuW(m,4,MF_BYPOSITION|MF_POPUP,(UINT_PTR)appearance,L"标签外观");
     UINT cmd=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,pt.x,pt.y,0,owner,nullptr);DestroyMenu(m);
-    if(cmd==1)toggleVisible();if(cmd==2)toggleGroup();if(cmd==3){settings.dark=!settings.dark;changed();}if(cmd==4){settings.autoHide=!settings.autoHide;changed();}if(cmd==5){settings.doubleClose=!settings.doubleClose;changed();}
-    if(cmd==6||cmd==7){settings.position=cmd==6?1:3;changed();}if(cmd==8){settings.group=false;restore();changed();}if(cmd==9)open();if(cmd==10)ShellExecuteW(owner,L"open",dataDir().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+    if(cmd==1)toggleVisible();if(cmd==2)toggleGroup();if(cmd==4){settings.autoHide=!settings.autoHide;changed();}if(cmd==5){settings.doubleClose=!settings.doubleClose;changed();}
+    if(cmd==6||cmd==7){settings.position=cmd==6?1:3;changed();}if(cmd==8){restore();changed();}if(cmd==9)open();if(cmd==10)ShellExecuteW(owner,L"open",dataDir().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
     if(cmd==12)widthDialog(GetAncestor(owner,GA_ROOT));if(cmd==13)showDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==14)exportDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==15)recover();if(cmd==16)create(true,owner);
     if(cmd>=20&&cmd<=22)setAppearance((int)cmd-20,settings.barStyle);
     if(cmd==23||cmd==24)setAppearance(settings.accentPosition,cmd==23?1:0);
     if(cmd==25)colorDialog(GetAncestor(owner,GA_ROOT));if(cmd==26)setBarColor(L"");
+    if(cmd>=30&&cmd<=33)setThemeMode((int)cmd-30);if(cmd>=40&&cmd<=42)setFrameCloseAction((int)cmd-40);
     if(cmd==17)recentMenu(owner,pt);if(cmd==18)resetAllFilePreferences();
-    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.5\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
+    if(cmd==11)MessageBoxW(owner,L"openOfficetab 0.1.6\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"关于 openOfficetab",MB_OK|MB_ICONINFORMATION);
 }

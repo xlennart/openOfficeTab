@@ -50,8 +50,15 @@ int main(){
         COLORREF expected=host==Host::Word?RGB(35,91,180):host==Host::Excel?RGB(16,124,65):RGB(196,59,28);
         assert(countAccent(0,10,expected)>50);
     }
-    session->host=Host::Excel;session->settings.dark=true;paint();assert(GetPixel(dc,500,20)==RGB(50,50,50));
-    session->settings.dark=false;
+    session->host=Host::Excel;session->settings.dark=true;session->settings.themeMode=2;
+    for(auto host:{Host::Word,Host::Excel,Host::PowerPoint})for(int position:{1,3}){
+        session->host=host;session->settings.position=position;paint();
+        assert(GetPixel(dc,500,20)==RGB(38,38,38));
+        assert(GetPixel(dc,0,20)==GetPixel(dc,500,20)); // rounded gutters share the surface
+        assert(GetPixel(dc,500,position==3?2:0)==GetPixel(dc,500,20)); // no contrasting top strip
+        assert(GetPixel(dc,80,25)==RGB(50,50,50)); // selected tab remains distinguishable
+    }
+    session->settings.dark=false;session->settings.themeMode=1;
     session->settings.position=3;session->settings.barStyle=1;session->settings.accentPosition=2;paint();
     assert(GetPixel(dc,60,2)==RGB(255,255,255));assert(GetPixel(dc,500,1)==RGB(213,213,213));
     session->settings.position=1;paint();

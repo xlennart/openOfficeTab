@@ -76,7 +76,7 @@ void Tabs::layoutSeam(){
 LRESULT CALLBACK Tabs::seamProc(HWND w,UINT message,WPARAM wp,LPARAM lp){
     auto self=(Tabs*)GetWindowLongPtrW(w,GWLP_USERDATA);if(message==WM_NCCREATE){self=(Tabs*)((CREATESTRUCTW*)lp)->lpCreateParams;SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)self);}
     if(message==WM_NCHITTEST)return HTTRANSPARENT;if(message==WM_MOUSEACTIVATE)return MA_NOACTIVATE;if(message==WM_ERASEBKGND)return 1;
-    if(message==WM_PAINT){PAINTSTRUCT ps;HDC dc=BeginPaint(w,&ps);RECT rect{};GetClientRect(w,&rect);COLORREF background=self&&self->session&&self->session->settings.dark?RGB(30,30,30):RGB(237,235,233);HBRUSH brush=CreateSolidBrush(background);FillRect(dc,&rect,brush);DeleteObject(brush);EndPaint(w,&ps);return 0;}
+    if(message==WM_PAINT){PAINTSTRUCT ps;HDC dc=BeginPaint(w,&ps);RECT rect{};GetClientRect(w,&rect);COLORREF background=self&&self->session?self->session->surroundColor():tabcolor::surround(false);HBRUSH brush=CreateSolidBrush(background);FillRect(dc,&rect,brush);DeleteObject(brush);EndPaint(w,&ps);return 0;}
     if(message==WM_NCDESTROY){if(self&&self->seamWindow==w)self->seamWindow=nullptr;SetWindowLongPtrW(w,GWLP_USERDATA,0);}
     return DefWindowProcW(w,message,wp,lp);
 }
@@ -164,20 +164,21 @@ void Tabs::paint(HDC target,RECT rc){
     if(seamWindow)InvalidateRect(seamWindow,nullptr,FALSE);
     int width=rc.right-rc.left,height=rc.bottom-rc.top;if(width<=0||height<=0)return;
     HDC d=CreateCompatibleDC(target);HBITMAP bmp=CreateCompatibleBitmap(target,width,height);auto oldBmp=SelectObject(d,bmp);
-    bool dark=session&&session->settings.dark;bool contrast=false;HIGHCONTRASTW hc{sizeof(hc)};if(SystemParametersInfoW(SPI_GETHIGHCONTRAST,sizeof(hc),&hc,0))contrast=(hc.dwFlags&HCF_HIGHCONTRASTON)!=0;
+    bool dark=session&&session->darkMode();bool contrast=false;HIGHCONTRASTW hc{sizeof(hc)};if(SystemParametersInfoW(SPI_GETHIGHCONTRAST,sizeof(hc),&hc,0))contrast=(hc.dwFlags&HCF_HIGHCONTRASTON)!=0;
     bool blended=session&&session->settings.barStyle==1,towardTop=session&&session->settings.position==3;
     COLORREF lightBackground=session?session->settings.barColor:tabcolor::defaultBackground();
-    COLORREF bg=blended?(dark?RGB(50,50,50):lightBackground):(dark?RGB(39,39,39):(session&&session->settings.customBarColor?lightBackground:RGB(255,255,255)));
-    COLORREF fg=dark?RGB(235,235,235):RGB(50,50,50),selected=blended?(dark?RGB(38,38,38):RGB(255,255,255)):(dark?RGB(58,58,58):RGB(237,237,237)),accent=dark?RGB(112,166,242):RGB(35,91,180);
+    COLORREF bg=tabcolor::background(dark,blended,lightBackground,session&&session->settings.customBarColor);
+    if(dark&&blended&&session)bg=session->surroundColor();
+    COLORREF fg=dark?RGB(235,235,235):RGB(50,50,50),selected=blended?(dark?RGB(50,50,50):RGB(255,255,255)):(dark?RGB(58,58,58):RGB(237,237,237)),accent=dark?RGB(112,166,242):RGB(35,91,180);
     COLORREF border=dark?RGB(80,80,80):RGB(213,213,213);
     if(session&&session->host==Host::Excel)accent=dark?RGB(91,190,137):RGB(16,124,65);
     if(session&&session->host==Host::PowerPoint)accent=dark?RGB(240,141,107):RGB(196,59,28);
     if(!dark)fg=tabcolor::foreground(bg);
     if(contrast){bg=GetSysColor(COLOR_WINDOW);fg=GetSysColor(COLOR_WINDOWTEXT);selected=GetSysColor(COLOR_HIGHLIGHT);accent=GetSysColor(COLOR_HIGHLIGHTTEXT);border=fg;}
     int scale=dpi(hwnd),pad=MulDiv(8,scale,96),button=MulDiv(30,scale,96),tabH=height;
-    RECT local{0,0,width,height};fill(d,local,contrast?bg:(dark?RGB(30,30,30):RGB(237,235,233)));SetBkMode(d,TRANSPARENT);
-    int panelInset=MulDiv(8,scale,96),panelRadius=MulDiv(16,scale,96);
-    RECT panel{panelInset,MulDiv(1,scale,96),width-panelInset,height-MulDiv(1,scale,96)};
+    RECT local{0,0,width,height};fill(d,local,contrast?bg:(session?session->surroundColor():tabcolor::surround(dark)));SetBkMode(d,TRANSPARENT);
+    int panelInset=dark&&blended?0:MulDiv(8,scale,96),panelRadius=dark&&blended?0:MulDiv(16,scale,96);
+    int outerY=dark&&blended?0:MulDiv(1,scale,96);RECT panel{panelInset,outerY,width-panelInset,height-outerY};
     if(!blended){
         RECT shadow=panel;shadow.top+=MulDiv(1,scale,96);shadow.bottom+=MulDiv(1,scale,96);
         rounded(d,shadow,panelRadius,dark?RGB(24,24,24):RGB(218,216,214),bg);
@@ -186,7 +187,7 @@ void Tabs::paint(HDC target,RECT rc){
     // Both styles share Office's 8 DIP side insets and rounded outer card.
     // Clip open-tab feet to that card so they cannot flatten its corners.
     int savedClip=SaveDC(d);
-    if(!contrast){HRGN clip=CreateRoundRectRgn(panel.left,panel.top,panel.right+1,panel.bottom+1,panelRadius,panelRadius);ExtSelectClipRgn(d,clip,RGN_AND);DeleteObject(clip);}
+    if(!contrast&&panelRadius){HRGN clip=CreateRoundRectRgn(panel.left,panel.top,panel.right+1,panel.bottom+1,panelRadius,panelRadius);ExtSelectClipRgn(d,clip,RGN_AND);DeleteObject(clip);}
     if(blended){tabH=panel.bottom;RECT baseline{panel.left,towardTop?panel.top:panel.bottom-1,panel.right,towardTop?panel.top+1:panel.bottom};fill(d,baseline,border);}
     LOGFONTW lf{};lf.lfHeight=-MulDiv(12,scale,96);wcscpy_s(lf.lfFaceName,L"Microsoft YaHei UI");HFONT font=CreateFontIndirectW(&lf);auto oldFont=SelectObject(d,font);
     hit.clear();int nextButton=panelInset+pad;

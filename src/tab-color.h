@@ -2,6 +2,10 @@
 #include "com.h"
 namespace tabcolor {
 inline COLORREF defaultBackground(){return RGB(240,240,240);}
+// The blended dark strip, its rounded gutters and the ribbon seam are one
+// surface. Independent panels may retain their intentional card contrast.
+inline COLORREF surround(bool dark){return dark?RGB(38,38,38):RGB(237,235,233);}
+inline COLORREF background(bool dark,bool blended,COLORREF custom,bool useCustom){return dark?(blended?surround(true):RGB(39,39,39)):(blended||useCustom?custom:RGB(255,255,255));}
 inline bool parse(const std::wstring& value,COLORREF& color){
     size_t start=!value.empty()&&value[0]==L'#'?1:0;if(value.size()!=start+6)return false;
     unsigned rgb=0;for(size_t i=start;i<value.size();i++){wchar_t c=value[i];unsigned digit;

@@ -16,9 +16,14 @@ struct View {
     bool moved=false,taskbarRemoved=false;
 };
 class PaneChrome;
+class RootObserver;
+class WindowMask;
+struct GroupSlot {WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};RECT bounds{};bool minimized=false;};
+struct FrameCloseChoice {int action=0;bool remember=false;}; // 0 cancel, 1 current, 2 group
 struct Pane {unsigned long long viewId=0;Ptr<IDispatch> office;Ptr<ITabBinding> control;std::shared_ptr<PaneChrome> chrome;unsigned initAttempts=0;long requestedHeight=0;};
 struct Settings {
-    bool visible=true,group=false,dark=false,autoHide=false,doubleClose=false,shortcuts=false;
+    bool visible=true,group=true,dark=false,autoHide=false,doubleClose=false,shortcuts=false;
+    int themeMode=0,frameCloseAction=0; // theme: auto Office/system, light, dark, system; close: ask/current/group
     int position=1; // msoCTPDockPositionTop
     int tabWidth=120,widthMode=2; // DIP; fixed, title, shrink
     int accentPosition=1,barStyle=1; // 0 bottom / 1 top / 2 none; 0 panel / 1 blended
@@ -58,6 +63,18 @@ public:
     Ptr<EventSink> sink;
     DWORD cookie=0;
     Ptr<ITaskbarList> taskbar;
+    std::map<HWND,std::shared_ptr<RootObserver>> rootObservers;
+    std::map<unsigned,GroupSlot> groupSlots;
+    bool coordinatingWindows=false,frameDialogActive=false,frameBatch=false;
+    HWND pendingFrameClose=nullptr,operatingRoot=nullptr;
+    HWND sizingRoot=nullptr,queuedLayoutRoot=nullptr;
+    unsigned nativeFrameDepth=0;
+    bool queuedLayoutCommand=false,queuedLayoutMinimize=false;
+    std::map<HWND,std::shared_ptr<WindowMask>> windowMasks;
+    HWND maskSource=nullptr;
+    ULONGLONG maskActivity=0;
+    int officeTheme=-1;bool systemDark=false;ULONGLONG lastThemePoll=0;
+    std::function<FrameCloseChoice(HWND,size_t)> frameClosePrompt;
     bool refreshing=false,executing=false,creating=false,stopped=false,refreshPending=false;
     int failures=0;
     Session(IDispatch* application,const std::wstring& root=L"");
@@ -78,14 +95,20 @@ public:
     bool drop(unsigned long long id,POINT screen);
     void chooseGroup(HWND owner,unsigned long long id);
     void activate(unsigned long long id,HWND owner=nullptr);
-    bool close(unsigned long long id);
+    bool close(unsigned long long id,bool fromFrame=false);
     bool save(unsigned long long id,bool saveAs=false);
     void create(bool independent=false,HWND owner=nullptr);void open();void quitIfEmpty();void finishClose();void nativeClose();
-    void batchClose(std::vector<unsigned long long> ids);
+    void batchClose(std::vector<unsigned long long> ids,bool fromFrame=false);
     void saveAll(HWND owner=nullptr);void reorder(unsigned long long from,unsigned long long to);
     void toggleGroup();void restore();void toggleVisible();void changed();
     void align(const std::shared_ptr<View>& target,const std::shared_ptr<View>& source);
     void updateTaskbar();void restoreView(View&);
+    void syncWindowObservers();void detachWindowObservers();void rootLayoutChanged(HWND root);
+    void requestWindowLayout(HWND root,bool commanded=false,bool minimize=false);void processWindowLayout();
+    void beginWindowTransition(HWND root);void restoreWindowMasks();
+    bool windowFrameBusy()const{return nativeFrameDepth!=0||sizingRoot!=nullptr;}
+    bool queueFrameClose(HWND root);void processFrameClose();
+    bool darkMode()const;COLORREF surroundColor()const;bool pollTheme(bool force=false);bool setThemeMode(int mode);bool setFrameCloseAction(int action);
     std::wstring state()const;
     std::wstring diagnostics()const;
     bool recover();bool setTabWidth(int width,int mode);

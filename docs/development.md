@@ -19,6 +19,9 @@ pwsh -File scripts/package.ps1
 | :--- | :--- |
 | `src/addin.cpp` | COM 类工厂、加载项生命周期、Ribbon、注册、诊断 API |
 | `src/session.cpp` | 三宿主适配、事件和增量刷新、窗格生命周期、文档命令、窗口协调 |
+| `src/window-coordinator.cpp` | 同组窗口消息观察、延迟协调、临时遮蔽及原生关闭选择 |
+| `src/theme.cpp`、`src/theme.h` | Office / Windows 主题解析与调色板 |
+| `tests/frame-close-test.cpp` | 关闭选择、记忆和原生关闭分流回归 |
 | `src/tabs.cpp`、`src/tabs.h` | ActiveX 占位、原生标签栏绘制与输入 |
 | `src/model.h`、`src/com.h` | 状态模型、COM 接口与辅助对象 |
 | `src/features.cpp`、`src/layout.h` | 诊断、宽度设置、组移动和纯宽度计算 |
@@ -91,3 +94,9 @@ powershell -NoProfile -File tests/ribbon-runtime.ps1 -HostName PowerPoint
 原生测试新增两个隐藏子进程竞争写入、陈旧设置增量合并、取消关闭 / 隐藏视图排除、重开偏好和首次保存继承。功能区边缘补绘只在验证自有占位和完整 Ribbon 后启用，3 DIP、高对比度关闭，命中穿透，卸载销毁。
 
 0.1.5 实机回归：依次运行 `persistence-runtime.ps1 -HostName Word|Excel|PowerPoint`（每次填一个宿主名），再运行 `first-save-runtime.ps1` 的同名宿主检查，最后运行 `settings-sync-runtime.ps1`。只接受唯一已保存的公开空白示例；保存测试仅写入 `artifacts/` 中唯一命名的空白副本，不退出含私人文档的宿主。实机回归不会由 CI 执行。
+
+## 0.1.6 窗口协调与主题
+
+窗口消息回调只记录意图，几何同步在宿主空闲时合并执行；移动和尺寸循环期间暂停完整 COM 枚举，避免布局重入。操作开始前对同组后台窗口临时应用可恢复的透明遮蔽，结束后先同步几何及层级，再恢复原有分层属性。文档顶层窗口不做 SetParent，也不重新打开文件。
+
+新增开发接口 `SetThemeMode`（DISPID 42）和 `SetFrameCloseAction`（DISPID 43），保留既有接口编号。单任务栏、主题和关闭偏好按键增量合并并跨实例同步。原生测试由 `scripts/test-native.ps1` 统一运行；实机消息回归见 `tests/window-mask-runtime.ps1`，只接受指定空白示例，输出留在忽略的 `artifacts/`。运行边界及人工验收见 [验证记录](validation.md)。

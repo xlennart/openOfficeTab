@@ -30,12 +30,17 @@ void Session::flushPersistence(unsigned milliseconds){
     }while(milliseconds);
 }
 void Session::pollPersistence(){
+    pollTheme();
     auto view=find(activeId);if(executing||(view&&IsWindow(view->hwnd)&&!IsWindowEnabled(view->hwnd)))return;
     storage::Store store(storageRoot);flushPersistence();
     auto now=GetTickCount64();
     // Read a small atomic snapshot, rather than relying only on filesystem
     // timestamp resolution. Two quick writes can have the same timestamp.
-    if(settings.savePending||now-lastSettingsPoll>=250){lastSettingsPoll=now;bool changed=settings.synchronize();if(!settings.savePending)settingsStamp=store.stamp(L"settings.ini");if(changed)redraw();}
+    if(settings.savePending||now-lastSettingsPoll>=250){
+        lastSettingsPoll=now;bool wasGrouped=settings.group;bool changed=settings.synchronize();
+        if(!settings.savePending)settingsStamp=store.stamp(L"settings.ini");
+        if(changed){if(wasGrouped&&!settings.group)restore();updateTaskbar();redraw();}
+    }
 }
 bool Session::resetFilePreferences(unsigned long long id){
     auto view=find(id);if(!view||stopped||executing||refreshing||!storage::localFile(view->path))return false;

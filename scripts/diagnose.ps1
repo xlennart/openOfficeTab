@@ -18,7 +18,7 @@ $hosts=foreach($hostName in 'Word','Excel','PowerPoint'){
     $entry=Get-ItemProperty -LiteralPath "HKCU:\Software\Microsoft\Office\$hostName\Addins\openOfficetab.Connect" -ErrorAction SilentlyContinue
     [pscustomobject]@{Host=$hostName;Registered=[bool]$entry;LoadBehavior=if($entry){$entry.LoadBehavior}else{0}}
 }
-[pscustomobject]@{Version='0.1.5';Scope='Current desktop user';DllExists=[bool]$exists;MatchesThisInstaller=[bool]$matches;OfficeProcessCount=@(Get-Process WINWORD,EXCEL,POWERPNT -ErrorAction SilentlyContinue).Count;Hosts=@($hosts);Privacy='No account names, document names, paths, content or raw logs'} | ConvertTo-Json -Depth 4
+[pscustomobject]@{Version='0.1.6';Scope='Current desktop user';DllExists=[bool]$exists;MatchesThisInstaller=[bool]$matches;OfficeProcessCount=@(Get-Process WINWORD,EXCEL,POWERPNT -ErrorAction SilentlyContinue).Count;Hosts=@($hosts);Privacy='No account names, document names, paths, content or raw logs'} | ConvertTo-Json -Depth 4
 Write-Output '若已加载但标签隐藏：在 Office 功能区选择“恢复标签栏与窗口”。'
 Write-Output '若注册缺失或 DLL 不匹配：保存并关闭 Office，然后点击安装器的“修复注册”。'
 Write-Output '受保护视图或组织策略可能限制加载；保留 Office 的原生安全提示。'

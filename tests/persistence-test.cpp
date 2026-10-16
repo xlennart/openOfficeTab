@@ -1,5 +1,6 @@
 #include "../src/model.h"
 #include "../src/tab-color.h"
+#include "../src/theme.h"
 #include <cassert>
 #include <iostream>
 
@@ -21,10 +22,19 @@ int wmain(int argc,wchar_t** argv){
     CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     wchar_t current[32768];GetCurrentDirectoryW(32768,current);std::wstring root=std::wstring(current)+L"\\persistence-test-"+std::to_wstring(GetCurrentProcessId());CreateDirectoryW(root.c_str(),nullptr);storage::Store store(root);
     Settings a,b;a.root=b.root=root;assert(a.load()&&b.load());
+    assert(a.group&&b.group); // clean profile defaults to single taskbar
+    a.group=false;assert(a.save());assert(b.synchronize()&&!b.group);
+    a.group=true;assert(a.save());assert(b.synchronize()&&b.group);
+    Settings reopenedSettings;reopenedSettings.root=root;assert(reopenedSettings.load()&&reopenedSettings.group);
     a.barStyle=0;assert(a.save());b.barColor=RGB(18,171,205);b.customBarColor=true;assert(b.save());
     Settings merged;merged.root=root;assert(merged.load()&&merged.barStyle==0&&merged.barColor==RGB(18,171,205));
     assert(a.synchronize()&&a.barColor==RGB(18,171,205));assert(b.synchronize()&&b.barStyle==0);
     a.tabWidth=180;assert(a.save());b.dark=true;assert(b.save());assert(merged.synchronize()&&merged.tabWidth==180&&merged.dark);
+    a.themeMode=3;a.frameCloseAction=2;assert(a.save());assert(b.synchronize()&&b.themeMode==3&&b.frameCloseAction==2);
+    assert(!officetheme::dark(0,0,true)&&!officetheme::dark(0,5,true));
+    assert(officetheme::dark(0,3,false)&&officetheme::dark(0,4,false));
+    assert(officetheme::dark(0,6,true)&&!officetheme::dark(0,6,false));
+    assert(officetheme::dark(3,5,true)&&!officetheme::dark(1,4,true)&&officetheme::dark(2,5,false));
     auto file=L"C:\\Public\\报告=[第一版];.docx";
     assert(storage::decode(storage::encode(file))==file);assert(storage::decode(L"00G0").empty());
     assert(store.savePreference(L"Word",file,{222,true}));storage::FilePreference pref;
@@ -58,7 +68,13 @@ int wmain(int argc,wchar_t** argv){
     cancel=false;assert(session->close(id)&&session->recentlyClosed().size()==1&&quit); // confirmed last document
     View firstSave;firstSave.path=L"C:\\Public\\new-name.docx";firstSave.manualTabWidth=176;firstSave.independent=true;session->initializePreference(firstSave,false,L"");
     View reopened;reopened.path=firstSave.path;session->initializePreference(reopened,true,L"");assert(reopened.manualTabWidth==176&&reopened.independent&&reopened.groupId==0);
-    session.reset();DestroyWindow(native);
+    session->settings.group=true;session->changed();session->recover();
+    assert(session->settings.group); // repairing chrome must not reset the chosen taskbar mode
+    session.reset();Settings afterShutdown;afterShutdown.root=root;assert(afterShutdown.load()&&afterShutdown.group);
+    // A deliberate opt-out survives a new session and unrelated settings edits.
+    afterShutdown.group=false;assert(afterShutdown.save());reopenedSettings.dark=true;assert(reopenedSettings.save());
+    Settings optedOut;optedOut.root=root;assert(optedOut.load()&&!optedOut.group);
+    DestroyWindow(native);
     for(auto name:{L"settings.ini",L"documents.ini",L"race.ini"})DeleteFileW(store.path(name).c_str());RemoveDirectoryW(root.c_str());CoUninitialize();
     std::cout<<"Merged settings, two-process writes, bounded recent files, cancel/hidden close, per-file preferences and first-save inheritance passed.\n";
 }

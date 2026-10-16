@@ -1,4 +1,4 @@
-﻿param([switch]$OpenFixtures)
+﻿param([switch]$OpenFixtures,[string]$ExpectedVersion='0.1.6')
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
 New-Item -ItemType Directory -Path (Join-Path $taskRoot 'artifacts') -Force | Out-Null
@@ -16,9 +16,15 @@ if($installedHash -ne $sourceHash){throw 'Installed DLL hash differs from delive
 $results=@()
 if($OpenFixtures){
     $fixtures=@{Word='word-demo.docx';Excel='excel-demo.xlsx';PowerPoint='powerpoint-demo.pptx'}
+    # Excel may defer registering its automation object until focus leaves
+    # its frame. Open all public fixtures before polling the running table.
     foreach($hostName in 'Word','Excel','PowerPoint'){
         $fixturePath=Join-Path $taskRoot ('tests\fixtures\'+$fixtures[$hostName])
         Start-Process -FilePath $fixturePath -WindowStyle Normal
+        Start-Sleep -Milliseconds 500
+    }
+    foreach($hostName in 'Word','Excel','PowerPoint'){
+        $fixturePath=Join-Path $taskRoot ('tests\fixtures\'+$fixtures[$hostName])
         $deadline=[DateTime]::UtcNow.AddSeconds(20)
         $ready=$false
         do {
@@ -29,7 +35,7 @@ if($OpenFixtures){
                 $addin=$app.COMAddIns.Item('openOfficetab.Connect')
                 if(-not $addin.Connect){continue}
                 $state=$addin.Object.GetState() | ConvertFrom-Json
-                $ready=$state.tabCount -gt 0 -and @($state.paneMetrics | Where-Object displayVisible).Count -gt 0 -and @($state.paneMetrics | Where-Object {-not $_.matchesReservedRect}).Count -eq 0
+                $ready=$state.version -eq $ExpectedVersion -and $state.tabCount -gt 0 -and @($state.paneMetrics | Where-Object displayVisible).Count -gt 0 -and @($state.paneMetrics | Where-Object {-not $_.matchesReservedRect}).Count -eq 0
             }catch{}
         }while(-not $ready -and [DateTime]::UtcNow -lt $deadline)
         if(-not $ready){throw "Normal file-open startup did not show tabs: $hostName"}
