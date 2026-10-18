@@ -23,41 +23,52 @@ openOfficetab adds a document tab bar below the Office ribbon. Switch documents 
 
 **Current release: 0.1.7.** Source code, an EXE installer, and a ZIP package are available. Single-taskbar mode now survives restarts and is enabled by default for new configurations. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
 
-The add-in and installer support English and Simplified Chinese. Choose **Follow Windows / Simplified Chinese / English** in settings; the default follows your Windows display language. Existing screenshots and most supporting technical documents are in Chinese; [English installation instructions](docs/installation.en.md) are available.
+The add-in and installer support English and Simplified Chinese. Choose **Follow Windows / Simplified Chinese / English** in settings; the default follows your Windows display language. The screenshots below show the English interface; [English installation instructions](docs/installation.en.md) are also available. Most supporting technical documents are in Chinese.
 
 ## Screenshots
 
+English Office and openOfficetab, with blank example files. Both tab appearances are shown below: **blended open-edge tabs** and a **separate rounded panel**. Expand each comparison to see the alternative.
+
 ### Word · Blue accent
 
-Separate tab bar:
+Blended open-edge tabs, the add-in ribbon, and the English settings menu:
 
-![Word document tabs in the separate panel style](docs/images/word.png)
+![Word with blended open-edge tabs and the English settings menu](docs/images/en/word-settings.png)
 
-Blended tab bar (`#F0F0F0`) and the add-in ribbon:
+<details>
+<summary>Compare: separate rounded panel in Word</summary>
 
-![Word blended document tabs and add-in ribbon](docs/images/word-integrated.png)
+![Word with a separate rounded panel and a closed rounded selected tab](docs/images/en/word-panel.png)
+
+</details>
 
 ### Excel · Green accent
 
-Separate tab bar:
+Blended open-edge tabs with a green accent:
 
-![Excel workbook tabs in the separate panel style](docs/images/excel.png)
+![Excel with blended open-edge workbook tabs and a green accent](docs/images/en/excel-blended.png)
 
-Blended tab bar (`#F0F0F0`) and the add-in ribbon:
+<details>
+<summary>Compare: separate rounded panel in Excel</summary>
 
-![Excel blended workbook tabs and add-in ribbon](docs/images/excel-integrated.png)
+![Excel with a separate rounded panel and a closed rounded selected tab](docs/images/en/excel-panel.png)
+
+</details>
 
 ### PowerPoint · Orange-red accent
 
-Separate tab bar:
+Blended open-edge tabs with an orange-red accent:
 
-![PowerPoint presentation tabs in the separate panel style](docs/images/powerpoint.png)
+![PowerPoint with blended open-edge presentation tabs and an orange-red accent](docs/images/en/powerpoint-blended.png)
 
-Blended tab bar (`#F0F0F0`) and the add-in ribbon:
+<details>
+<summary>Compare: separate rounded panel in PowerPoint</summary>
 
-![PowerPoint blended presentation tabs and add-in ribbon](docs/images/powerpoint-integrated.png)
+![PowerPoint with a separate rounded panel and a closed rounded selected tab](docs/images/en/powerpoint-panel.png)
 
-These user-provided, reviewed screenshots show blank example files without account details, avatars, private paths, or document content. They show earlier releases up to 0.1.4 and do not include all menus and refinements in 0.1.5–0.1.7. Both styles remain available; the default light blended background is `#F0F0F0`.
+</details>
+
+These user-provided screenshots show version 0.1.7. Choose either appearance under **… → Tab appearance**; the default light blended background is `#F0F0F0`. The [Chinese README](README.zh-CN.md#看看效果) retains the earlier Chinese-interface screenshots.
 
 ## Features
 
