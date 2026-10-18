@@ -195,9 +195,23 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 ## 兼容性
 
+### 开发环境
+
+当前开发电脑使用以下环境（核对日期：2026 年 10 月 18 日）：
+
+| 组件 | 版本 |
+| :--- | :--- |
+| 操作系统 | Windows 11 企业版 26H2，64 位；系统内部版本 **26300.9711** |
+| Office | Microsoft Office Home 2024，即点即用（Click-to-Run），**64 位**；版本 **16.0.20430.20182** |
+| 宿主应用 | 上述 Office 安装中的 Word、Excel、PowerPoint |
+
+以上版本用于说明开发环境，不代表最低要求，也不表示已验证所有 Office 版本。下方早期运行测试记录使用的是 Office **16.0.20430.20146**，此后开发电脑上的 Office 已更新。
+
+### 兼容与验证范围
+
 | 项目 | 当前状态 |
 | :--- | :--- |
-| 已实机验证 | Windows 11、Office Home 2024 x64、Word / Excel / PowerPoint 16.0.20430.20146 |
+| 早期实机验证环境 | Windows 11、Office Home 2024 x64、Word / Excel / PowerPoint 16.0.20430.20146 |
 | 已验证缩放 | 200% 缩放；水平栏被本机 Office 限制为至少 80 物理像素，约 40 DIP |
 | 发布架构 | x64；按 **Office 的位数**匹配，而非仅看 Windows 位数 |
 | x86 / 其他 Office 版本 | 构建脚本预留 x86；尚未做运行验证，不包含 x86 安装包 |

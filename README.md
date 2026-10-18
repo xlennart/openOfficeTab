@@ -197,9 +197,23 @@ Settings are available from `…` or **Tab settings** on the ribbon. Tab locking
 
 ## Compatibility
 
+### Development environment
+
+The current development machine uses the following environment (checked on October 18, 2026):
+
+| Component | Version |
+| :--- | :--- |
+| Operating system | Windows 11 Enterprise 26H2, 64-bit; OS build **26300.9711**. |
+| Office | Microsoft Office Home 2024, Click-to-Run, **64-bit**; version **16.0.20430.20182**. |
+| Host applications | Word, Excel, and PowerPoint from the Office installation above. |
+
+These versions describe the development environment, rather than minimum requirements or a guarantee of compatibility with every Office version. The earlier runtime test record below used Office **16.0.20430.20146**; the development installation has since been updated.
+
+### Compatibility and validation scope
+
 | Item | Current status |
 | :--- | :--- |
-| Runtime-tested environment | Windows 11; Office Home 2024 x64; Word / Excel / PowerPoint 16.0.20430.20146. |
+| Earlier runtime-tested environment | Windows 11; Office Home 2024 x64; Word / Excel / PowerPoint 16.0.20430.20146. |
 | Tested display scale | 200%. This Office installation imposes a minimum horizontal pane height of 80 physical pixels, approximately 40 DIP. |
 | Release architecture | x64. Match **Office's bitness**, not just Windows bitness. |
 | x86 / other Office versions | The build script has an x86 option, but runtime behavior is unverified and no x86 installer is provided. |
