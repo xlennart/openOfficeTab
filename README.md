@@ -68,7 +68,7 @@ Blended open-edge tabs with an orange-red accent:
 
 </details>
 
-These user-provided screenshots show version 0.1.7. Choose either appearance under **… → Tab appearance**; the default light blended background is `#F0F0F0`. The [Chinese README](README.zh-CN.md#看看效果) retains the earlier Chinese-interface screenshots.
+These user-provided screenshots show version 0.1.7. Choose either appearance under **… → Tab appearance**; the default light blended background is `#F0F0F0`. The [Chinese README](README.zh-CN.md#看看效果) provides matching Chinese-interface screenshots.
 
 ## Features
 

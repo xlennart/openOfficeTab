@@ -27,39 +27,48 @@ openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 看看效果
 
+以下截图展示中文 Office 与 openOfficetab 的空白示例文件，同时提供**融合式开口标签**与**独立圆角面板**两种外观。展开各应用下方的对比，即可查看另一种样式。
+
 ### Word · 蓝色强调
 
-独立标签栏（保留样式）：
+融合式开口标签、插件功能区与中文设置菜单：
 
-![Word 文档标签栏](docs/images/word.png)
+![Word 融合式开口标签与中文设置菜单](docs/images/zh-CN/word-settings.png)
 
-融合标签栏（`#F0F0F0`）与插件功能区：
+<details>
+<summary>外观对比：Word 独立圆角面板</summary>
 
-![Word 融合标签栏与插件功能区](docs/images/word-integrated.png)
+![Word 独立圆角面板与闭合圆角选中标签](docs/images/zh-CN/word-panel.png)
+
+</details>
 
 ### Excel · 绿色强调
 
-独立标签栏（保留样式）：
+融合式开口标签，采用绿色强调色：
 
-![Excel 工作簿标签栏](docs/images/excel.png)
+![Excel 融合式开口工作簿标签与绿色强调线](docs/images/zh-CN/excel-blended.png)
 
-融合标签栏（`#F0F0F0`）与插件功能区：
+<details>
+<summary>外观对比：Excel 独立圆角面板</summary>
 
-![Excel 融合标签栏与插件功能区](docs/images/excel-integrated.png)
+![Excel 独立圆角面板与闭合圆角选中标签](docs/images/zh-CN/excel-panel.png)
+
+</details>
 
 ### PowerPoint · 橙红色强调
 
-独立标签栏（保留样式）：
+融合式开口标签，采用橙红色强调色：
 
-![PowerPoint 演示文稿标签栏](docs/images/powerpoint.png)
+![PowerPoint 融合式开口演示文稿标签与橙红色强调线](docs/images/zh-CN/powerpoint-blended.png)
 
-融合标签栏（`#F0F0F0`）与插件功能区：
+<details>
+<summary>外观对比：PowerPoint 独立圆角面板</summary>
 
-![PowerPoint 融合标签栏与插件功能区](docs/images/powerpoint-integrated.png)
+![PowerPoint 独立圆角面板与闭合圆角选中标签](docs/images/zh-CN/powerpoint-panel.png)
 
-截图来自空白示例文件，由使用者截取、审阅后提供；已避开账号、头像、私人路径及正文。
-截图展示截至 0.1.4 的已审阅效果，未包含 0.1.5–0.1.6 的全部新增菜单及细节调整。
-每款应用同时保留“独立标签栏”和“背景融合”截图，方便比较两种样式；新版默认融合底色为 `#F0F0F0`。
+</details>
+
+以上截图由使用者提供，展示 0.1.7 版本。通过 **… → 标签外观** 可以切换两种样式；浅色融合模式的默认底色为 `#F0F0F0`。[英文 README](README.md#screenshots) 提供对应的英文界面截图。
 
 ## 它能做什么
 
