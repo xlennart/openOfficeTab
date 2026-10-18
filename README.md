@@ -2,220 +2,238 @@
 
 # openOfficetab
 
-**让 Word、Excel、PowerPoint 像浏览器一样管理文档。**
+**Browser-style document tabs for Word, Excel, and PowerPoint.**
 
-免费 · 开源 · 原生 C++ · Windows 桌面 Office
+Free · Open source · Native C++ · Windows desktop Office
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4.svg)](#兼容性)
+[![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4.svg)](#compatibility)
 [![Build](https://github.com/xlennart/openOfficetab/actions/workflows/build.yml/badge.svg)](https://github.com/xlennart/openOfficetab/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/xlennart/openOfficetab)](https://github.com/xlennart/openOfficetab/releases/latest)
 
-[下载安装](https://github.com/xlennart/openOfficetab/releases/latest) · [使用指南](#使用指南) · [反馈问题](https://github.com/xlennart/openOfficetab/issues) · [开发说明](docs/development.md)
+**English** · [简体中文](README.zh-CN.md)
+
+[Download](https://github.com/xlennart/openOfficetab/releases/latest) · [User guide](#user-guide) · [Release history](#release-history) · [Report an issue](https://github.com/xlennart/openOfficetab/issues) · [Development](docs/development.md)
 
 </div>
 
 ---
 
-openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：点击切换、拖动排序、右键管理，并能将某个文档移出标签组，继续用独立窗口编辑。它保留 Office 原有文档对象和保存提示，不需要把文件转换成其他格式。
+openOfficetab adds a document tab bar below the Office ribbon. Switch documents with a click, drag tabs to reorder them, manage files from the context menu, or move a document into an independent window. It keeps Office's existing documents and save prompts, with no file conversion required.
 
-当前版本为 0.1.6，提供源码、EXE 安装程序和 ZIP 安装包。单任务栏设置会跨重启保留，新配置默认开启；完整修复与验证范围见 [验证记录](docs/validation.md)。
+**Current release: 0.1.6.** Source code, an EXE installer, and a ZIP package are available. Single-taskbar mode now survives restarts and is enabled by default for new configurations. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
 
-## 看看效果
+This is the English documentation. The add-in interface and existing screenshots are currently in Chinese; supporting technical documents are also currently in Chinese.
 
-### Word · 蓝色强调
+## Screenshots
 
-独立标签栏（保留样式）：
+### Word · Blue accent
 
-![Word 文档标签栏](docs/images/word.png)
+Separate tab bar:
 
-融合标签栏（`#F0F0F0`）与插件功能区：
+![Word document tabs in the separate panel style](docs/images/word.png)
 
-![Word 融合标签栏与插件功能区](docs/images/word-integrated.png)
+Blended tab bar (`#F0F0F0`) and the add-in ribbon:
 
-### Excel · 绿色强调
+![Word blended document tabs and add-in ribbon](docs/images/word-integrated.png)
 
-独立标签栏（保留样式）：
+### Excel · Green accent
 
-![Excel 工作簿标签栏](docs/images/excel.png)
+Separate tab bar:
 
-融合标签栏（`#F0F0F0`）与插件功能区：
+![Excel workbook tabs in the separate panel style](docs/images/excel.png)
 
-![Excel 融合标签栏与插件功能区](docs/images/excel-integrated.png)
+Blended tab bar (`#F0F0F0`) and the add-in ribbon:
 
-### PowerPoint · 橙红色强调
+![Excel blended workbook tabs and add-in ribbon](docs/images/excel-integrated.png)
 
-独立标签栏（保留样式）：
+### PowerPoint · Orange-red accent
 
-![PowerPoint 演示文稿标签栏](docs/images/powerpoint.png)
+Separate tab bar:
 
-融合标签栏（`#F0F0F0`）与插件功能区：
+![PowerPoint presentation tabs in the separate panel style](docs/images/powerpoint.png)
 
-![PowerPoint 融合标签栏与插件功能区](docs/images/powerpoint-integrated.png)
+Blended tab bar (`#F0F0F0`) and the add-in ribbon:
 
-截图来自空白示例文件，由使用者截取、审阅后提供；已避开账号、头像、私人路径及正文。
-以下截图为 0.1.4 的已审阅效果，0.1.5 新增菜单及接缝修整尚未更新截图。
-每款应用同时保留“独立标签栏”和“背景融合”截图，方便比较两种样式；新版默认融合底色为 `#F0F0F0`。
+![PowerPoint blended presentation tabs and add-in ribbon](docs/images/powerpoint-integrated.png)
 
-## 它能做什么
+These user-provided, reviewed screenshots show blank example files without account details, avatars, private paths, or document content. They show earlier releases up to 0.1.4 and do not include all menus and refinements in 0.1.5–0.1.6. Both styles remain available; the default light blended background is `#F0F0F0`.
 
-| 功能 | 操作与行为 |
+## Features
+
+| Feature | What it does |
 | :--- | :--- |
-| 文档标签 | 点击切换；未保存状态显示 `*`；拖动调整顺序 |
-| 新建与列表 | 标签后的 `+` 新建，向下箭头列出文档，`…` 打开设置 |
-| 快速关闭 | 点击 `×` 或中键；可设置双击关闭；最后文档关闭后退出应用，取消关闭则继续编辑 |
-| 右键管理 | 保存、另存为、关闭其他 / 左侧 / 右侧 / 全部标签、打开所在文件夹 |
-| 独立窗口 | 右键“在独立窗口中显示”；原窗口、原文件和未保存编辑保留 |
-| 多个标签组 | 拖出形成新标签组窗口，拖到另一个标签栏合并；也可通过菜单选择目标组 |
-| 标签宽度 | 拖动标签右边缘单独调宽（80–360 DIP）；按文件记住；默认规则支持固定、按标题或压缩 |
-| 最近关闭 | 从功能区或菜单重开最近 20 个已保存文件；已打开的文件直接切换；可清空记录 |
-| 文件偏好 | 记住文件的手动宽度和独立窗口选择，跨重启保留；提供重置入口 |
-| 设置同步 | 单任务栏、明暗主题、关闭偏好、外观、颜色与默认宽度同步到已打开的 Office 实例 |
-| 诊断与恢复 | 查看加载状态、导出脱敏诊断、恢复标签栏与窗口；安装器可检查和修复注册 |
-| 防误关 | 锁定标签，避免从标签栏误关闭 |
-| 窗口协调 | 同组切换沿用当前窗口的尺寸和位置，适配分屏；独立窗口和其他组不跟随。单任务栏模式可选；0.1.6对新配置默认开启，保留已有明确选择 |
-| 外观设置 | 浅灰融合开口标签 / 独立白色圆角面板；强调线顶部 / 底部 / 无；按应用配色，跟随 Office / 系统明暗主题 |
+| Document tabs | Click to switch, drag to reorder, and see `*` on unsaved documents. |
+| New documents and document list | Use `+` to create a document, the down arrow to list documents, and `…` for settings. |
+| Quick closing | Close with `×` or the middle mouse button; optional double-click closing. Closing the final document exits the application when no other documents remain. Cancelling keeps the document open. |
+| Context menu | Save, Save As, close other / left / right / all tabs, and open the containing folder. |
+| Independent windows | Move a document out of its tab group while keeping its original window, file, and unsaved edits. |
+| Multiple tab groups | Drag a tab out to create a group, drag it onto another tab bar to merge, or choose a target group from the menu. |
+| Resizable tabs | Drag an individual tab's right edge to resize it from 80–360 DIP. Choose fixed, title-based, or compressed default widths. |
+| Recently closed | Reopen up to 20 saved files per application; an already-open file is activated instead of duplicated. Clear the list at any time. |
+| File preferences | Remember each saved file's manual tab width and independent-window preference across restarts, with reset options. |
+| Settings sync | Sync single-taskbar mode, theme, window-close preference, appearance, color, and default width across running Office instances. |
+| Diagnostics and recovery | Inspect loading, export sanitized diagnostics, and recover tabs and windows. The installer can inspect and repair registration. |
+| Tab locking | Prevent accidental closing from the tab bar. |
+| Window coordination | Keep the current size and position when switching within a group, including split-screen layouts. Single-taskbar mode also coordinates moving, resizing, maximizing, minimizing, and restoring. Independent windows and other groups are excluded. |
+| Appearance | Blended open-edge tabs or a separate rounded white panel; top, bottom, or no accent line; application-specific accents and Office / Windows theme following. |
 
-保存全部标签与批量关闭只处理当前标签组中的文档，会排除独立窗口和其他标签组。有其他独立文档、隐藏工作簿或受保护视图时，关闭最后一个可见标签不会替你退出应用。
+Save All and bulk closing apply only to the current tab group. They exclude independent windows and other groups. Closing the final visible tab does not exit Office if other documents, hidden workbooks, or Protected View windows remain.
 
-## 安装
+## Installation
 
-1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.1.6-setup-x64.exe`。
-2. 保存文档并退出 Word、Excel、PowerPoint。
-3. 双击安装程序，点击 **安装 / 更新**。
-4. 重新打开 Office 文档，标签栏会出现在功能区下方。
+1. Download `openOfficetab-0.1.6-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficetab/releases/latest).
+2. Save your work and fully exit Word, Excel, and PowerPoint, including any old background instances.
+3. Run the installer and select **安装 / 更新** (Install / Update).
+4. Open an Office document again. The tab bar appears below the ribbon.
 
-安装按当前 Windows 用户注册，无需管理员权限。安装程序不会替你关闭 Office 窗口。
+Installation is per Windows user and does not require administrator privileges. The installer does not close Office windows for you.
 
-也可下载 `openOfficetab-0.1.6-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
+Alternatively, download `openOfficetab-0.1.6-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
 
-Release 附有 `SHA256SUMS.txt`。安装程序尚未做代码签名，可先核对文件校验值，或自行从源码构建。
+Releases include `SHA256SUMS.txt`. The installer is not code-signed; you can verify its checksum or build from source.
 
 ```powershell
 Get-FileHash .\openOfficetab-0.1.6-setup-x64.exe -Algorithm SHA256
 ```
 
-### 卸载
+### Uninstall
 
-保存文档并退出三款 Office，再运行同一个安装程序，点击 **卸载插件**；或从解压包运行 `Uninstall.cmd`。默认保留设置和日志。
+Save your work and exit all three Office applications. Run the same installer and select **卸载插件** (Uninstall), or run `Uninstall.cmd` from the extracted ZIP. Settings and logs are kept by default.
 
-需要一并清除设置时，可在 ZIP 解压目录执行：
+To remove settings as well, run this from the extracted package directory:
 
 ```powershell
 powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 ```
 
-## 使用指南
+## User guide
 
-### 让一个文档使用独立窗口
+The Chinese menu labels below match the current interface.
 
-右键该文档的标签，选择 **在独立窗口中显示**。该窗口会隐藏标签栏、退出窗口跟随，并恢复独立任务栏入口；文档不会被关闭或重新打开。
+### Use an independent window
 
-想恢复标签时，在该窗口的 **openOfficetab** 功能区点击 **加入 / 移动到标签组**，选择目标组。功能区和标签菜单也提供 **新建为独立窗口**。
+Right-click a tab and select **在独立窗口中显示** (Show in an independent window). The window hides its tab bar, stops following the group, and regains its own taskbar entry. The document is neither closed nor reopened.
 
-已保存的本地文件会记住独立窗口选择，重新打开后继续使用独立窗口。新文档在首次保存前只在内存中保留选择。若同一文件有多个编辑窗口，本次移出的是所选窗口，最后一次主动调整会成为下次打开该文件的默认选择。标签组成员关系仍只保留在本次会话。
+To rejoin, select **加入 / 移动到标签组** (Join / Move to tab group) on the **openOfficetab** ribbon and choose a group. The ribbon and tab menu also offer **新建为独立窗口** (New independent document).
 
-### 拆分与合并标签组
+Saved local files remember this choice across restarts. Unsaved documents keep it in memory until their first save. If a file has multiple editing views, the selected view is detached; the last explicit choice becomes the default when that file is reopened. Group membership itself lasts only for the current session.
 
-把标签拖到标签栏外，可形成保留标签栏的新窗口；把它拖到另一窗口的标签栏，可加入该组。右键 **移到新标签组窗口** 或 **移动到标签组…** 也可完成同样的操作。纯独立窗口隐藏标签栏，需要用功能区加回。
+### Split and merge tab groups
 
-分组只在同一款 Office 的同一应用实例内生效，目前不跨进程迁移，也不在重启后保存组成员。
+Drag a tab outside the tab bar to create a new group window with its own tab bar. Drag it onto another window's tab bar to join that group. The context menu also provides **移到新标签组窗口** (Move to a new group window) and **移动到标签组…** (Move to tab group).
 
-### 调节标签宽度
+Groups operate within one instance of one Office application. Cross-process moves and persistent group membership are not supported. An independent window has no tab bar and must rejoin through the ribbon.
 
-把鼠标移到标签的右边缘，出现横向调整指针后左右拖动，即可单独调整该标签的宽度。拖动边缘不切换或关闭文档，也不会移动标签组；按 Esc 取消本次调整。已保存文件的手动宽度存入本机用户配置，关闭重开后恢复，不修改文档内容。未保存的新文档在首次保存后继承当前宽度。
+### Resize individual tabs
 
-“默认标签宽度…”只影响没有单独调整过的标签。右键标签 → **重置此文件的标签设置** 可清除该文件的手动宽度和独立窗口偏好；`…` → **清除本应用已记住的文件设置** 可清除当前应用的所有文件偏好，并恢复当前标签的默认宽度，已经独立的窗口保持当前位置，重新打开时按默认方式加入标签组。另存为的新路径会继承当前设置。
+Move the pointer to a tab's right edge and drag when the horizontal resize cursor appears. This changes only that tab's width without switching, closing, or moving it. Press Esc to cancel.
 
-### 重开最近关闭的文件
+Manual widths are saved locally for saved files and restored when reopened. An unsaved document inherits its current width on first save, and Save As carries preferences to the new path. **默认标签宽度…** (Default tab width) affects tabs without a manual override.
 
-点击功能区的 **最近关闭…**，或右键标签 / 点击 `…` → **最近关闭…**。每款应用保留最近 20 个确认关闭的已保存本地文件（含可访问的 UNC 路径）。取消关闭、仍然打开的隐藏文档或同一文件的其他编辑视图不会作为关闭记录。文件已打开时直接激活现有标签，文件移动或删除时保留记录并提示。未保存的新文档请使用 Office 自身的文档恢复。
+Use **重置此文件的标签设置** (Reset this file's tab settings) to clear its width and independent-window preference. **清除本应用已记住的文件设置** (Clear remembered file settings for this application) clears all file preferences for the current application and resets current tab widths. Existing independent windows stay in place; reopening uses the default grouping behavior.
 
-菜单提供 **清空最近关闭记录**。该列表是文件路径历史，不包含正文或未保存内容，也不代替备份。
+### Reopen recently closed files
 
-### 分屏时切换文档
+Open **最近关闭…** (Recently closed) from the ribbon, a tab's context menu, or `…`. Each application remembers up to 20 saved local files, including accessible UNC paths. An already-open file is activated; moved or deleted files remain listed with an error when opening fails.
 
-把 Office 窗口放到屏幕一侧后，从这个窗口的标签栏切换文档，目标文档沿用当前窗口的实际位置和尺寸，不再沿用另一个文件的最大化状态。0.1.6启用单任务栏时，同组的移动、调大小、最大化、还原、最小化也会同步；移出的独立窗口和其他标签组保留各自布局。底层保留 Office 原有文档窗口，不重挂或重新打开文档。
+Cancelled closes, hidden documents that remain open, and other views of an open file are not treated as closed files. Unsaved documents require Office's own document recovery. **清空最近关闭记录** clears the list. This history stores paths, not document content or unsaved edits, and is not a backup.
 
-拖动窗口或边缘调整大小时，先临时遮蔽同组后台窗口，保持 Office 文档的可见状态；松开或取消后先同步最终位置和尺寸，再恢复后台窗口外观。独立窗口和其他组不参与遮蔽。尺寸通知合并处理，不在 Office 的布局回调中调整其他窗口，避免持续拖动时反复刷新或布局重入。
+### Switch tabs in split-screen layouts
 
-“恢复窗口排列”可以恢复插件调整前的布局；如果你之后手动改变过某个窗口的布局，恢复会保留这次手动调整。
+When you place an Office window on one side of the screen, switching from its tab bar transfers that window's current size and position to the target document. In single-taskbar mode, moving, resizing, maximizing, minimizing, and restoring also follow within the group. Independent windows and other groups keep their own layouts.
 
-0.1.6的 **单任务栏模式** 会保存到用户配置，并在正在运行的 Office 实例之间同步；明确关闭后也会记住关闭状态。每个标签组保留当前文档的任务栏入口，独立窗口保留独立入口。隐藏标签栏时恢复其他入口，避免文档无法访问。恢复窗口排列或修复标签栏不会再关闭此设置。该模式协调当前进程内的文档，不合并不同 Office 进程，也不改变 Windows 的 Alt+Tab 列表。
+Office retains its native document windows. During moving and resizing, the add-in temporarily masks background windows in the same group, then aligns them before restoring their appearance. Updates are coalesced outside Office's layout callbacks. **恢复窗口排列** (Restore window arrangement) restores layouts changed by the add-in while preserving subsequent manual layout changes.
 
-### 点击窗口右上角关闭
+Single-taskbar mode is enabled by default for new configurations, persists across restarts, and syncs across running instances; an explicit choice to disable it is retained. Each group keeps the active document's taskbar entry, while independent windows keep their own entries. Hiding the tab bar restores other entries. Recovery does not disable this setting. Coordination is limited to the current process; it does not merge Office processes or change the Windows Alt+Tab list.
 
-0.1.6启用单任务栏后，多标签时点击右上角 ×（或 Alt+F4）会询问 **关闭当前** / **关闭本组全部** / **取消**，并可勾选 **记住我的选择**。在“标签设置 → 点击窗口关闭按钮时”可重新选择“每次询问”。关闭全部只处理当前标签组，独立窗口和其他组不变；Office 原生保存提示保留，取消保存立即停止余下关闭。组内最后一份文档关闭且没有其他文档或受保护视图时退出应用。标签自身的 × 仍只关闭该标签。
+### Close from the window title bar
 
-### 选择外观
+With single-taskbar mode enabled and multiple tabs open, the window's `×` or Alt+F4 asks whether to **关闭当前** (Close current), **关闭本组全部** (Close this group), or **取消** (Cancel). You can select **记住我的选择** (Remember my choice), and reset it to asking each time under **标签设置 → 点击窗口关闭按钮时**.
 
-点击标签后的 `…` → **标签外观**，可以独立选择：
+Group closing excludes independent windows and other groups. Office's own save prompts remain active; cancelling a save prompt stops the remaining closes. Closing the final document exits the application only when no other documents or Protected View windows remain. A tab's own `×` closes only that tab.
 
-- **融入应用背景**：默认浅灰 `#F0F0F0`，去掉白色面板和面板阴影；外框保留与功能区一致的 8 DIP 两侧留边和圆角；在确认过的顶部功能区底缘补齐背景色，减轻原生阴影造成的接缝；选中标签为白色，朝文档内容区开口。放到底部时，开口也朝内容区。
-- **独立标签栏**：保留白色圆角面板和封闭的灰色选中标签。
-- **强调线**：顶部、底部、无。Word 为蓝色，Excel 为绿色，PowerPoint 为橙红色。
+### Customize appearance
 
-默认使用浅灰融合样式和顶部强调线。这些外观选择会保存到当前用户设置；已运行的其他 Office 实例通常在一秒内同步外观、颜色和默认宽度；模态对话框或应用忙时延后。切换外观只重绘插件控件，不重建 Office 窗格。0.1.5 的深色需要手动选择；0.1.6默认跟随 Office 主题；Office 选择“使用系统设置”时跟随 Windows。也可在“标签外观 → 明暗主题”选择始终浅色、始终深色或仅跟随系统。黑色主题的融合主体和顶部接缝为 `#262626`，深灰 Office 主题使用相应深灰；深色融合样式使用与深色功能区相近的齐边布局，保留底部分隔线。
+Open **… → 标签外观** (Tab appearance):
 
-在 **… → 标签外观 → 标签栏颜色…** 输入 `#RRGGBB` 或用调色板选择颜色；自定义底色也可用于独立面板。点击 **恢复默认颜色**，融合样式恢复 `#F0F0F0`，独立面板恢复白色。取消对话框不改变设置；深色模式和系统高对比度优先于自定义颜色。
+- **融入应用背景** (Blend with the application): a light `#F0F0F0` background with no separate white panel or panel shadow. The outer frame retains rounded corners and 8 DIP side insets aligned with the ribbon. The selected tab opens toward the document area, including when docked at the bottom. A background overlay softens the native ribbon seam only in recognized layouts.
+- **独立标签栏** (Separate tab bar): a rounded white panel with a closed gray selected tab.
+- **强调线** (Accent line): top, bottom, or none. Word uses blue, Excel green, and PowerPoint orange-red.
 
-### 统一宽度规则
+The default is the blended style with a top accent. Theme selection follows Office by default and follows Windows when Office uses the system setting. **明暗主题** also offers always light, always dark, or Windows-only following. Black Office themes use `#262626` for the blended bar and top seam; Dark Gray uses a matching darker palette. Dark blended layouts align with the dark ribbon and retain the bottom separator.
 
-在 **… → 默认标签宽度…** 或功能区的 **标签宽度** 中设置 80–360。数值按显示缩放适配；标题长度与压缩模式将该数值作为上限。取消对话框不改变设置。
+Choose **标签栏颜色…** (Tab bar color) to enter `#RRGGBB` or select a palette color. Custom colors also work with the separate panel. **恢复默认颜色** (Restore default color) restores `#F0F0F0` for blended mode or white for the separate panel. Dark mode and Windows high contrast take precedence over custom colors. Cancelling leaves settings unchanged.
 
-### 诊断和恢复
+Appearance changes redraw the add-in controls without rebuilding Office panes. Other running instances normally receive changes within a second, or later if Office is busy or showing a modal dialog.
 
-功能区提供 **加载诊断**、**导出脱敏诊断**、**恢复标签栏与窗口**。恢复会重建插件自己的标签栏、显示标签并关闭单标签自动隐藏，保留文件、编辑、组成员和顺序。0.1.6同时保留单任务栏选择（0.1.5 的恢复命令会关闭它）。
+### Set a default width
 
-插件完全没有加载时，用 EXE 安装器的 **加载诊断** 查看注册状态；保存并退出 Office 后再点 **修复注册**。诊断导出不包含文件名、路径、正文、账号或原始日志，修复不修改 Office 安全策略。
+Use **… → 默认标签宽度…** or **标签宽度** on the ribbon to set 80–360 DIP. Widths scale with the display; title-based and compressed modes use the value as their upper limit. Cancelling leaves settings unchanged.
 
-### 找到设置和恢复入口
+### Diagnose and recover
 
-点击标签后的 **…**，或在 **openOfficetab** 功能区打开 **标签设置**。功能区也提供显隐、刷新、窗口跟随和恢复入口。
+The ribbon offers **加载诊断** (Loading diagnostics), **导出脱敏诊断** (Export sanitized diagnostics), and **恢复标签栏与窗口** (Recover tabs and windows). Recovery rebuilds the add-in's own bar, shows tabs, and disables single-tab auto-hide while preserving documents, edits, group membership, order, and the single-taskbar preference.
 
-标签锁定只防止从标签栏误关，不改变文件权限；标题栏明确选择关闭本组时仍交给 Office 正常关闭并询问保存。
+If the add-in does not load at all, use the installer's loading diagnostics. Save and exit Office before selecting **修复注册** (Repair registration). Sanitized diagnostics exclude file names, paths, document content, accounts, and raw logs. Repair does not change Office security policy.
 
-## 兼容性
+Settings are available from `…` or **标签设置** on the ribbon. Tab locking only guards against closing from the tab bar; an explicit title-bar group close still goes through Office's normal save flow.
 
-| 项目 | 当前状态 |
+## Compatibility
+
+| Item | Current status |
 | :--- | :--- |
-| 已实机验证 | Windows 11、Office Home 2024 x64、Word / Excel / PowerPoint 16.0.20430.20146 |
-| 已验证缩放 | 200% 缩放；水平栏被本机 Office 限制为至少 80 物理像素，约 40 DIP |
-| 发布架构 | x64；按 **Office 的位数**匹配，而非仅看 Windows 位数 |
-| x86 / 其他 Office 版本 | 构建脚本预留 x86；尚未做运行验证，不包含 x86 安装包 |
-| Office 网页版 / macOS | 不支持；这是 Windows 原生 COM 加载项 |
+| Runtime-tested environment | Windows 11; Office Home 2024 x64; Word / Excel / PowerPoint 16.0.20430.20146. |
+| Tested display scale | 200%. This Office installation imposes a minimum horizontal pane height of 80 physical pixels, approximately 40 DIP. |
+| Release architecture | x64. Match **Office's bitness**, not just Windows bitness. |
+| x86 / other Office versions | The build script has an x86 option, but runtime behavior is unverified and no x86 installer is provided. |
+| Office for the web / macOS | Unsupported. This is a native Windows COM add-in. |
 
-目前是可使用的早期版本，不承诺覆盖成熟商用标签插件的全部功能。尚未提供全局快捷键和完整辅助技术语义。验证方法与边界见 [验证记录](docs/validation.md)。
+This is an early usable release, with no claim of feature parity with mature commercial tab add-ins. Configurable global shortcuts and complete accessibility support are not yet available. See the [validation record](docs/validation.md) for methods and limits.
 
-## 常见问题
+## Frequently asked questions
 
-**双击文件却没有标签栏？**
+**Why is there no tab bar after double-clicking a file?**
 
-先保存并退出 Office，重新安装后再打开文档；然后在 COM 加载项列表检查 `openOfficetab` 是否加载。若插件已加载，可从功能区检查显隐及“单标签时自动隐藏”设置。Office 安全模式、受保护视图或组织策略可能限制加载项；请在普通编辑窗口核对，不需要修改 Office 安全设置。
+Save and exit Office, reinstall, and reopen the document. Check whether `openOfficetab` is loaded in Office's COM Add-ins list, then check tab visibility and single-tab auto-hide. Safe Mode, Protected View, or organizational policy can restrict add-ins; check in a normal editing window without changing Office security settings.
 
-从 Codex 开发环境执行安装时，脚本会交给独立桌面进程完成注册，避免开发环境中的注册表与 AppData 隔离造成安装只对测试窗口生效。
+When installation runs from the Codex development environment, the script delegates registration to a separate desktop process to avoid isolated registry and AppData views.
 
-**配置和日志存在哪里？**
+**Where are settings and logs stored?**
 
-位于 `%LOCALAPPDATA%\openOfficetab`。`settings.ini` 保存全局设置；`documents.ini` 保存按应用区分的文件偏好和最近关闭路径。路径仅作格式编码，不是加密；这些文件留在本机，不会上传，脱敏诊断也不会包含路径历史。问题反馈建议只提供相关错误行，避免公开真实文件名和路径。
+Under `%LOCALAPPDATA%\openOfficetab`. `settings.ini` stores global settings; `documents.ini` stores per-application file preferences and recently closed paths. Paths are encoded, not encrypted. These files stay local and are not uploaded; sanitized diagnostics exclude path history. Avoid posting private file names and paths in issue reports.
 
-**修改设置后其他窗口没变化？**
+**Why did another window not pick up my settings?**
 
-外观、颜色、默认宽度通常在一秒内同步；忙碌或原生对话框期间稍后应用。文件的手动宽度优先于默认宽度。单任务栏、明暗主题和标题栏关闭偏好会同步；显隐、停靠位置不做运行中联动；安装新版 DLL 仍需保存并重开应用。
+Appearance, color, default width, single-taskbar mode, theme, and title-bar closing preferences normally sync within a second. Busy applications and native dialogs can delay updates. Per-file widths override the default. Visibility and docking position are not live-synced. A new DLL still requires saving and restarting Office.
 
-## 开发与参与
+## Release history
 
-安装 Visual Studio Build Tools 的 C++ 工具和 Windows SDK 后：
+| Version | Date | Highlights |
+| :--- | :--- | :--- |
+| [0.1.6](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.6) | 2026-10-17 | Persist single-taskbar mode and enable it by default for new configurations; Office / Windows theme following; coordinated window operations and close choices; fixes for resizing and PowerPoint activation. |
+| [0.1.5](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.5) | 2026-10-15 | Recently closed files, remembered per-file widths and independent windows, live appearance sync, and ribbon seam refinements. |
+| [0.1.4](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.4) | 2026-10-13 | Split-screen tab switching across all three applications, ribbon ownership fixes, and custom tab-bar colors with a `#F0F0F0` default. |
+| [0.1.3](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.3) | 2026-10-11 | Blended open-edge tabs, three accent-line positions, and individual tab-edge resizing. |
+| [0.1.2](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.2) | 2026-10-11 | Exit after the final document closes, independent-window workflows, multiple groups, width policies, diagnostics, and recovery. |
+| [0.1.1](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.1) | 2026-10-10 | First public release: native tabs for Word, Excel, and PowerPoint, document management, and x64 EXE / ZIP packages. |
+
+Dates follow the project's release notes in China Standard Time (UTC+8). For detailed changes, see [CHANGELOG.md](CHANGELOG.md) (Chinese); downloads and release-specific notes are on [Releases](https://github.com/xlennart/openOfficetab/releases).
+
+## Development and contributing
+
+Install Visual Studio Build Tools with C++ tools and the Windows SDK, then run:
 
 ```powershell
 pwsh -File .\scripts\build.ps1 -Architecture x64
+pwsh -File .\scripts\test-native.ps1
 pwsh -File .\scripts\package.ps1
 ```
 
-构建产生 `dist/x64/openOfficetab.dll`；打包产生 EXE、ZIP 和校验文件。EXE 使用 Windows 自带 .NET Framework 编译器生成。GitHub Actions 会编译并校验安装包；Office 的实际运行测试需要本机安装桌面 Office。
+The build produces `dist/x64/openOfficetab.dll`; packaging produces an EXE, a ZIP, and checksums. The EXE is compiled with the .NET Framework compiler included with Windows. GitHub Actions builds the add-in and verifies tests and installer payloads; actual Office runtime tests require a local desktop Office installation.
 
-源码、测试与发布流程见 [开发说明](docs/development.md)；与 Office Tab 的差别及建议见 [功能对比与开发优先级](docs/comparison.md)。欢迎通过 Issues 提交可复现的问题或功能建议；请注明 Windows、Office 版本、位数及缩放比例。
+See the [development guide](docs/development.md) for source, testing, and release workflows, and the [feature comparison](docs/comparison.md) for differences from Office Tab and possible next steps. Reproducible bug reports and suggestions are welcome through [Issues](https://github.com/xlennart/openOfficetab/issues). Include Windows and Office versions, Office bitness, and display scale.
 
-## 许可证
+## License
 
-[MIT](LICENSE)。openOfficetab 独立实现，不包含对标软件的源码或二进制，与 Microsoft、ExtendOffice 等厂商无隶属关系。Office 及其他产品名称归各自权利人所有。
+[MIT](LICENSE). openOfficetab is an independent implementation and includes no source code or binaries from the reference product. It is not affiliated with Microsoft or ExtendOffice. Office and other product names belong to their respective owners.
