@@ -21,9 +21,9 @@ Free · Open source · Native C++ · Windows desktop Office
 
 openOfficetab adds a document tab bar below the Office ribbon. Switch documents with a click, drag tabs to reorder them, manage files from the context menu, or move a document into an independent window. It keeps Office's existing documents and save prompts, with no file conversion required.
 
-**Current release: 0.1.6.** Source code, an EXE installer, and a ZIP package are available. Single-taskbar mode now survives restarts and is enabled by default for new configurations. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
+**Current release: 0.1.7.** Source code, an EXE installer, and a ZIP package are available. Single-taskbar mode now survives restarts and is enabled by default for new configurations. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
 
-This is the English documentation. The add-in interface and existing screenshots are currently in Chinese; supporting technical documents are also currently in Chinese.
+The add-in and installer support English and Simplified Chinese. Choose **Follow Windows / 简体中文 / English** in settings; the default follows your Windows display language. Existing screenshots and most supporting technical documents are in Chinese; [English installation instructions](docs/installation.en.md) are available.
 
 ## Screenshots
 
@@ -72,7 +72,8 @@ These user-provided, reviewed screenshots show blank example files without accou
 | Resizable tabs | Drag an individual tab's right edge to resize it from 80–360 DIP. Choose fixed, title-based, or compressed default widths. |
 | Recently closed | Reopen up to 20 saved files per application; an already-open file is activated instead of duplicated. Clear the list at any time. |
 | File preferences | Remember each saved file's manual tab width and independent-window preference across restarts, with reset options. |
-| Settings sync | Sync single-taskbar mode, theme, window-close preference, appearance, color, and default width across running Office instances. |
+| Interface language | English, Simplified Chinese, or automatic selection from the Windows display language; saved across restarts. |
+| Settings sync | Sync language, single-taskbar mode, theme, window-close preference, appearance, color, and default width across running Office instances. |
 | Diagnostics and recovery | Inspect loading, export sanitized diagnostics, and recover tabs and windows. The installer can inspect and repair registration. |
 | Tab locking | Prevent accidental closing from the tab bar. |
 | Window coordination | Keep the current size and position when switching within a group, including split-screen layouts. Single-taskbar mode also coordinates moving, resizing, maximizing, minimizing, and restoring. Independent windows and other groups are excluded. |
@@ -82,24 +83,24 @@ Save All and bulk closing apply only to the current tab group. They exclude inde
 
 ## Installation
 
-1. Download `openOfficetab-0.1.6-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficetab/releases/latest).
+1. Download `openOfficetab-0.1.7-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficetab/releases/latest).
 2. Save your work and fully exit Word, Excel, and PowerPoint, including any old background instances.
-3. Run the installer and select **安装 / 更新** (Install / Update).
+3. Run the installer and select **Install / Update** (安装 / 更新).
 4. Open an Office document again. The tab bar appears below the ribbon.
 
 Installation is per Windows user and does not require administrator privileges. The installer does not close Office windows for you.
 
-Alternatively, download `openOfficetab-0.1.6-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
+Alternatively, download `openOfficetab-0.1.7-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
 
 Releases include `SHA256SUMS.txt`. The installer is not code-signed; you can verify its checksum or build from source.
 
 ```powershell
-Get-FileHash .\openOfficetab-0.1.6-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.1.7-setup-x64.exe -Algorithm SHA256
 ```
 
 ### Uninstall
 
-Save your work and exit all three Office applications. Run the same installer and select **卸载插件** (Uninstall), or run `Uninstall.cmd` from the extracted ZIP. Settings and logs are kept by default.
+Save your work and exit all three Office applications. Run the same installer and select **Uninstall** (卸载插件), or run `Uninstall.cmd` from the extracted ZIP. Settings and logs are kept by default.
 
 To remove settings as well, run this from the extracted package directory:
 
@@ -109,7 +110,11 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 ## User guide
 
-The Chinese menu labels below match the current interface.
+Both Chinese and English labels are shown below to help you find commands in either interface language.
+
+### Choose the interface language
+
+Open **… → Language / 语言**, or **openOfficetab → Tab settings → Language / 语言**. Select **Follow Windows (default)**, **简体中文**, or **English**. Automatic mode uses Chinese for Chinese Windows display languages and English for other languages. Your choice survives restarts and syncs across running Office instances. Ribbon labels, menus, and subsequent add-in dialogs update without recreating document panes. File names and contents stay unchanged; Office save prompts and native Windows dialogs retain their own language. The installer has a separate language selector.
 
 ### Use an independent window
 
@@ -211,6 +216,7 @@ Appearance, color, default width, single-taskbar mode, theme, and title-bar clos
 
 | Version | Date | Highlights |
 | :--- | :--- | :--- |
+| [0.1.7](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.7) | 2026-10-18 | English and Chinese UI; saved language selection with Windows display-language detection; live Ribbon translation; bilingual installer and package instructions. |
 | [0.1.6](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.6) | 2026-10-17 | Persist single-taskbar mode and enable it by default for new configurations; Office / Windows theme following; coordinated window operations and close choices; fixes for resizing and PowerPoint activation. |
 | [0.1.5](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.5) | 2026-10-15 | Recently closed files, remembered per-file widths and independent windows, live appearance sync, and ribbon seam refinements. |
 | [0.1.4](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.4) | 2026-10-13 | Split-screen tab switching across all three applications, ribbon ownership fixes, and custom tab-bar colors with a `#F0F0F0` default. |

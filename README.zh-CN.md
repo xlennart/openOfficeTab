@@ -21,7 +21,9 @@
 
 openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：点击切换、拖动排序、右键管理，并能将某个文档移出标签组，继续用独立窗口编辑。它保留 Office 原有文档对象和保存提示，不需要把文件转换成其他格式。
 
-当前版本为 0.1.6，提供源码、EXE 安装程序和 ZIP 安装包。单任务栏设置会跨重启保留，新配置默认开启；完整修复与验证范围见 [验证记录](docs/validation.md)。
+当前版本为 0.1.7，提供源码、EXE 安装程序和 ZIP 安装包。单任务栏设置会跨重启保留，新配置默认开启；完整修复与验证范围见 [验证记录](docs/validation.md)。
+
+插件与安装器现已支持中英文界面，新增语言设置，默认跟随 Windows 显示语言；也可手动选择简体中文或英文。
 
 ## 看看效果
 
@@ -72,7 +74,8 @@ openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 | 标签宽度 | 拖动标签右边缘单独调宽（80–360 DIP）；按文件记住；默认规则支持固定、按标题或压缩 |
 | 最近关闭 | 从功能区或菜单重开最近 20 个已保存文件；已打开的文件直接切换；可清空记录 |
 | 文件偏好 | 记住文件的手动宽度和独立窗口选择，跨重启保留；提供重置入口 |
-| 设置同步 | 单任务栏、明暗主题、关闭偏好、外观、颜色与默认宽度同步到已打开的 Office 实例 |
+| 界面语言 | 中英文界面，默认按 Windows 显示语言自动选择，也可手动指定；跨重启保留 |
+| 设置同步 | 语言、单任务栏、明暗主题、关闭偏好、外观、颜色与默认宽度同步到已打开的 Office 实例 |
 | 诊断与恢复 | 查看加载状态、导出脱敏诊断、恢复标签栏与窗口；安装器可检查和修复注册 |
 | 防误关 | 锁定标签，避免从标签栏误关闭 |
 | 窗口协调 | 同组切换沿用当前窗口的尺寸和位置，适配分屏；独立窗口和其他组不跟随。单任务栏模式可选；0.1.6 对新配置默认开启，保留已有明确选择 |
@@ -82,19 +85,19 @@ openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 安装
 
-1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.1.6-setup-x64.exe`。
+1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.1.7-setup-x64.exe`。
 2. 保存文档并退出 Word、Excel、PowerPoint。
 3. 双击安装程序，点击 **安装 / 更新**。
 4. 重新打开 Office 文档，标签栏会出现在功能区下方。
 
 安装按当前 Windows 用户注册，无需管理员权限。安装程序不会替你关闭 Office 窗口。
 
-也可下载 `openOfficetab-0.1.6-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
+也可下载 `openOfficetab-0.1.7-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
 
 Release 附有 `SHA256SUMS.txt`。安装程序尚未做代码签名，可先核对文件校验值，或自行从源码构建。
 
 ```powershell
-Get-FileHash .\openOfficetab-0.1.6-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.1.7-setup-x64.exe -Algorithm SHA256
 ```
 
 ### 卸载
@@ -108,6 +111,10 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 ```
 
 ## 使用指南
+
+### 界面语言
+
+在 **… → 语言 / Language**，或功能区 **openOfficetab → 标签设置 → 语言 / Language** 中选择 **跟随系统（默认） / 简体中文 / English**。自动模式根据 Windows 显示语言选择：中文用简体中文，其他语言用英文。选择会跨重启保存，并同步到已打开的 Office 实例；刷新功能区、菜单和后续打开的插件对话框，不重建文档窗格。文件名、路径和正文不翻译；Office 保存提示和 Windows 原生窗口沿用各自语言。安装器有独立的语言选择。
 
 ### 让一个文档使用独立窗口
 
@@ -209,6 +216,7 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 | 版本 | 日期 | 主要更新 |
 | :--- | :--- | :--- |
+| [0.1.7](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.7) | 2026-10-18 | 完整中英文界面；可保存的语言设置，自动跟随 Windows 显示语言；功能区实时翻译；双语安装器和安装说明。 |
 | [0.1.6](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.6) | 2026-10-17 | 单任务栏设置跨重启保留，新配置默认开启；跟随 Office / 系统主题；同组窗口操作同步与关闭选择；修复调整尺寸及 PowerPoint 激活问题。 |
 | [0.1.5](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.5) | 2026-10-15 | 最近关闭重开；按文件记住宽度和独立窗口；外观设置实时同步；功能区接缝修整。 |
 | [0.1.4](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.4) | 2026-10-13 | 三款应用分屏切换跟随；功能区界面所有权修复；自定义标签栏颜色，默认 `#F0F0F0`。 |

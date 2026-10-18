@@ -64,7 +64,7 @@ public:
     HRESULT STDMETHODCALLTYPE Update()override{return S_OK;}
     HRESULT STDMETHODCALLTYPE IsUpToDate()override{return S_OK;}
     HRESULT STDMETHODCALLTYPE GetUserClassID(CLSID* p)override{if(!p)return E_POINTER;*p=CLSID_Tabs;return S_OK;}
-    HRESULT STDMETHODCALLTYPE GetUserType(DWORD,LPOLESTR* p)override{if(!p)return E_POINTER;const wchar_t* s=L"openOfficetab 标签栏";*p=(LPOLESTR)CoTaskMemAlloc((wcslen(s)+1)*2);if(!*p)return E_OUTOFMEMORY;wcscpy_s(*p,wcslen(s)+1,s);return S_OK;}
+    HRESULT STDMETHODCALLTYPE GetUserType(DWORD,LPOLESTR* p)override{if(!p)return E_POINTER;const wchar_t* s=i18n::text(session?session->language():0,L"openOfficetab 标签栏");*p=(LPOLESTR)CoTaskMemAlloc((wcslen(s)+1)*2);if(!*p)return E_OUTOFMEMORY;wcscpy_s(*p,wcslen(s)+1,s);return S_OK;}
     HRESULT STDMETHODCALLTYPE SetExtent(DWORD a,SIZEL* s)override{if(a!=DVASPECT_CONTENT)return DV_E_DVASPECT;if(!s)return E_POINTER;extent=*s;return S_OK;}
     HRESULT STDMETHODCALLTYPE GetExtent(DWORD a,SIZEL* s)override{if(a!=DVASPECT_CONTENT)return DV_E_DVASPECT;if(!s)return E_POINTER;*s=extent;return S_OK;}
     HRESULT STDMETHODCALLTYPE Advise(IAdviseSink* s,DWORD* c)override{if(!c)return E_POINTER;advise=Ptr<IAdviseSink>(s);*c=1;return S_OK;}

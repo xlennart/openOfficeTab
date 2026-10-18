@@ -35,7 +35,7 @@ bool Tabs::Mount(HWND frame){
     // The root child survives a pane rebuild; CTP continues to reserve space.
     if(!hwnd){
         auto context=SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(hostWindow));
-        hwnd=CreateWindowExW(0,L"openOfficetab.Tabs",L"文档标签",WS_CHILD|WS_CLIPSIBLINGS|WS_TABSTOP,0,0,1,1,hostWindow,nullptr,module,this);
+        hwnd=CreateWindowExW(0,L"openOfficetab.Tabs",i18n::text(session?session->language():0,L"文档标签"),WS_CHILD|WS_CLIPSIBLINGS|WS_TABSTOP,0,0,1,1,hostWindow,nullptr,module,this);
         if(context)SetThreadDpiAwarenessContext(context);
         if(!hwnd){log(L"chrome.displayCreate.failed",HRESULT_FROM_WIN32(GetLastError()));return false;}
         if(tooltip)DestroyWindow(tooltip);
@@ -92,7 +92,7 @@ HRESULT Tabs::activate(HWND parent,LPCRECT supplied,bool focus){
     if(!parent)inPlace->GetWindow(&parent);
     if(!oleHwnd){
         WNDCLASSEXW c{sizeof(c)};c.lpfnWndProc=proc;c.hInstance=module;c.hCursor=LoadCursorW(nullptr,IDC_ARROW);c.lpszClassName=L"openOfficetab.Tabs";c.style=CS_DBLCLKS;RegisterClassExW(&c);
-        oleHwnd=CreateWindowExW(0,c.lpszClassName,L"文档标签",WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS|WS_TABSTOP,pos.left,pos.top,pos.right-pos.left,pos.bottom-pos.top,parent,nullptr,module,this);
+        oleHwnd=CreateWindowExW(0,c.lpszClassName,i18n::text(session?session->language():0,L"文档标签"),WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS|WS_TABSTOP,pos.left,pos.top,pos.right-pos.left,pos.bottom-pos.top,parent,nullptr,module,this);
         if(!oleHwnd)return HRESULT_FROM_WIN32(GetLastError());
     }else{if(!compactFrame)SetParent(oleHwnd,parent);SetObjectRects(&pos,&clip);if(!hwnd)ShowWindow(oleHwnd,SW_SHOW);}
     site->ShowObject();
@@ -271,7 +271,7 @@ LRESULT CALLBACK Tabs::proc(HWND w,UINT m,WPARAM a,LPARAM b){
         if(m==WM_SETCURSOR&&LOWORD(b)==HTCLIENT){POINT p{};GetCursorPos(&p);ScreenToClient(w,&p);if(self->resizing||self->edgeAt(p)){SetCursor(LoadCursorW(nullptr,IDC_SIZEWE));return TRUE;}}
         if(m==WM_CAPTURECHANGED){self->finishResize(true);self->pressed=0;self->dragging=false;}
         if(m==WM_CANCELMODE){self->finishResize(true);self->pressed=0;self->dragging=false;if(GetCapture()==w)ReleaseCapture();return 0;}
-        if(m==WM_NOTIFY&&((NMHDR*)b)->code==TTN_GETDISPINFOW){auto info=(NMTTDISPINFOW*)b;POINT p;GetCursorPos(&p);ScreenToClient(w,&p);auto v=self->session?self->session->find(self->at(p)):nullptr;self->hint=v?(v->path.empty()?v->title:v->path):L"openOfficetab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作";info->lpszText=self->hint.data();return 0;}
+        if(m==WM_NOTIFY&&((NMHDR*)b)->code==TTN_GETDISPINFOW){auto info=(NMTTDISPINFOW*)b;POINT p;GetCursorPos(&p);ScreenToClient(w,&p);auto v=self->session?self->session->find(self->at(p)):nullptr;self->hint=v?(v->path.empty()?v->title:v->path):i18n::text(self->session?self->session->language():0,L"openOfficetab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作");info->lpszText=self->hint.data();return 0;}
         if(m==WM_NCDESTROY){if(self->hwnd==w)self->hwnd=nullptr;if(self->oleHwnd==w)self->oleHwnd=nullptr;SetWindowLongPtrW(w,GWLP_USERDATA,0);}
     }catch(const ComError& e){if(self->session)self->session->report(e);}catch(...){log(L"control.exception",E_FAIL);}
     return DefWindowProcW(w,m,a,b);

@@ -100,3 +100,13 @@ powershell -NoProfile -File tests/ribbon-runtime.ps1 -HostName PowerPoint
 窗口消息回调只记录意图，几何同步在宿主空闲时合并执行；移动和尺寸循环期间暂停完整 COM 枚举，避免布局重入。操作开始前对同组后台窗口临时应用可恢复的透明遮蔽，结束后先同步几何及层级，再恢复原有分层属性。文档顶层窗口不做 SetParent，也不重新打开文件。
 
 新增开发接口 `SetThemeMode`（DISPID 42）和 `SetFrameCloseAction`（DISPID 43），保留既有接口编号。单任务栏、主题和关闭偏好按键增量合并并跨实例同步。原生测试由 `scripts/test-native.ps1` 统一运行；实机消息回归见 `tests/window-mask-runtime.ps1`，只接受指定空白示例，输出留在忽略的 `artifacts/`。运行边界及人工验收见 [验证记录](validation.md)。
+
+## 0.1.7 中英文界面
+
+`src/localization.h` 集中维护中英文 UI 词条。设置 `language` 的取值为 0 跟随 Windows、1 简体中文、2 英文；缺省或损坏值回到 0。自动模式使用 [GetUserDefaultUILanguage](https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-getuserdefaultuilanguage)，中文主语言 ID 使用简体中文，其余回退英文。它不读取地区格式，也不改动 Office 或系统语言。
+
+新增 `SetLanguage`（DISPID 44），既有编号保留；`GetLabel`（45）和 `RibbonLoaded`（46）服务 Ribbon 回调。语言更新通过 [IRibbonUI.Invalidate](https://learn.microsoft.com/en-us/office/vba/api/office.iribbonui.invalidate) 刷新已有功能区缓存，不重建文档窗格。语言同其他全局偏好按键合并并同步，临时失败下次空闲重试。文档名、路径、内容及原生 Office 保存流程不做翻译。
+
+安装器的语言选择独立于插件设置；`scripts/localization.ps1` 提供安装 / 卸载 / 诊断输出的选择，`-Language auto|zh-CN|en` 会通过桌面桥接显式传递。Windows PowerShell 5.1 执行的含中文脚本使用 UTF-8 BOM。安装包附英文 `README.md` 与中文 `README.zh-CN.md`。
+
+运行 `python tests/check-localization.py` 和 `scripts/test-native.ps1` 检查词条、动态标签和持久化。打包后运行 `tests/installer-localization-test.ps1`，不执行安装操作。`tests/language-runtime.ps1` 只附着三个唯一且已保存的公开空白示例，验证实际载荷、三模式同步、回调和窗口稳定性，最后恢复原设置；运行输出禁止直接公开上传。

@@ -1,6 +1,7 @@
 #pragma once
 #include "com.h"
 #include "storage.h"
+#include "localization.h"
 enum class Host {Word,Excel,PowerPoint};
 struct View {
     unsigned long long id=0;
@@ -23,7 +24,7 @@ struct FrameCloseChoice {int action=0;bool remember=false;}; // 0 cancel, 1 curr
 struct Pane {unsigned long long viewId=0;Ptr<IDispatch> office;Ptr<ITabBinding> control;std::shared_ptr<PaneChrome> chrome;unsigned initAttempts=0;long requestedHeight=0;};
 struct Settings {
     bool visible=true,group=true,dark=false,autoHide=false,doubleClose=false,shortcuts=false;
-    int themeMode=0,frameCloseAction=0; // theme: auto Office/system, light, dark, system; close: ask/current/group
+    int themeMode=0,frameCloseAction=0,language=0; // language: Windows / Chinese / English
     int position=1; // msoCTPDockPositionTop
     int tabWidth=120,widthMode=2; // DIP; fixed, title, shrink
     int accentPosition=1,barStyle=1; // 0 bottom / 1 top / 2 none; 0 panel / 1 blended
@@ -38,6 +39,7 @@ class EventSink;
 class Session : public std::enable_shared_from_this<Session> {
 public:
     Ptr<IDispatch> app,factory;
+    Ptr<IDispatch> ribbon;
     Host host=Host::Word;
     HWND timer=nullptr;
     Settings settings;
@@ -74,6 +76,7 @@ public:
     HWND maskSource=nullptr;
     ULONGLONG maskActivity=0;
     int officeTheme=-1;bool systemDark=false;ULONGLONG lastThemePoll=0;
+    int lastLanguage=0;
     std::function<FrameCloseChoice(HWND,size_t)> frameClosePrompt;
     bool refreshing=false,executing=false,creating=false,stopped=false,refreshPending=false;
     int failures=0;
@@ -109,6 +112,9 @@ public:
     bool windowFrameBusy()const{return nativeFrameDepth!=0||sizingRoot!=nullptr;}
     bool queueFrameClose(HWND root);void processFrameClose();
     bool darkMode()const;COLORREF surroundColor()const;bool pollTheme(bool force=false);bool setThemeMode(int mode);bool setFrameCloseAction(int action);
+    int language()const{return i18n::resolve(settings.language);}
+    const wchar_t* tr(const wchar_t* key)const{return i18n::text(language(),key);}
+    bool setLanguage(int mode);void refreshLanguage();
     std::wstring state()const;
     std::wstring diagnostics()const;
     bool recover();bool setTabWidth(int width,int mode);

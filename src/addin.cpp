@@ -20,7 +20,7 @@ public:
     ULONG STDMETHODCALLTYPE Release()override{ULONG n=--refs;if(!n)delete this;return n;}
     DISPATCH_STUBS
     HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR* names,UINT n,LCID,DISPID* ids)override{
-        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth",L"SetBarColor",L"ShowColor",L"GetRecentlyClosed",L"ReopenClosed",L"ClearRecentlyClosed",L"ResetFileSettings",L"ResetAllFileSettings",L"SyncSettings",L"ShowRecentlyClosed",L"SetThemeMode",L"SetFrameCloseAction"};
+        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth",L"SetBarColor",L"ShowColor",L"GetRecentlyClosed",L"ReopenClosed",L"ClearRecentlyClosed",L"ResetFileSettings",L"ResetAllFileSettings",L"SyncSettings",L"ShowRecentlyClosed",L"SetThemeMode",L"SetFrameCloseAction",L"SetLanguage",L"GetLabel",L"RibbonLoaded"};
         if(!names||!ids)return E_POINTER;
         for(UINT i=0;i<n;i++){ids[i]=DISPID_UNKNOWN;for(size_t j=0;j<std::size(api);j++)if(!_wcsicmp(names[i],api[j]))ids[i]=(DISPID)j+1;if(ids[i]==DISPID_UNKNOWN)return DISP_E_UNKNOWNNAME;}return S_OK;
     }
@@ -70,6 +70,9 @@ public:
                 case 41:{POINT point{};GetCursorPos(&point);auto view=s->find(s->activeId);s->recentMenu(view?view->hwnd:nullptr,point);break;}
                 case 42:booleanResult(s->setThemeMode(arg(0).number()));break;
                 case 43:booleanResult(s->setFrameCloseAction(arg(0).number()));break;
+                case 44:booleanResult(s->setLanguage(arg(0).number()));break;
+                case 45:{auto control=arg(0).disp();auto label=i18n::ribbonLabel(s->language(),prop(control.get(),L"Id").str());if(result){result->vt=VT_BSTR;result->bstrVal=SysAllocString(label);}break;}
+                case 46:s->ribbon=arg(0).disp();s->lastLanguage=0;s->refreshLanguage();break;
                 default:return DISP_E_MEMBERNOTFOUND;
             }return S_OK;
         }catch(const ComError& e){s->report(e);return e.hr;}catch(...){log(L"addin.invoke.exception",E_FAIL);return E_FAIL;}
@@ -86,10 +89,10 @@ public:
     HRESULT STDMETHODCALLTYPE CTPFactoryAvailable(IDispatch* f)override{pendingFactory=Ptr<IDispatch>(f);if(session)session->bindFactory(f);return S_OK;}
     HRESULT STDMETHODCALLTYPE GetCustomUI(BSTR,BSTR* xml)override{
         if(!xml)return E_POINTER;
-        const wchar_t* markup=LR"(<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui"><ribbon><tabs><tab id="ootTab" label="openOfficetab">
-<group id="ootDocs" label="文档标签"><button id="ootNew" label="新建文档" imageMso="FileNew" onAction="NewDocument"/><button id="ootNewIndependent" label="新建为独立窗口" onAction="NewIndependentDocument"/><button id="ootOpen" label="打开文档" imageMso="FileOpen" onAction="OpenDocument"/><button id="ootSave" label="保存本组全部标签" imageMso="FileSave" onAction="SaveAll"/><button id="ootRecent" label="最近关闭…" onAction="ShowRecentlyClosed"/></group>
-<group id="ootWindows" label="标签与窗口"><button id="ootShow" label="显示 / 隐藏标签栏" onAction="ToggleVisible"/><button id="ootGroup" label="单任务栏模式" onAction="ToggleGroup"/><button id="ootDetach" label="独立窗口显示" onAction="DetachDocument"/><button id="ootJoin" label="加入 / 移动到标签组" onAction="ChooseTabGroup"/><button id="ootRestore" label="恢复窗口排列" onAction="RestoreWindows"/></group>
-<group id="ootOptions" label="设置与恢复"><button id="ootWidth" label="标签宽度" onAction="ShowWidth"/><button id="ootSettings" label="标签设置" imageMso="ControlProperties" onAction="ShowSettings"/><button id="ootRefresh" label="刷新标签" imageMso="RefreshAll" onAction="Refresh"/><button id="ootDiagnose" label="加载诊断" onAction="ShowDiagnostics"/><button id="ootExport" label="导出脱敏诊断" onAction="ExportDiagnostics"/><button id="ootRecover" label="恢复标签栏与窗口" onAction="Recover"/></group>
+        const wchar_t* markup=LR"(<customUI onLoad="RibbonLoaded" xmlns="http://schemas.microsoft.com/office/2009/07/customui"><ribbon><tabs><tab id="ootTab" label="openOfficetab">
+<group id="ootDocs" getLabel="GetLabel"><button id="ootNew" getLabel="GetLabel" imageMso="FileNew" onAction="NewDocument"/><button id="ootNewIndependent" getLabel="GetLabel" onAction="NewIndependentDocument"/><button id="ootOpen" getLabel="GetLabel" imageMso="FileOpen" onAction="OpenDocument"/><button id="ootSave" getLabel="GetLabel" imageMso="FileSave" onAction="SaveAll"/><button id="ootRecent" getLabel="GetLabel" onAction="ShowRecentlyClosed"/></group>
+<group id="ootWindows" getLabel="GetLabel"><button id="ootShow" getLabel="GetLabel" onAction="ToggleVisible"/><button id="ootGroup" getLabel="GetLabel" onAction="ToggleGroup"/><button id="ootDetach" getLabel="GetLabel" onAction="DetachDocument"/><button id="ootJoin" getLabel="GetLabel" onAction="ChooseTabGroup"/><button id="ootRestore" getLabel="GetLabel" onAction="RestoreWindows"/></group>
+<group id="ootOptions" getLabel="GetLabel"><button id="ootWidth" getLabel="GetLabel" onAction="ShowWidth"/><button id="ootSettings" getLabel="GetLabel" imageMso="ControlProperties" onAction="ShowSettings"/><button id="ootRefresh" getLabel="GetLabel" imageMso="RefreshAll" onAction="Refresh"/><button id="ootDiagnose" getLabel="GetLabel" onAction="ShowDiagnostics"/><button id="ootExport" getLabel="GetLabel" onAction="ExportDiagnostics"/><button id="ootRecover" getLabel="GetLabel" onAction="Recover"/></group>
 </tab></tabs></ribbon></customUI>)";
         *xml=SysAllocString(markup);return *xml?S_OK:E_OUTOFMEMORY;
     }
@@ -117,7 +120,7 @@ extern "C" HRESULT WINAPI DllGetClassObject(REFCLSID c,REFIID i,void** p){if(!p)
 extern "C" HRESULT WINAPI DllCanUnloadNow(){return objects==0?S_OK:S_FALSE;}
 extern "C" HRESULT WINAPI DllRegisterServer(){
     try{wchar_t file[32768];DWORD n=GetModuleFileNameW(module,file,32768);if(!n||n>=32768)return E_FAIL;registerClass(CLSID_Addin,L"openOfficetab.Connect",file,false);registerClass(CLSID_Tabs,L"openOfficetab.Tabs",file,true);
-        for(const auto* host:{L"Word",L"Excel",L"PowerPoint"}){std::wstring path=std::wstring(L"Software\\Microsoft\\Office\\")+host+L"\\Addins\\openOfficetab.Connect";regString(path,L"FriendlyName",L"openOfficetab");regString(path,L"Description",L"永久免费原生文档标签 · Word / Excel / PowerPoint");regDword(path,L"LoadBehavior",3);regDword(path,L"CommandLineSafe",0);}return S_OK;
+        for(const auto* host:{L"Word",L"Excel",L"PowerPoint"}){std::wstring path=std::wstring(L"Software\\Microsoft\\Office\\")+host+L"\\Addins\\openOfficetab.Connect";regString(path,L"FriendlyName",L"openOfficetab");regString(path,L"Description",i18n::text(0,L"永久免费原生文档标签 · Word / Excel / PowerPoint"));regDword(path,L"LoadBehavior",3);regDword(path,L"CommandLineSafe",0);}return S_OK;
     }catch(const ComError& e){return e.hr;}catch(...){return E_FAIL;}
 }
 extern "C" HRESULT WINAPI DllUnregisterServer(){

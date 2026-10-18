@@ -1,10 +1,11 @@
-﻿param([switch]$RemoveSettings)
+﻿param([switch]$RemoveSettings,[ValidateSet('auto','zh-CN','en')][string]$Language='auto')
 $ErrorActionPreference='Stop'
 if($env:OPENOFFICETAB_SETUP_UTF8){[Console]::OutputEncoding=New-Object Text.UTF8Encoding($false);$OutputEncoding=[Console]::OutputEncoding}
+. (Join-Path $PSScriptRoot 'localization.ps1')
 . (Join-Path $PSScriptRoot 'desktop-context.ps1')
-if(Invoke-DesktopContextScript -ScriptPath $PSCommandPath -Arguments @{RemoveSettings=[bool]$RemoveSettings}){return}
-if(@(Get-Process WINWORD,EXCEL,POWERPNT -ErrorAction SilentlyContinue).Count){throw '请先保存文档并退出三款 Office，再运行卸载。'}
-if([IntPtr]::Size -ne 8){throw '请通过 Uninstall.cmd 在 64 位 PowerShell 中运行卸载。'}
+if(Invoke-DesktopContextScript -ScriptPath $PSCommandPath -Arguments @{Language=$Language;RemoveSettings=[bool]$RemoveSettings}){return}
+if(@(Get-Process WINWORD,EXCEL,POWERPNT -ErrorAction SilentlyContinue).Count){throw (Get-OotText '请先保存文档并退出三款 Office，再运行卸载。' 'Save your work and fully exit all three Office applications before uninstalling.')}
+if([IntPtr]::Size -ne 8){throw (Get-OotText '请通过 Uninstall.cmd 在 64 位 PowerShell 中运行卸载。' 'Use Uninstall.cmd to uninstall from 64-bit PowerShell.')}
 $installRoot=Join-Path $env:LOCALAPPDATA 'openOfficetab'
 $bin=Join-Path $installRoot 'bin'
 foreach($architecture in 'x64','x86'){
@@ -13,17 +14,17 @@ foreach($architecture in 'x64','x86'){
     $dll=$null
     if(Test-Path -LiteralPath $bin){
         $dll=Get-ChildItem -LiteralPath $bin -Filter 'openOfficetab.dll' -File -Recurse |
-            Where-Object { $_.FullName.Substring($bin.Length+1) -match ('^0\.1\.[012](-[0-9a-f]{12})?\\'+$architecture+'\\openOfficetab\.dll$') } |
+            Where-Object { $_.FullName.Substring($bin.Length+1) -match ('^\d+\.\d+\.\d+(-[0-9a-f]{12})?\\'+$architecture+'\\openOfficetab\.dll$') } |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
     }
     if($dll){
         $regsvr=Join-Path $env:WINDIR ($(if($architecture -eq 'x64'){'System32'}else{'SysWOW64'})+'\regsvr32.exe')
         $process=Start-Process -FilePath $regsvr -ArgumentList @('/s','/u',('"'+$dll+'"')) -WindowStyle Hidden -Wait -PassThru
-        if($process.ExitCode -ne 0){throw "卸载注册失败：$($process.ExitCode)。"}
+        if($process.ExitCode -ne 0){throw (Get-OotText "卸载注册失败：$($process.ExitCode)。" "Unregistration failed with exit code $($process.ExitCode).")}
     }
 }
 # Delete only our explicitly resolved bin directory, after validating its identity.
 $expected=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'openOfficetab\bin'))
-if(Test-Path -LiteralPath $bin){$resolved=(Resolve-Path -LiteralPath $bin).Path;if($resolved -ne $expected){throw '卸载路径校验失败。'};Remove-Item -LiteralPath $resolved -Recurse -Force}
+if(Test-Path -LiteralPath $bin){$resolved=(Resolve-Path -LiteralPath $bin).Path;if($resolved -ne $expected){throw (Get-OotText '卸载路径校验失败。' 'Uninstall directory identity check failed.')};Remove-Item -LiteralPath $resolved -Recurse -Force}
 if($RemoveSettings){foreach($name in 'settings.ini','documents.ini','runtime.log'){$file=Join-Path $installRoot $name;if(Test-Path -LiteralPath $file){Remove-Item -LiteralPath $file -Force}}}
-Write-Host 'openOfficetab 已卸载。默认保留设置和日志；使用 -RemoveSettings 可清除它们。'
+Write-Host (Get-OotText 'openOfficetab 已卸载。默认保留设置和日志；使用 -RemoveSettings 可清除它们。' 'openOfficetab uninstalled. Settings and logs are kept by default; use -RemoveSettings to remove them.')

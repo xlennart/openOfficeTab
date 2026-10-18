@@ -1,4 +1,4 @@
-﻿param([string]$Version='0.1.6')
+﻿param([string]$Version='0.1.7')
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
 if($Version -notmatch '^\d+\.\d+\.\d+$'){throw 'Invalid version.'}
@@ -8,8 +8,11 @@ $delivery=Join-Path $taskRoot 'delivery'
 $stage=Join-Path $taskRoot ('build\package-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $delivery,$stage,(Join-Path $stage 'scripts'),(Join-Path $stage 'dist\x64') -Force | Out-Null
 foreach($file in 'Install.cmd','Uninstall.cmd','LICENSE'){Copy-Item -LiteralPath (Join-Path $taskRoot $file) -Destination (Join-Path $stage $file)}
-Copy-Item -LiteralPath (Join-Path $taskRoot 'docs\installation.md') -Destination (Join-Path $stage 'README.md')
-foreach($file in 'install.ps1','uninstall.ps1','desktop-context.ps1','diagnose.ps1'){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $stage ('scripts\'+$file))}
+$englishReadme=(Get-Content -LiteralPath (Join-Path $taskRoot 'docs\installation.en.md') -Raw -Encoding UTF8).Replace('(installation.md)','(README.zh-CN.md)')
+$chineseReadme=(Get-Content -LiteralPath (Join-Path $taskRoot 'docs\installation.md') -Raw -Encoding UTF8).Replace('(installation.en.md)','(README.md)')
+[IO.File]::WriteAllText((Join-Path $stage 'README.md'),$englishReadme,[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $stage 'README.zh-CN.md'),$chineseReadme,[Text.UTF8Encoding]::new($false))
+foreach($file in 'install.ps1','uninstall.ps1','desktop-context.ps1','diagnose.ps1','localization.ps1'){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $stage ('scripts\'+$file))}
 Copy-Item -LiteralPath $dll -Destination (Join-Path $stage 'dist\x64\openOfficetab.dll')
 $zip=Join-Path $delivery "openOfficetab-$Version-win-x64.zip"
 # ZipArchive produces forward-slash entry names for a portable payload.
