@@ -21,7 +21,7 @@ foreach($hostName in 'Word','Excel','PowerPoint'){
     if($hostName -eq 'PowerPoint'){$app=[OfficeRot]::Attach($hostName);$docs=$app.Presentations}else{$app=([OfficeRot]::AttachFile($file)).Application;if($hostName -eq 'Word'){$docs=$app.Documents}else{$docs=$app.Workbooks}}
     if($docs.Count -ne 1 -or $docs.Item(1).FullName -ne $file -or -not [bool]$docs.Item(1).Saved){throw "Unique saved public fixture required: $hostName"}
     $api=$app.COMAddIns.Item('openOfficetab.Connect').Object;$state=$api.GetState()|ConvertFrom-Json
-    if($state.version -ne '0.1.7' -or $state.views.Count -ne 1){throw 'Wrong loaded version or unexpected views'}
+    if($state.version -ne '0.1.8' -or $state.views.Count -ne 1){throw 'Wrong loaded version or unexpected views'}
     [uint32]$officeProcess=0;[OotLanguageNative]::GetWindowThreadProcessId([IntPtr][long]$state.views[0].hwnd,[ref]$officeProcess)|Out-Null
     $loaded=@((Get-Process -Id $officeProcess).Modules|Where-Object ModuleName -eq 'openOfficetab.dll')
     if($loaded.Count -ne 1 -or (Get-FileHash -LiteralPath $loaded[0].FileName).Hash -ne $expectedHash){throw "Loaded payload mismatch: $hostName"}

@@ -49,11 +49,13 @@ namespace {
 constexpr UINT REFRESH=WM_APP+110;
 constexpr UINT NATIVE_CLOSE=WM_APP+111;
 constexpr UINT FRAME_CLOSE=WM_APP+112;
+constexpr UINT NEW_DOCUMENT=WM_APP+113;
 LRESULT CALLBACK sessionProc(HWND w,UINT m,WPARAM a,LPARAM b){
     auto s=(Session*)GetWindowLongPtrW(w,GWLP_USERDATA);
     if(m==WM_NCCREATE){s=(Session*)((CREATESTRUCTW*)b)->lpCreateParams;SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)s);}
     if(s&&m==FRAME_CLOSE){auto keep=s->shared_from_this();s->processFrameClose();return 0;}
     if(s&&m==NATIVE_CLOSE){auto keep=s->shared_from_this();s->nativeClose();return 0;}
+    if(s&&(m==NEW_DOCUMENT||(m==WM_TIMER&&a==5))){try{auto keep=s->shared_from_this();s->processCreate();}catch(...){log(L"session.create.exception",E_FAIL);}return 0;}
     if(s&&m==WM_TIMER&&a==3){auto keep=s->shared_from_this();s->nativeClose();return 0;}
     if(s&&m==WM_TIMER&&a==4){try{auto keep=s->shared_from_this();s->processWindowLayout();}catch(...){log(L"session.layout.exception",E_FAIL);}return 0;}
     if(s&&(m==WM_TIMER||m==REFRESH)){if(m==REFRESH)s->refreshPending=false;if(m==WM_TIMER&&a==2)KillTimer(w,2);try{auto keep=s->shared_from_this();if(s->windowFrameBusy()||s->coordinatingWindows){SetTimer(w,2,80,nullptr);return 0;}if(s->refresh()){s->finishClose();}else if((s->executing||s->refreshing)&&m==WM_TIMER&&a==2)SetTimer(w,2,20,nullptr);}catch(...){log(L"session.refresh.exception",E_FAIL);}return 0;}
@@ -86,7 +88,8 @@ void Session::start(){
 void Session::stop(){
     if(stopped)return;stopped=true;detachWindowObservers();
     try{flushPersistence(200);}catch(...){log(L"state.shutdown.flushFailed",E_FAIL);}
-    if(timer){KillTimer(timer,1);KillTimer(timer,2);DestroyWindow(timer);timer=nullptr;}
+    queuedNewDocument=false;
+    if(timer){KillTimer(timer,1);KillTimer(timer,2);KillTimer(timer,5);DestroyWindow(timer);timer=nullptr;}
     if(sink)sink->detach();if(connection&&cookie)connection->Unadvise(cookie);cookie=0;connection.reset();sink.reset();
     restore();
     for(auto& p:panes){if(p.control)p.control->Bind(nullptr,nullptr);p.chrome.reset();if(p.control)p.control->Unmount();try{call(p.office.get(),L"Delete",DISPATCH_METHOD);}catch(...){}}
@@ -110,28 +113,9 @@ void Session::event(DISPID id,DISPPARAMS* params){
         if(target&&closing&&closing.as<IUnknown>().get()==target->document.as<IUnknown>().get())pendingCloseAccepted=true;
     }
     if(stopped)return;
-    // Word reports WindowActivate with a complete window/document pair. Mount
-    // that view directly in the same STA event, before waiting for an idle
-    // full-collection refresh. NewDocument arrives too early for a window.
-    if(host==Host::Word&&id==9)return;
-    if(host==Host::Word&&id==10&&params&&params->cArgs>=2&&!coordinatingWindows&&!windowFrameBusy()&&!refreshing&&(!executing||creating)){
-        Var w,d;VariantCopy(&w.v,&params->rgvarg[0]);VariantCopy(&d.v,&params->rgvarg[1]);
-        auto window=w.disp(),document=d.disp();
-        HWND root=(HWND)(UINT_PTR)(DWORD)prop(window.get(),L"Hwnd").number();
-        if(window&&document&&valid(root)){
-            Flag busy(refreshing);
-            std::shared_ptr<View> view;
-            for(auto& old:views)if(old->hwnd==root){view=old;break;}
-            if(!view){
-                view=std::make_shared<View>();view->id=nextId++;view->hwnd=root;view->identity=window.as<IUnknown>();GetWindowPlacement(root,&view->original);
-                view->groupId=pendingNewDocument?newDocumentGroup:currentGroup();view->independent=view->groupId==0;view->lastGroupId=view->groupId?view->groupId:1;pendingNewDocument=false;
-                view->window=window;view->document=document;view->title=call(document.get(),L"Name").str();
-                view->saved=prop(document.get(),L"Saved").boolean(true);view->readOnly=prop(document.get(),L"ReadOnly").boolean();
-                view->path=prop(document.get(),L"Path").str().empty()?L"":prop(document.get(),L"FullName").str();initializePreference(*view,true,L"");views.push_back(view);
-            }
-            activeId=view->id;if(!view->independent){groupActiveId=view->id;groupActives[view->groupId]=view->id;}syncPanes();syncWindowObservers();redraw();
-        }
-    }
+    // WindowActivate precedes completion of Word's Ribbon transfer. Creating
+    // CTPs or resizing roots here can strand its NetUI content in a hidden
+    // parking pane, including the custom caption. Let Office finish the event.
     defer();
 }
 std::shared_ptr<View> Session::find(unsigned long long id)const{for(auto& v:views)if(v->id==id)return v;return {};}
@@ -258,6 +242,9 @@ void Session::syncPanes(){
     for(auto& v:views){
         auto it=std::find_if(panes.begin(),panes.end(),[&](auto& p){return p.viewId==v->id;});
         if(it==panes.end()){
+            if(valid(v->hwnd)&&windowlayout::ribbonInitializing(v->hwnd)){
+                SetTimer(timer,2,50,nullptr);continue;
+            }
             try{
                 Pane p;p.viewId=v->id;
                 p.office=call(factory.get(),L"CreateCTP",DISPATCH_METHOD,{Var(std::wstring(L"openOfficetab.Tabs")),Var(std::wstring(L"  ")),Var(v->window.get())}).disp();
@@ -402,10 +389,23 @@ bool Session::save(unsigned long long id,bool saveAs){
     if(!refresh())return false;auto actual=find(id);return actual&&actual->saved;
 }
 void Session::create(bool independent,HWND owner){
-    auto keep=shared_from_this();if(stopped||executing)return;
+    if(stopped||executing||queuedNewDocument||!timer)return;
+    queuedNewGroup=independent?0:(owner?groupForWindow(owner):currentGroup());
+    queuedNewDocument=true;
+    // Do not run native Office commands on the tab child's mouse-message
+    // stack. Office must regain its normal document command/UI context first.
+    if(!PostMessageW(timer,NEW_DOCUMENT,0,0))queuedNewDocument=false;
+}
+void Session::processCreate(){
+    if(timer)KillTimer(timer,5);
+    if(stopped||!queuedNewDocument)return;
+    if(executing||refreshing||coordinatingWindows||windowFrameBusy()){
+        if(timer)SetTimer(timer,5,30,nullptr);return;
+    }
+    auto keep=shared_from_this();unsigned group=queuedNewGroup;queuedNewDocument=false;
     try{
         Flag busy(executing),newCommand(creating);
-        pendingNewDocument=true;pendingNewSince=GetTickCount64();newDocumentGroup=independent?0:(owner?groupForWindow(owner):currentGroup());
+        pendingNewDocument=true;pendingNewSince=GetTickCount64();newDocumentGroup=group;
         auto bars=call(app.get(),L"CommandBars").disp();
         call(bars.get(),L"ExecuteMso",DISPATCH_METHOD,{Var(std::wstring(L"FileNewDefault"))});
     }catch(const ComError& e){pendingNewDocument=false;report(e);}
@@ -457,7 +457,7 @@ bool Session::recover(){
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.1.7\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    std::wstring r=L"{\"version\":\"0.1.8\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
@@ -519,5 +519,5 @@ void Session::options(HWND owner,POINT pt){
     if(cmd>=30&&cmd<=33)setThemeMode((int)cmd-30);if(cmd>=40&&cmd<=42)setFrameCloseAction((int)cmd-40);
     if(cmd>=50&&cmd<=52)setLanguage((int)cmd-50);
     if(cmd==17)recentMenu(owner,pt);if(cmd==18)resetAllFilePreferences();
-    if(cmd==11)MessageBoxW(owner,tr(L"openOfficetab 0.1.7\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficetab"),MB_OK|MB_ICONINFORMATION);
+    if(cmd==11)MessageBoxW(owner,tr(L"openOfficetab 0.1.8\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficetab"),MB_OK|MB_ICONINFORMATION);
 }

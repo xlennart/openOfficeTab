@@ -21,7 +21,7 @@
 
 openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：点击切换、拖动排序、右键管理，并能将某个文档移出标签组，继续用独立窗口编辑。它保留 Office 原有文档对象和保存提示，不需要把文件转换成其他格式。
 
-当前版本为 0.1.7，提供源码、EXE 安装程序和 ZIP 安装包。单任务栏设置会跨重启保留，新配置默认开启；完整修复与验证范围见 [验证记录](docs/validation.md)。
+当前版本为 0.1.8，修复通过标签栏“＋”新建文档后，Word 功能区和标题栏控件可能空白的初始化路径。提供源码、EXE 安装程序和 ZIP 安装包；完整修复与验证范围见 [验证记录](docs/validation.md)。
 
 插件与安装器现已支持中英文界面，新增语言设置，默认跟随 Windows 显示语言；也可手动选择简体中文或英文。
 
@@ -94,19 +94,19 @@ openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 安装
 
-1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.1.7-setup-x64.exe`。
+1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.1.8-setup-x64.exe`。
 2. 保存文档并退出 Word、Excel、PowerPoint。
 3. 双击安装程序，点击 **安装 / 更新**。
 4. 重新打开 Office 文档，标签栏会出现在功能区下方。
 
 安装按当前 Windows 用户注册，无需管理员权限。安装程序不会替你关闭 Office 窗口。
 
-也可下载 `openOfficetab-0.1.7-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
+也可下载 `openOfficetab-0.1.8-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
 
 Release 附有 `SHA256SUMS.txt`。安装程序尚未做代码签名，可先核对文件校验值，或自行从源码构建。
 
 ```powershell
-Get-FileHash .\openOfficetab-0.1.7-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.1.8-setup-x64.exe -Algorithm SHA256
 ```
 
 ### 卸载
@@ -239,6 +239,7 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 | 版本 | 日期 | 主要更新 |
 | :--- | :--- | :--- |
+| [0.1.8](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.8) | 2026-10-19 | 新建原生命令排队；等待功能区内容归位后创建窗格、协调窗口；增加实际功能区内容回归检查。 |
 | [0.1.7](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.7) | 2026-10-18 | 完整中英文界面；可保存的语言设置，自动跟随 Windows 显示语言；功能区实时翻译；双语安装器和安装说明。 |
 | [0.1.6](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.6) | 2026-10-17 | 单任务栏设置跨重启保留，新配置默认开启；跟随 Office / 系统主题；同组窗口操作同步与关闭选择；修复调整尺寸及 PowerPoint 激活问题。 |
 | [0.1.5](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.5) | 2026-10-15 | 最近关闭重开；按文件记住宽度和独立窗口；外观设置实时同步；功能区接缝修整。 |

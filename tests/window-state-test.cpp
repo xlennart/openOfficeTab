@@ -33,12 +33,12 @@ public:
 class Application final:public IDispatch {
     ULONG refs=1;
 public:
-    HWND activationWindow=nullptr;RECT activationBounds{};
+    HWND activationWindow=nullptr;RECT activationBounds{};unsigned automationCalls=0;
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id,void** out)override{if(!out)return E_POINTER;*out=nullptr;if(id!=IID_IUnknown&&id!=IID_IDispatch)return E_NOINTERFACE;*out=this;AddRef();return S_OK;}
     ULONG STDMETHODCALLTYPE AddRef()override{return ++refs;}
     ULONG STDMETHODCALLTYPE Release()override{auto n=--refs;if(!n)delete this;return n;}
     DISPATCH_STUBS
-    HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR* names,UINT,LCID,DISPID* ids)override{if(!_wcsicmp(*names,L"Activate")){*ids=2;return S_OK;}if(_wcsicmp(*names,L"Name"))return DISP_E_UNKNOWNNAME;*ids=1;return S_OK;}
+    HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR* names,UINT,LCID,DISPID* ids)override{automationCalls++;if(!_wcsicmp(*names,L"Activate")){*ids=2;return S_OK;}if(_wcsicmp(*names,L"Name"))return DISP_E_UNKNOWNNAME;*ids=1;return S_OK;}
     HRESULT STDMETHODCALLTYPE Invoke(DISPID id,REFIID,LCID,WORD,DISPPARAMS*,VARIANT* result,EXCEPINFO*,UINT*)override{if(id==2){if(activationWindow)SetWindowPos(activationWindow,nullptr,activationBounds.left,activationBounds.top,activationBounds.right-activationBounds.left,activationBounds.bottom-activationBounds.top,SWP_NOACTIVATE|SWP_NOZORDER);return S_OK;}VariantInit(result);result->vt=VT_BSTR;result->bstrVal=SysAllocString(L"Word");return S_OK;}
 };
 HWND window(const wchar_t* cls,HWND parent,int x,int y,int width,int height){return CreateWindowExW(0,cls,L"",parent?WS_CHILD:WS_OVERLAPPEDWINDOW,x,y,width,height,parent,nullptr,module,nullptr);}
@@ -66,6 +66,20 @@ int main(){
     assert(root&&other);
     WNDCLASSW cls{};cls.hInstance=module;cls.lpfnWndProc=DefWindowProcW;cls.lpszClassName=L"MsoCommandBar";RegisterClassW(&cls);
     HWND strip=window(cls.lpszClassName,root,0,170,800,40),ribbon=window(cls.lpszClassName,root,0,0,800,MulDiv(180,dpi(root),96));
+    // Reproduce the reported failure: the visible Ribbon frame still exists,
+    // but its NetUI content (including caption controls) is parked elsewhere.
+    HWND chromeRoot=window(L"STATIC",nullptr,100,100,900,700);
+    HWND chromeBar=window(cls.lpszClassName,chromeRoot,0,0,900,220);
+    WNDCLASSW netClass{};netClass.hInstance=module;netClass.lpfnWndProc=DefWindowProcW;netClass.lpszClassName=L"NetUIHWND";RegisterClassW(&netClass);
+    HWND content=window(netClass.lpszClassName,chromeBar,0,0,900,220);
+    HWND parking=window(L"STATIC",chromeRoot,0,0,100,100);
+    ShowWindow(chromeRoot,SW_SHOWNOACTIVATE);ShowWindow(chromeBar,SW_SHOWNOACTIVATE);
+    assert(windowlayout::ribbonInitializing(chromeRoot));
+    ShowWindow(content,SW_SHOWNOACTIVATE);assert(!windowlayout::ribbonInitializing(chromeRoot));
+    SetParent(content,parking);assert(windowlayout::ribbonInitializing(chromeRoot));
+    SetParent(content,chromeBar);assert(!windowlayout::ribbonInitializing(chromeRoot));
+    ShowWindow(chromeBar,SW_HIDE);assert(!windowlayout::ribbonInitializing(chromeRoot)); // intentionally hidden
+    DestroyWindow(chromeRoot);
     HWND ole=window(L"STATIC",strip,0,0,800,30),wrongOle=window(L"STATIC",ribbon,0,0,800,30);
     assert(windowlayout::reserveFrame(strip,ole,root));
     assert(!windowlayout::reserveFrame(ribbon,wrongOle,root));
@@ -81,6 +95,18 @@ int main(){
     tabs->Bind(nullptr,root);assert(tabs->Mount(strip));assert(!tabs->Mount(ribbon));
     tabs->Unmount();tabs->Close(0);tabs.reset();site.reset();
     Ptr<IDispatch> app(new Application(),false);auto session=std::make_shared<Session>(app.get());session->settings=Settings{};session->settings.group=false;
+    // Activation notifications must not reenter Office to mount or size CTPs.
+    auto fake=(Application*)app.get();auto calls=fake->automationCalls;
+    VARIANT eventArgs[2]{};for(auto& arg:eventArgs){arg.vt=VT_DISPATCH;arg.pdispVal=app.get();}
+    DISPPARAMS eventParams{eventArgs,nullptr,2,0};session->event(10,&eventParams);
+    assert(fake->automationCalls==calls&&session->panes.empty());
+    // The '+' request is queued without an Office call, captures the intended
+    // group, coalesces double-clicks, and waits through nested layout callbacks.
+    session->timer=CreateWindowExW(0,L"STATIC",L"",0,0,0,0,0,HWND_MESSAGE,nullptr,module,nullptr);
+    session->create(true);assert(session->queuedNewDocument&&session->queuedNewGroup==0&&fake->automationCalls==calls);
+    session->create(false);assert(session->queuedNewGroup==0);
+    session->refreshing=true;session->processCreate();assert(session->queuedNewDocument&&fake->automationCalls==calls);session->refreshing=false;
+    session->queuedNewDocument=false;DestroyWindow(session->timer);session->timer=nullptr;
     auto source=std::make_shared<View>(),target=std::make_shared<View>();source->id=1;source->hwnd=root;target->id=2;target->hwnd=other;
     session->views={source,target};session->activeId=1;
     WINDOWPLACEMENT old{sizeof(old)};RECT oldRect{};assert(windowlayout::capture(other,old,oldRect));

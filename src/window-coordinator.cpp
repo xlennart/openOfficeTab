@@ -135,6 +135,7 @@ void Session::syncWindowObservers(){
         GroupSlot slot;if(windowlayout::capture(v->hwnd,slot.placement,slot.bounds)){slot.minimized=IsIconic(v->hwnd)!=FALSE;groupSlots[v->groupId]=slot;}
     }
     for(auto& v:views)if(owned(v->hwnd)&&!rootObservers.count(v->hwnd)){
+        if(windowlayout::ribbonInitializing(v->hwnd))continue;
         auto observer=std::make_shared<RootObserver>(this);if(observer->attach(v->hwnd))rootObservers[v->hwnd]=std::move(observer);
         auto it=groupSlots.find(v->groupId);
         if(settings.group&&!v->independent&&it!=groupSlots.end()&&!it->second.minimized&&!windowlayout::sameSlot(v->hwnd,it->second.placement,it->second.bounds)){

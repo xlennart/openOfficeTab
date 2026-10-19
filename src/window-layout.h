@@ -32,6 +32,35 @@ inline bool sameSlot(HWND window,const WINDOWPLACEMENT& placement,const RECT& bo
     if(!capture(window,now,rect))return false;
     return placement.showCmd==SW_SHOWMAXIMIZED ? now.showCmd==SW_SHOWMAXIMIZED&&EqualRect(&rect,&bounds) : !IsIconic(window)&&!IsZoomed(window)&&EqualRect(&rect,&bounds);
 }
+inline bool ribbonInitializing(HWND host){
+    PhysicalCoordinates coordinates;RECT client{};
+    if(!GetClientRect(host,&client))return false;MapWindowPoints(host,nullptr,(POINT*)&client,2);
+    struct Check {RECT client;bool initializing=false;};Check check{client};
+    EnumChildWindows(host,[](HWND bar,LPARAM data)->BOOL{
+        wchar_t cls[128]{};GetClassNameW(bar,cls,128);
+        if(_wcsicmp(cls,L"MsoCommandBar")||!IsWindowVisible(bar))return TRUE;
+        RECT bounds{};if(!GetWindowRect(bar,&bounds)||bounds.bottom-bounds.top<=MulDiv(96,dpi(bar),96))return TRUE;
+        const auto& area=((Check*)data)->client;
+        if(abs(bounds.top-area.top)>MulDiv(3,dpi(bar),96)||bounds.right-bounds.left<(area.right-area.left)*3/4)return TRUE;
+        // A visible Ribbon frame is insufficient: Office temporarily parks its
+        // actual NetUI tree under an invisible MsoWorkPane during activation.
+        struct Content {RECT bounds;bool ready=false;} content{bounds};
+        EnumChildWindows(bar,[](HWND child,LPARAM value)->BOOL{
+            auto& c=*(Content*)value;wchar_t name[128]{};GetClassNameW(child,name,128);
+            if(_wcsicmp(name,L"NetUIHWND")||!IsWindowVisible(child))return TRUE;
+            RECT r{},intersection{};
+            if(GetWindowRect(child,&r)&&IntersectRect(&intersection,&r,&c.bounds)&&
+               intersection.right-intersection.left>=(c.bounds.right-c.bounds.left)*3/4&&
+               intersection.bottom-intersection.top>=(c.bounds.bottom-c.bounds.top)*3/4){c.ready=true;return FALSE;}
+            return TRUE;
+        },(LPARAM)&content);
+        if(!content.ready)((Check*)data)->initializing=true;
+        return TRUE;
+    },(LPARAM)&check);
+    // No expanded Ribbon is valid (collapsed Ribbon / fullscreen); do not
+    // force it open or change a user's preferred display mode.
+    return check.initializing;
+}
 inline bool reserveFrame(HWND frame,HWND ole,HWND host){
     if(!frame||!ole||!host||!IsWindow(frame)||!IsWindow(ole)||frame==host||!IsChild(frame,ole)||GetAncestor(frame,GA_ROOT)!=host)return false;
     wchar_t name[128]{};GetClassNameW(frame,name,128);if(_wcsicmp(name,L"MsoCommandBar"))return false;

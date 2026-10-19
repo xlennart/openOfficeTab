@@ -1,6 +1,6 @@
 ﻿param([string]$Installer)
 $ErrorActionPreference='Stop'
-if(-not $Installer){$Installer=Join-Path (Split-Path $PSScriptRoot -Parent) 'delivery\openOfficetab-0.1.7-setup-x64.exe'}
+if(-not $Installer){$Installer=Join-Path (Split-Path $PSScriptRoot -Parent) 'delivery\openOfficetab-0.1.8-setup-x64.exe'}
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing,System.IO.Compression
 $assembly=[Reflection.Assembly]::LoadFile([IO.Path]::GetFullPath($Installer))
 $windowType=$assembly.GetType('Setup+SetupWindow',$true)

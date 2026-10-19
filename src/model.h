@@ -54,6 +54,8 @@ public:
     unsigned nextGroupId=2,newDocumentGroup=1;
     std::map<unsigned,unsigned long long> groupActives;
     bool pendingNewDocument=false;
+    bool queuedNewDocument=false;
+    unsigned queuedNewGroup=1;
     ULONGLONG pendingNewSince=0;
     unsigned long long pendingCloseId=0;
     bool pendingCloseAccepted=false;
@@ -83,6 +85,7 @@ public:
     Session(IDispatch* application,const std::wstring& root=L"");
     ~Session();
     void start();void stop();void defer();bool refresh();
+    void processCreate();
     void bindFactory(IDispatch* f);
     void event(DISPID id,DISPPARAMS* params);
     void syncPanes();void redraw();

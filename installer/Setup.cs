@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("openOfficetab Setup")]
 [assembly: AssemblyDescription("Install openOfficetab for the current Windows user")]
 [assembly: AssemblyProduct("openOfficetab")]
-[assembly: AssemblyVersion("0.1.7.0")]
-[assembly: AssemblyFileVersion("0.1.7.0")]
+[assembly: AssemblyVersion("0.1.8.0")]
+[assembly: AssemblyFileVersion("0.1.8.0")]
 
 internal static class Setup {
     private const string PayloadName = "openOfficetab.Payload.zip";
@@ -54,7 +54,7 @@ internal static class Setup {
         private string T(string chinese, string english) { return English ? english : chinese; }
         private void ApplyLanguage() {
             Text = T("openOfficetab · 安装与恢复", "openOfficetab · Setup and recovery");
-            subtitle.Text = T("Word / Excel / PowerPoint 文档标签 · 0.1.7 · x64", "Document tabs for Word / Excel / PowerPoint · 0.1.7 · x64");
+            subtitle.Text = T("Word / Excel / PowerPoint 文档标签 · 0.1.8 · x64", "Document tabs for Word / Excel / PowerPoint · 0.1.8 · x64");
             instructions.Text = T("安装、卸载或修复前，请保存并退出三款 Office；加载诊断可直接运行。\n按当前用户安装，无需管理员权限；完成后重新打开文档。", "Save and exit all three Office apps before installing, removing, or repairing.\nDiagnostics can run at any time. Installation is per user; no administrator needed.");
             languageCaption.Text = T("安装器语言", "Installer language");
             install.Text = T("安装 / 更新", "Install / Update");

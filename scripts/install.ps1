@@ -16,7 +16,7 @@ $source=Join-Path $taskRoot "dist\$Architecture\openOfficetab.dll"
 if(-not (Test-Path -LiteralPath $source)){throw (Get-OotText "找不到插件：$source" "Add-in not found: $source")}
 $sourceHash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
 $buildHash=$sourceHash.Substring(0,12).ToLowerInvariant()
-$destination=Join-Path $env:LOCALAPPDATA "openOfficetab\bin\0.1.7-$buildHash\$Architecture"
+$destination=Join-Path $env:LOCALAPPDATA "openOfficetab\bin\0.1.8-$buildHash\$Architecture"
 New-Item -ItemType Directory -Force $destination | Out-Null
 $installed=Join-Path $destination 'openOfficetab.dll'
 if(Test-Path -LiteralPath $installed){
@@ -34,6 +34,6 @@ $results=foreach($app in 'Word','Excel','PowerPoint'){
     if($entry.LoadBehavior -ne 3){throw (Get-OotText "$app 自动加载注册未通过。" "Automatic loading registration could not be verified for $app.")}
     [pscustomobject]@{Application=$app;LoadBehavior=$entry.LoadBehavior}
 }
-Write-Host (Get-OotText "openOfficetab 0.1.7 已安装到：$installed" "openOfficetab 0.1.7 installed to: $installed")
+Write-Host (Get-OotText "openOfficetab 0.1.8 已安装到：$installed" "openOfficetab 0.1.8 installed to: $installed")
 $results | Format-Table
 Write-Host (Get-OotText '重新打开 Office 后，标签会出现在功能区下方。可从 openOfficetab 功能区隐藏、设置或恢复窗口。' 'Reopen Office to see tabs below the ribbon. Use the openOfficetab ribbon to configure, hide, or recover tabs and windows.')

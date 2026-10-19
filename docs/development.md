@@ -31,7 +31,7 @@ pwsh -File scripts/package.ps1
 | `tests/appearance-test.cpp` | 无 Office、无可见窗口的生产 GDI 绘制与标签边缘输入回归 |
 | `src/window-layout.h`、`tests/window-state-test.cpp` | 实际屏幕矩形、恢复保护、窗格归属及 OLE 界面所有权 / 控件销毁回归 |
 
-每个 Office 编辑窗口拥有自己的 CTP 占位与标签渲染窗口。插件只调整自有控件对应的窗格标题框；文档仍由 Office 管理。新建使用 `FileNewDefault`，Word 窗口激活事件提前初始化，周期刷新补齐遗漏事件。所有 Office COM 访问都保持在宿主 STA 内。
+每个 Office 编辑窗口拥有自己的 CTP 占位与标签渲染窗口。插件只调整自有控件对应的窗格标题框；文档仍由 Office 管理。新建使用排队后的 `FileNewDefault`；Word 窗口激活事件仅安排延后刷新，在功能区内容尚未归位时延后创建窗格和协调根窗口，周期刷新补齐遗漏事件。所有 Office COM 访问都保持在宿主 STA 内。原因与测试边界见 [新建功能区调查](new-document-ribbon-investigation.md)。
 
 OLE 占位声明 `OLEMISC_NOUIACTIVATE`，不请求替换 Office 的菜单或工具栏；独立原生标签子窗口仍处理键盘输入。窗格压缩验证自身 OLE 祖先、宿主根窗口与窄条高度；不按通用类名隐藏其他 Office 工具栏。窗口消息回调在控件析构前解绑，避免最后一次 Release 后的 DestroyWindow 消息再次释放对象。
 
