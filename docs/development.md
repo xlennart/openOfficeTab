@@ -54,6 +54,8 @@ powershell -NoProfile -File tests/independent-window-runtime.ps1
 
 CI 检查示例文件、编译源码、原生绘制 / 输入 / 窗口状态回归及安装包载荷，不包含 Office UI 或实机测试。[office-events.csv](office-events.csv) 是开发期核对的三宿主事件声明；[manual-test-plan.csv](manual-test-plan.csv) 是更广的人工测试计划，标注“未执行”的项不能视作通过。
 
+Excel 跨工作簿公式引用回归：`powershell -NoProfile -File tests/excel-reference-runtime.ps1`。默认要求 Excel 没有既有进程，创建独立实例及三个唯一目录中的自有空白文件；仅对该进程发送真实输入，前台或命中点属于其他进程时立即停止。`-FixtureDirectory` 仅允许复用 `artifacts/excel-reference-fixtures/` 或本地诊断目录 `artifacts/formula-fixtures/` 下的三个指定测试文件。测试核对引用文本与计算结果，取消时保留原值，再检查普通切换、新建和可见 NetUI 内容；失败保留窗口，`-LeaveOpen` 成功后也保留供人工体验。不得在运行期间操作测试窗口。技术原因见 [公式引用调查](excel-reference-investigation.md)。
+
 0.1.2 增加原生宽度单元测试（CI 也执行），以及三宿主生命周期回归：
 
 ```powershell

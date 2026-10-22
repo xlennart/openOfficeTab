@@ -101,6 +101,7 @@ public:
     bool drop(unsigned long long id,POINT screen);
     void chooseGroup(HWND owner,unsigned long long id);
     void activate(unsigned long long id,HWND owner=nullptr);
+    bool excelEditing()const;
     bool close(unsigned long long id,bool fromFrame=false);
     bool save(unsigned long long id,bool saveAs=false);
     void create(bool independent=false,HWND owner=nullptr);void open();void quitIfEmpty();void finishClose();void nativeClose();

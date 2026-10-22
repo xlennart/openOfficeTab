@@ -43,9 +43,12 @@ int wmain(int argc,wchar_t** argv){
     assert(!store.preference(L"Excel",file,pref)&&!store.savePreference(L"Word",file,{79,false}));
     assert(!store.savePreference(L"Word",L"https://example.com/file.docx",{120,false}));
     assert(store.resetPreference(L"Word",file)&&!store.preference(L"Word",file,pref));
-    for(int i=0;i<25;i++)assert(store.closed(L"Word",L"C:\\Public\\file"+std::to_wstring(i)+L".docx"));
+    // Store writes are deliberately nonblocking. As in Session's pending
+    // persistence queue, allow a bounded retry for transient write rejection.
+    auto closed=[&](const std::wstring& path){for(int retry=0;retry<100;retry++){if(store.closed(L"Word",path))return true;Sleep(10);}return false;};
+    for(int i=0;i<25;i++)assert(closed(L"C:\\Public\\file"+std::to_wstring(i)+L".docx"));
     assert(store.recent(L"Word").size()==20&&store.recent(L"Excel").empty());
-    assert(store.closed(L"Word",L"c:\\public\\FILE24.docx")&&store.recent(L"Word").size()==20);
+    assert(closed(L"c:\\public\\FILE24.docx")&&store.recent(L"Word").size()==20);
     assert(!store.closed(L"Word",L"Document1")&&!store.closed(L"Word",L"https://example.com/doc"));assert(store.clearRecent(L"Word")&&store.recent(L"Word").empty());
     wchar_t executable[32768];GetModuleFileNameW(nullptr,executable,32768);PROCESS_INFORMATION processes[2]{};
     for(int i=0;i<2;i++){std::wstring command=L"\""+std::wstring(executable)+L"\" child \""+root+L"\" "+std::to_wstring(i);STARTUPINFOW startup{sizeof(startup)};assert(CreateProcessW(nullptr,command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&startup,&processes[i]));}

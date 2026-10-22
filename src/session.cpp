@@ -2,6 +2,7 @@
 #include "layout.h"
 #include "window-layout.h"
 #include "tab-color.h"
+#include "excel-input.h"
 
 // Compact only the task pane reached through our own ActiveX ancestry. Office
 // draws the title inside its client area. A separate root child renders in the
@@ -168,10 +169,11 @@ bool Session::moveToGroup(unsigned long long id,unsigned group){
 }
 bool Session::refresh(){
     if(stopped||refreshing||executing||coordinatingWindows||windowFrameBusy()||!app)return false;
+    if(excelEditing())return false;
     Flag busy(refreshing);
     try{
         // Enumeration is transactional: a rejected/partial Office call must not remove live tabs.
-        if(host==Host::Excel&&!prop(app.get(),L"Ready").boolean(true))return false;
+        if(host==Host::Excel&&!prop(app.get(),L"Ready").boolean(false))return false;
         pollPersistence();
         // A hidden workbook or another editing view is not a closed document.
         std::set<std::wstring> openPaths;
@@ -295,12 +297,24 @@ void Session::align(const std::shared_ptr<View>& target,const std::shared_ptr<Vi
     if(!target->moved&&!windowlayout::capture(target->hwnd,target->original,target->originalBounds))return;
     if(windowlayout::apply(target->hwnd,p,bounds)){target->moved=true;windowlayout::capture(target->hwnd,target->applied,target->appliedBounds);}
 }
+bool Session::excelEditing()const{
+    if(host!=Host::Excel)return false;
+    for(auto& view:views)if(valid(view->hwnd))return excelinput::editing(view->hwnd);
+    return false;
+}
 void Session::activate(unsigned long long id,HWND owner){
     auto keep=shared_from_this();if(stopped||executing)return;auto target=find(id);if(!target)return;
     // Use the clicked bar's root, not the globally last active document: Windows
     // can expose another Office window while the previous pane is still visible.
     if(owner)owner=GetAncestor(owner,GA_ROOT);else owner=GetForegroundWindow();
     auto source=find(activeId);for(auto& v:views)if(v->hwnd==owner){source=v;break;}
+    if(excelEditing()){
+        restoreWindowMasks();
+        if(source&&source->groupId==target->groupId&&excelinput::showReference(source->hwnd,target->hwnd)){
+            groupActives[target->groupId]=target->id;activeId=target->id;lastOperation=L"excel.reference.switch";lastError=S_OK;redraw();defer();
+        }
+        return;
+    }
     restoreWindowMasks();
     try{Flag busy(executing);align(target,source);call(target->window.get(),L"Activate",DISPATCH_METHOD);align(target,source);
         // PowerPoint can change ActiveWindow without raising its SDI root.
@@ -457,7 +471,7 @@ bool Session::recover(){
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.1.8\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    std::wstring r=L"{\"version\":\"0.1.9\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
@@ -519,5 +533,5 @@ void Session::options(HWND owner,POINT pt){
     if(cmd>=30&&cmd<=33)setThemeMode((int)cmd-30);if(cmd>=40&&cmd<=42)setFrameCloseAction((int)cmd-40);
     if(cmd>=50&&cmd<=52)setLanguage((int)cmd-50);
     if(cmd==17)recentMenu(owner,pt);if(cmd==18)resetAllFilePreferences();
-    if(cmd==11)MessageBoxW(owner,tr(L"openOfficetab 0.1.8\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficetab"),MB_OK|MB_ICONINFORMATION);
+    if(cmd==11)MessageBoxW(owner,tr(L"openOfficetab 0.1.9\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficetab"),MB_OK|MB_ICONINFORMATION);
 }

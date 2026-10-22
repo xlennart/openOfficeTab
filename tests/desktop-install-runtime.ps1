@@ -1,4 +1,4 @@
-﻿param([switch]$OpenFixtures,[string]$ExpectedVersion='0.1.8')
+﻿param([switch]$OpenFixtures,[string]$ExpectedVersion='0.1.9')
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
 New-Item -ItemType Directory -Path (Join-Path $taskRoot 'artifacts') -Force | Out-Null

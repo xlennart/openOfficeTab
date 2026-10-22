@@ -115,6 +115,7 @@ public:
 void Session::restoreWindowMasks(){Guard guard(coordinatingWindows);windowMasks.clear();maskSource=nullptr;maskActivity=0;}
 void Session::beginWindowTransition(HWND root){
     if(stopped||coordinatingWindows||executing||refreshing||!settings.group||!owned(root)||!IsWindowEnabled(root)||!showTabs(root))return;
+    if(excelEditing())return;
     if(maskSource==root)return;
     auto source=std::find_if(views.begin(),views.end(),[&](auto& v){return v->hwnd==root&&!v->independent;});if(source==views.end())return;
     if(activeTabId(root)!=(*source)->id&&operatingRoot!=root&&GetAncestor(GetForegroundWindow(),GA_ROOT)!=root)return;
@@ -159,6 +160,7 @@ void Session::requestWindowLayout(HWND root,bool commanded,bool minimize){
 void Session::processWindowLayout(){
     if(timer)KillTimer(timer,4);
     if(stopped){restoreWindowMasks();return;}
+    if(excelEditing()){if(queuedLayoutRoot&&timer)SetTimer(timer,4,150,nullptr);return;}
     // Recover an interrupted move/size transaction whose exit notification was
     // lost. A real ongoing native drag retains its frame call/capture.
     if(sizingRoot&&!nativeFrameDepth&&!GetCapture()&&maskActivity&&GetTickCount64()-maskActivity>3000)sizingRoot=nullptr;
@@ -178,6 +180,7 @@ void Session::processWindowLayout(){
 }
 void Session::rootLayoutChanged(HWND root){
     if(stopped||executing||refreshing||coordinatingWindows||windowFrameBusy()||!settings.group||!owned(root)||!IsWindowEnabled(root))return;
+    if(excelEditing())return;
     std::shared_ptr<View> source;for(auto& v:views)if(v->hwnd==root)source=v;
     if(!source||source->independent||!showTabs(root))return;
     // Office may activate a sibling as soon as the source starts minimizing.

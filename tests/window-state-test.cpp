@@ -1,5 +1,6 @@
 #include "../src/tabs.h"
 #include "../src/window-layout.h"
+#include "../src/excel-input.h"
 #include <cassert>
 #include <iostream>
 
@@ -54,6 +55,10 @@ public:
     HRESULT STDMETHODCALLTYPE ActivateTab(HWND)override{return S_OK;}
     HRESULT STDMETHODCALLTYPE SetActiveAlt(HWND)override{return S_OK;}
 };
+namespace {
+int formulaMode=0;long formulaStatus=0;
+long WINAPI formulaProbe(int operation,void* result){assert(operation==0x400e);((excelinput::FormulaInfo*)result)->mode=formulaMode;return formulaStatus;}
+}
 int main(){
     CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     RECT reserved{14,358,2866,438},ribbonBounds{14,0,2866,358},edge{};
@@ -64,6 +69,13 @@ int main(){
     windowlayout::PhysicalCoordinates context;
     HWND root=window(L"STATIC",nullptr,100,100,900,700),other=window(L"STATIC",nullptr,900,100,500,600);
     assert(root&&other);
+    for(int mode:{0,1,2,4}){formulaMode=mode;assert(excelinput::mode(root,formulaProbe)==mode);}
+    formulaMode=3;assert(excelinput::mode(root,formulaProbe)==-1);
+    formulaStatus=1;assert(excelinput::mode(root,formulaProbe)==-1);formulaStatus=0;
+    assert(excelinput::mode(nullptr,formulaProbe)==-1&&excelinput::mode(root,nullptr)==-1);
+    assert(excelinput::showReference(root,root)); // selected frame requires no reactivation
+    assert(!excelinput::showReference(nullptr,other));
+    EnableWindow(other,FALSE);assert(!excelinput::showReference(root,other));EnableWindow(other,TRUE);
     WNDCLASSW cls{};cls.hInstance=module;cls.lpfnWndProc=DefWindowProcW;cls.lpszClassName=L"MsoCommandBar";RegisterClassW(&cls);
     HWND strip=window(cls.lpszClassName,root,0,170,800,40),ribbon=window(cls.lpszClassName,root,0,0,800,MulDiv(180,dpi(root),96));
     // Reproduce the reported failure: the visible Ribbon frame still exists,

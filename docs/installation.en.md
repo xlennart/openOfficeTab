@@ -1,4 +1,4 @@
-# openOfficetab 0.1.8 · Windows x64
+# openOfficetab 0.1.9 · Windows x64
 
 [简体中文](installation.md)
 

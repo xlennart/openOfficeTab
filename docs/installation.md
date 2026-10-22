@@ -1,4 +1,4 @@
-# openOfficetab 0.1.8 · Windows x64
+# openOfficetab 0.1.9 · Windows x64
 
 为 Word、Excel、PowerPoint 添加原生文档标签。免费，MIT 开源。
 

@@ -21,7 +21,7 @@ Free · Open source · Native C++ · Windows desktop Office
 
 openOfficetab adds a document tab bar below the Office ribbon. Switch documents with a click, drag tabs to reorder them, manage files from the context menu, or move a document into an independent window. It keeps Office's existing documents and save prompts, with no file conversion required.
 
-**Current release: 0.1.8.** Fixes an initialization path that could leave Word's ribbon and title-bar controls blank after creating a document with `+`. Source code, an EXE installer, and a ZIP package are available. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
+**Current release: 0.1.9.** Fixes cross-workbook cell selection while entering Excel formulas using the tab bar. Source code, an EXE installer, and a ZIP package are available. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
 
 The add-in and installer support English and Simplified Chinese. Choose **Follow Windows / Simplified Chinese / English** in settings; the default follows your Windows display language. The screenshots below show the English interface; [English installation instructions](docs/installation.en.md) are also available. Most supporting technical documents are in Chinese.
 
@@ -94,19 +94,19 @@ Save All and bulk closing apply only to the current tab group. They exclude inde
 
 ## Installation
 
-1. Download `openOfficetab-0.1.8-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficetab/releases/latest).
+1. Download `openOfficetab-0.1.9-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficetab/releases/latest).
 2. Save your work and fully exit Word, Excel, and PowerPoint, including any old background instances.
 3. Run the installer and select **Install / Update**.
 4. Open an Office document again. The tab bar appears below the ribbon.
 
 Installation is per Windows user and does not require administrator privileges. The installer does not close Office windows for you.
 
-Alternatively, download `openOfficetab-0.1.8-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
+Alternatively, download `openOfficetab-0.1.9-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
 
 Releases include `SHA256SUMS.txt`. The installer is not code-signed; you can verify its checksum or build from source.
 
 ```powershell
-Get-FileHash .\openOfficetab-0.1.8-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.1.9-setup-x64.exe -Algorithm SHA256
 ```
 
 ### Uninstall
@@ -241,6 +241,7 @@ Language, appearance, color, default width, single-taskbar mode, theme, and titl
 
 | Version | Date | Highlights |
 | :--- | :--- | :--- |
+| [0.1.9](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.9) | 2026-10-23 | Preserve Excel formula entry when switching tabs to select cells from other workbooks; defer window coordination until editing ends. |
 | [0.1.8](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.8) | 2026-10-19 | Queue native new-document commands; defer pane creation and window coordination until ribbon content is ready; strengthen regression checks for actual ribbon content. |
 | [0.1.7](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.7) | 2026-10-18 | English and Chinese UI; saved language selection with Windows display-language detection; live Ribbon translation; bilingual installer and package instructions. |
 | [0.1.6](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.6) | 2026-10-17 | Persist single-taskbar mode and enable it by default for new configurations; Office / Windows theme following; coordinated window operations and close choices; fixes for resizing and PowerPoint activation. |

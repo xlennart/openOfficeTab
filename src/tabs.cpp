@@ -237,6 +237,13 @@ void Tabs::click(UINT msg,WPARAM,LPARAM lp){
     if(!session)return;
     auto s=session->shared_from_this();HWND display=hwnd;
     POINT p{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};auto id=at(p);
+    if(s->excelEditing()){
+        // Capturing/focusing the tab control or ordinary Window.Activate can
+        // interrupt Excel's in-progress cross-workbook reference selection.
+        if(msg==WM_LBUTTONDOWN){pressed=id;pressedClose=false;dragging=false;for(auto& x:hit)if(x.first==id&&p.x>=x.second.right-MulDiv(32,dpi(hwnd),96))pressed=0;return;}
+        if(msg==WM_LBUTTONUP){auto was=pressed;pressed=0;if(id&&id==was)s->activate(id,hostWindow);return;}
+        return;
+    }
     if(msg==WM_MOUSEMOVE&&resizing){
         auto v=s->find(resizing);if(v){v->manualTabWidth=tablayout::resized(resizeStartWidth,p.x-down.x,dpi(hwnd));s->redraw();}else finishResize(false);
         SetCursor(LoadCursorW(nullptr,IDC_SIZEWE));return;
@@ -264,6 +271,7 @@ LRESULT CALLBACK Tabs::proc(HWND w,UINT m,WPARAM a,LPARAM b){
     try{
         if(m==WM_PAINT){PAINTSTRUCT ps;HDC d=BeginPaint(w,&ps);if(!self->hwnd||w==self->hwnd){RECT rc;GetClientRect(w,&rc);self->paint(d,rc);}EndPaint(w,&ps);return 0;}
         if(m==WM_ERASEBKGND)return 1;
+        if(m==WM_MOUSEACTIVATE&&self->session&&self->session->excelEditing())return MA_NOACTIVATE;
         if(m==WM_SIZE||m==WM_DPICHANGED_AFTERPARENT){InvalidateRect(w,nullptr,FALSE);return 0;}
         if(m==WM_MOUSEWHEEL){self->offset=std::max(0,self->offset+(GET_WHEEL_DELTA_WPARAM(a)>0?-1:1));InvalidateRect(w,nullptr,FALSE);return 0;}
         if(m==WM_MOUSEMOVE||m==WM_LBUTTONDOWN||m==WM_LBUTTONUP||m==WM_MBUTTONUP||m==WM_RBUTTONUP||m==WM_LBUTTONDBLCLK){self->click(m,a,b);return 0;}
