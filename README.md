@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/branding/openofficetab.png" alt="openOfficetab icon" width="128" height="128">
+
 # openOfficetab
 
 **Browser-style document tabs for Word, Excel, and PowerPoint.**

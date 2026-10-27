@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/branding/openofficetab.png" alt="openOfficetab 图标" width="128" height="128">
+
 # openOfficetab
 
 **让 Word、Excel、PowerPoint 像浏览器一样管理文档。**
