@@ -114,8 +114,8 @@ HRESULT Tabs::DoVerb(LONG v,LPMSG,IOleClientSite* s,LONG,HWND p,LPCRECT r){
 HRESULT Tabs::InPlaceDeactivate(){UIDeactivate();if(oleHwnd)ShowWindow(oleHwnd,SW_HIDE);if(activated&&inPlace)inPlace->OnInPlaceDeactivate();activated=false;inPlace.reset();return S_OK;}
 HRESULT Tabs::TranslateAccelerator(LPMSG m){
     if(!m||!session||m->message!=WM_KEYDOWN)return S_FALSE;
-    if(m->wParam==VK_LEFT||m->wParam==VK_RIGHT){auto v=session->tabViews(hostWindow);if(v.empty())return S_FALSE;size_t idx=0;for(size_t i=0;i<v.size();i++)if(v[i]->id==session->activeTabId(hostWindow))idx=i;idx=m->wParam==VK_RIGHT?(idx+1)%v.size():(idx+v.size()-1)%v.size();session->activate(v[idx]->id,hostWindow);return S_OK;}
-    if(m->wParam==VK_DELETE){session->close(session->activeTabId(hostWindow));return S_OK;}
+    if(m->wParam==VK_LEFT||m->wParam==VK_RIGHT){auto v=session->tabViews(hostWindow);if(v.empty())return S_FALSE;size_t idx=0;for(size_t i=0;i<v.size();i++)if(v[i]->id==session->displayedTabId(hostWindow))idx=i;idx=m->wParam==VK_RIGHT?(idx+1)%v.size():(idx+v.size()-1)%v.size();session->activate(v[idx]->id,hostWindow);return S_OK;}
+    if(m->wParam==VK_DELETE){session->close(session->displayedTabId(hostWindow));return S_OK;}
     if(m->wParam==VK_ESCAPE){finishResize(true);pressed=0;dragging=false;if(GetCapture()==hwnd)ReleaseCapture();auto v=session->find(session->activeId);if(v)SetFocus(v->hwnd);return S_OK;}
     return S_FALSE;
 }
@@ -194,7 +194,7 @@ void Tabs::paint(HDC target,RECT rc){
     int contentLeft=panelInset+pad,contentRight=std::max<int>(contentLeft,panel.right-pad-3*button);
     int available=contentRight-contentLeft;
     if(session){
-        auto views=session->tabViews(hostWindow);auto selectedId=session->activeTabId(hostWindow);
+        auto views=session->tabViews(hostWindow);auto selectedId=session->displayedTabId(hostWindow);
         std::vector<int> widths;for(auto& v:views){SIZE textSize{};GetTextExtentPoint32W(d,v->title.c_str(),(int)v->title.size(),&textSize);int preferred=v->manualTabWidth?v->manualTabWidth:tablayout::preferred(session->settings.tabWidth,session->settings.widthMode,MulDiv(textSize.cx,96,scale),MulDiv(available,96,scale),(int)views.size());widths.push_back(MulDiv(preferred,scale,96));}
         offset=std::clamp(offset,0,std::max(0,(int)views.size()-1));
         if(lastSelected!=selectedId){lastSelected=selectedId;for(int i=0;i<(int)views.size();i++)if(views[i]->id==selectedId){if(i<offset)offset=i;int total=0;for(int j=offset;j<=i;j++)total+=widths[j];while(total>available&&offset<i)total-=widths[offset++];break;}}
@@ -258,7 +258,7 @@ void Tabs::click(UINT msg,WPARAM,LPARAM lp){
         else if(id&&id==was){if(closeHit)s->close(id);else s->activate(id,hostWindow);}
         else if(!was&&PtInRect(&addRect,p))s->create(false,hostWindow);
         else if(!was&&PtInRect(&settingsRect,p)){ClientToScreen(display,&p);s->options(display,p);}
-        else if(!was&&PtInRect(&listRect,p)){HMENU m=CreatePopupMenu();UINT n=1;std::vector<unsigned long long> ids;for(auto& v:s->tabViews(hostWindow)){AppendMenuW(m,MF_STRING|(v->id==s->activeTabId(hostWindow)?MF_CHECKED:0),n++,(v->title+(v->saved?L"":L" *")).c_str());ids.push_back(v->id);}ClientToScreen(display,&p);UINT choice=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,display,nullptr);DestroyMenu(m);if(choice&&choice<=ids.size())s->activate(ids[choice-1],hostWindow);}if(IsWindow(display))InvalidateRect(display,nullptr,FALSE);return;}
+        else if(!was&&PtInRect(&listRect,p)){HMENU m=CreatePopupMenu();UINT n=1;std::vector<unsigned long long> ids;for(auto& v:s->tabViews(hostWindow)){AppendMenuW(m,MF_STRING|(v->id==s->displayedTabId(hostWindow)?MF_CHECKED:0),n++,(v->title+(v->saved?L"":L" *")).c_str());ids.push_back(v->id);}ClientToScreen(display,&p);UINT choice=TrackPopupMenu(m,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,display,nullptr);DestroyMenu(m);if(choice&&choice<=ids.size())s->activate(ids[choice-1],hostWindow);}if(IsWindow(display))InvalidateRect(display,nullptr,FALSE);return;}
     if(msg==WM_MBUTTONUP&&id){s->close(id);return;}
     if(msg==WM_LBUTTONDBLCLK){if(edgeAt(p))return;if(id&&s->settings.doubleClose)s->close(id);else if(!id&&!PtInRect(&addRect,p)&&!PtInRect(&listRect,p)&&!PtInRect(&settingsRect,p))s->create(false,hostWindow);return;}
     if(msg==WM_RBUTTONUP){ClientToScreen(display,&p);if(id)s->menu(display,id,p);else s->options(display,p);}

@@ -11,6 +11,10 @@ $batch=@"
 call "$vcvars" x64 >nul
 if not "%errorlevel%"=="0" exit /b 1
 cd /d "$testBuild"
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\runtime-log-test.cpp" /Fe:"$testBuild\runtime-log-test.exe" /link ole32.lib shell32.lib
+if not "%errorlevel%"=="0" exit /b 1
+"$testBuild\runtime-log-test.exe"
+if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT "$taskRoot\tests\layout-test.cpp" /Fe:"$testBuild\layout-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\layout-test.exe"
@@ -34,6 +38,10 @@ if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\localization-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\localization-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\localization-test.exe"
+if not "%errorlevel%"=="0" exit /b 1
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\active-selection-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\active-selection-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+if not "%errorlevel%"=="0" exit /b 1
+"$testBuild\active-selection-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
 "@
 $batchPath=Join-Path $testBuild 'test.cmd'

@@ -2,14 +2,14 @@
 
 ## 构建与打包
 
-环境：Windows、Visual Studio Build Tools（C++ 与 Windows SDK）、PowerShell。首个发布版本使用 MSVC 14.44 与 Windows SDK 10.0.26100；默认 x64。
+环境：Windows、Visual Studio Build Tools（C++ 与 Windows SDK）、PowerShell、Node.js 和 Rust/MSVC。首个发布版本使用 MSVC 14.44 与 Windows SDK 10.0.26100；默认 x64。
 
 ```powershell
 pwsh -File scripts/build.ps1 -Architecture x64
 pwsh -File scripts/package.ps1
 ```
 
-`package.ps1` 将当前 DLL 和安装脚本组成最小 ZIP，再编译 `installer/Setup.cs`，将 ZIP 嵌入 EXE。它会通过安装程序的 `--verify` 入口校验嵌入 DLL 与构建输出一致。发布资产均位于 `delivery/`，不进入 Git。
+0.2.0 使用 `scripts/build-desktop.ps1` 构建 Tauri/WebView2 管理中心、本地 .NET Framework 服务并嵌入原生 DLL 与脚本。`package.ps1 -SkipBuild` 复用已验收程序，生成 EXE、ZIP、SHA256SUMS.txt 与 RSA 签名更新元数据；通过 `--verify` 和 `tests/desktop-package-test.ps1` 核对载荷。发布资产位于 `delivery/`，不进入 Git，更新私钥只保存在忽略的本地目录。
 
 安装程序不需要管理员权限。PowerShell 安装脚本通过当前用户 COM 注册与三个 Office 的 Addins 项启用加载；DLL 使用版本与内容校验值命名目录，已有相同 DLL 会校验并复用。由 Codex 打包环境运行时，`desktop-context.ps1` 通过桌面用户的 WMI 进程提供程序执行，避免私有 HKCU/AppData 视图；它校验调用用户身份并等待结果。
 
@@ -26,7 +26,8 @@ pwsh -File scripts/package.ps1
 | `src/model.h`、`src/com.h` | 状态模型、COM 接口与辅助对象 |
 | `src/features.cpp`、`src/layout.h` | 诊断、宽度设置、组移动和纯宽度计算 |
 | `scripts/` | 构建、安装、卸载、打包和桌面上下文桥接 |
-| `installer/Setup.cs` | 按用户安装、卸载、加载诊断与修复的 WinForms 引导程序 |
+| `desktop/` | Tauri 管理中心与共享设置、日志、安全更新的 .NET Framework 服务 |
+| `installer/Setup.cs` | 保留的旧版 WinForms 引导程序，0.2.0 打包不再使用 |
 | `tests/fixtures/` | 清除个人元数据与绝对路径的空白 Office 示例 |
 | `tests/appearance-test.cpp` | 无 Office、无可见窗口的生产 GDI 绘制与标签边缘输入回归 |
 | `src/window-layout.h`、`tests/window-state-test.cpp` | 实际屏幕矩形、恢复保护、窗格归属及 OLE 界面所有权 / 控件销毁回归 |
@@ -69,7 +70,7 @@ powershell -NoProfile -File tests/lifecycle-runtime.ps1 -HostName PowerPoint
 
 PowerPoint 关闭请求在宿主消息循环内执行，关闭事件和后续枚举确认完成后才继续批量处理或退出。`Close` 对 PowerPoint 返回请求是否接受，不能直接作为关闭完成或用户取消的同步判断；用 `GetState` 的视图数及 `diagnostics.closePending` 等待完成。
 
-`GetDiagnostics` 和安装器诊断采用字段白名单，不输出文档标题、路径、内容、账号、句柄和原始日志。`GetState` 是本地开发接口，仍包含标题与窗口布局信息，不能作为公开诊断上传。
+`GetDiagnostics` 的状态快照和管理中心诊断使用字段白名单，不输出文档标题、路径、内容或账号。新的诊断导出包含结构化操作时间线及仅用于关联的数字窗口/标签编号，不包含旧版原始日志；详见 [诊断日志](diagnostic-logging.md)。`GetState` 是本地开发接口，仍包含标题与窗口布局信息，不能作为公开诊断上传。
 
 0.1.4 的原生测试额外覆盖 OLE 界面所有权、控件销毁、窄条归属、当前矩形跟随与恢复保护。以下实机脚本只使用指定空白示例：
 
@@ -109,6 +110,6 @@ powershell -NoProfile -File tests/ribbon-runtime.ps1 -HostName PowerPoint
 
 新增 `SetLanguage`（DISPID 44），既有编号保留；`GetLabel`（45）和 `RibbonLoaded`（46）服务 Ribbon 回调。语言更新通过 [IRibbonUI.Invalidate](https://learn.microsoft.com/en-us/office/vba/api/office.iribbonui.invalidate) 刷新已有功能区缓存，不重建文档窗格。语言同其他全局偏好按键合并并同步，临时失败下次空闲重试。文档名、路径、内容及原生 Office 保存流程不做翻译。
 
-安装器的语言选择独立于插件设置；`scripts/localization.ps1` 提供安装 / 卸载 / 诊断输出的选择，`-Language auto|zh-CN|en` 会通过桌面桥接显式传递。Windows PowerShell 5.1 执行的含中文脚本使用 UTF-8 BOM。安装包附英文 `README.md` 与中文 `README.zh-CN.md`。
+0.1.7 的旧 WinForms 安装器语言选择独立于插件设置；0.2.0 的 Tauri 管理中心目前使用简体中文。`scripts/localization.ps1` 提供安装 / 卸载 / 诊断输出的选择，`-Language auto|zh-CN|en` 会通过桌面桥接显式传递。Windows PowerShell 5.1 执行的含中文脚本使用 UTF-8 BOM。安装包附英文 `README.md` 与中文 `README.zh-CN.md`。
 
-运行 `python tests/check-localization.py` 和 `scripts/test-native.ps1` 检查词条、动态标签和持久化。打包后运行 `tests/installer-localization-test.ps1`，不执行安装操作。`tests/language-runtime.ps1` 只附着三个唯一且已保存的公开空白示例，验证实际载荷、三模式同步、回调和窗口稳定性，最后恢复原设置；运行输出禁止直接公开上传。
+运行 `python tests/check-localization.py` 和 `scripts/test-native.ps1` 检查词条、动态标签和持久化。旧 WinForms 安装器的 `tests/installer-localization-test.ps1` 仅适用于旧版；0.2.0 使用 `tests/desktop-package-test.ps1` 检查 Tauri 载荷。`tests/language-runtime.ps1` 只附着三个唯一且已保存的公开空白示例，验证实际载荷、三模式同步、回调和窗口稳定性，最后恢复原设置；运行输出禁止直接公开上传。

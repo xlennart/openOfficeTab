@@ -1,13 +1,13 @@
-# openOfficetab 0.1.9 · Windows x64
+# openOfficetab 0.2.0 · Windows x64
 
 [简体中文](installation.md)
 
-Native document tabs for Word, Excel, and PowerPoint. This package supports English and Simplified Chinese.
+Native document tabs for Word, Excel, and PowerPoint. The native add-in supports English and Simplified Chinese. The management center currently uses Simplified Chinese.
 
 ## Install
 
 1. Save your work and fully exit Word, Excel, and PowerPoint, including background instances.
-2. Run the EXE and select **Install / Update**. The installer follows the Windows display language by default; its language selector also offers Chinese and English.
+2. Run the EXE, select the Office components and click **安装 (Install)**.
 3. For the ZIP package, extract all files and run `Install.cmd`.
 4. Reopen an Office document. The tab bar appears below the ribbon.
 
@@ -15,9 +15,9 @@ Installation is per user and needs no administrator rights. The installer does n
 
 ## Interface language
 
-Open **… → Language / 语言** or **openOfficetab → Tab settings → Language / 语言**. Choose **Follow Windows (default)**, **简体中文**, or **English**. Automatic mode uses Chinese for Chinese Windows display languages and English for other languages. The choice persists across restarts and syncs across running Office instances. Menus and ribbon labels refresh without rebuilding document panes. Native Office save prompts and Windows file/color dialogs keep their own application's or system language. File names, paths, and document content are never translated.
+Open **… → Language / 语言**. Choose **Follow Windows (default)**, **简体中文**, or **English**. Automatic mode uses Chinese for Chinese Windows display languages and English for other languages. The choice persists across restarts and syncs across running Office instances. Menus and ribbon labels refresh without rebuilding document panes. Native Office save prompts and Windows file/color dialogs keep their own application's or system language. File names, paths, and document content are never translated.
 
-The installer's selector changes only the installer language; use the add-in setting above to override the add-in language. Existing add-in settings are preserved by updates.
+The management center uses Simplified Chinese and does not change the native add-in language. Existing settings are preserved by updates.
 
 ## Use
 
@@ -33,10 +33,14 @@ Settings and logs live under `%LOCALAPPDATA%\openOfficetab`. File history stores
 
 ## Uninstall and recovery
 
-Save and fully exit Office before selecting **Uninstall** in the EXE or running `Uninstall.cmd`. Settings are kept by default. To remove them, run `powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings` from the extracted ZIP.
+Save and fully exit Office before selecting **诊断与修复 → 卸载** in the management center or running `Uninstall.cmd`. Settings are kept by default. To remove them, run `powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings` from the extracted ZIP.
 
-If tabs are hidden, use **Recover tabs and windows** on the ribbon. If the add-in does not load, use installer **Diagnostics**; save and exit Office before **Repair registration**. Do not disable Office security prompts.
+If tabs are hidden, use **Recover tabs and windows** on the ribbon. If the add-in does not load, open **诊断与修复** in the management center; save and exit Office before **修复 (Repair)**. Do not disable Office security prompts.
 
 See the repository's validation record for the tested environment and limits.
 
 MIT License · https://github.com/xlennart/openOfficetab
+
+## Management center and logs
+
+Use the ribbon management-center entry or Start menu shortcut. Export a JSON report from **诊断与修复 → 导出诊断与日志** and attach it to the original issue with the steps and approximate time. Structured logs exclude document names, paths, content, cell values, accounts and tokens by default; nothing is uploaded automatically. Update checks select available routes automatically, verify signed metadata and installer hashes, and preserve settings. Automatic download/install are opt-in; installation waits until Office exits.

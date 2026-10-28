@@ -10,6 +10,10 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
       - name: Check public test fixtures
         run: python tests/check-fixtures.py
       - name: Check native UI translations and Ribbon labels
@@ -20,12 +24,18 @@ jobs:
       - name: Test layout, appearance, window state, persistence, close choices and localization
         shell: pwsh
         run: ./scripts/test-native.ps1
+      - name: Build Tauri center with embedded native payload
+        shell: pwsh
+        run: ./scripts/build-desktop.ps1 -SkipNative
+      - name: Test shared settings and update validation
+        shell: pwsh
+        run: powershell.exe -NoProfile -File ./tests/desktop-service-test.ps1
       - name: Build and verify installers
         shell: pwsh
-        run: ./scripts/package.ps1
-      - name: Verify installer languages and text layout
+        run: ./scripts/package.ps1 -SkipBuild
+      - name: Verify Tauri package and embedded payload
         shell: pwsh
-        run: ./tests/installer-localization-test.ps1
+        run: ./tests/desktop-package-test.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: openOfficetab-win-x64

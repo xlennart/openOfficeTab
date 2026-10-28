@@ -1,0 +1,14 @@
+{
+  "name": "openofficetab-desktop-review",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "lucide": "1.62.0"
+  }
+}

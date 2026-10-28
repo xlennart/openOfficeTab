@@ -20,7 +20,7 @@ public:
     ULONG STDMETHODCALLTYPE Release()override{ULONG n=--refs;if(!n)delete this;return n;}
     DISPATCH_STUBS
     HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR* names,UINT n,LCID,DISPID* ids)override{
-        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth",L"SetBarColor",L"ShowColor",L"GetRecentlyClosed",L"ReopenClosed",L"ClearRecentlyClosed",L"ResetFileSettings",L"ResetAllFileSettings",L"SyncSettings",L"ShowRecentlyClosed",L"SetThemeMode",L"SetFrameCloseAction",L"SetLanguage",L"GetLabel",L"RibbonLoaded"};
+        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth",L"SetBarColor",L"ShowColor",L"GetRecentlyClosed",L"ReopenClosed",L"ClearRecentlyClosed",L"ResetFileSettings",L"ResetAllFileSettings",L"SyncSettings",L"ShowRecentlyClosed",L"SetThemeMode",L"SetFrameCloseAction",L"SetLanguage",L"GetLabel",L"RibbonLoaded",L"OpenManagementCenter"};
         if(!names||!ids)return E_POINTER;
         for(UINT i=0;i<n;i++){ids[i]=DISPID_UNKNOWN;for(size_t j=0;j<std::size(api);j++)if(!_wcsicmp(names[i],api[j]))ids[i]=(DISPID)j+1;if(ids[i]==DISPID_UNKNOWN)return DISP_E_UNKNOWNNAME;}return S_OK;
     }
@@ -29,6 +29,7 @@ public:
         auto arg=[&](UINT n)->Var{if(!dp||n>=dp->cArgs)throw ComError(DISP_E_BADPARAMCOUNT,L"Arguments");Var v;VariantCopy(&v.v,&dp->rgvarg[dp->cArgs-n-1]);return v;};
         auto booleanResult=[&](bool b){if(result){result->vt=VT_BOOL;result->boolVal=b?VARIANT_TRUE:VARIANT_FALSE;}};
         try{
+            if(id>2&&id!=24&&id!=35&&id!=45&&id!=46)logEvent(L"command.invoke",{{"dispid",id},{"activeId",(long long)s->activeId}});
             switch(id){
                 case 1:booleanResult(s->refresh());break;
                 case 2:if(result){result->vt=VT_BSTR;result->bstrVal=SysAllocString(s->state().c_str());}break;
@@ -39,7 +40,7 @@ public:
                 case 7:s->toggleGroup();break;
                 case 8:s->toggleVisible();break;
                 case 9:s->restore();s->changed();break;
-                case 10:{POINT p;GetCursorPos(&p);auto v=s->find(s->activeId);s->options(v?v->hwnd:nullptr,p);break;}
+                case 10:{POINT p;GetCursorPos(&p);auto v=s->find(s->activeId);if(!s->openManagement(v?v->hwnd:nullptr,L"appearance"))s->options(v?v->hwnd:nullptr,p);break;}
                 case 11:{auto v=s->find((unsigned long long)arg(0).number());if(v){v->locked=arg(1).boolean();s->redraw();}break;}
                 case 12:s->reorder((unsigned long long)arg(0).number(),(unsigned long long)arg(1).number());break;
                 case 13:s->saveAll();break;
@@ -73,8 +74,9 @@ public:
                 case 44:booleanResult(s->setLanguage(arg(0).number()));break;
                 case 45:{auto control=arg(0).disp();auto label=i18n::ribbonLabel(s->language(),prop(control.get(),L"Id").str());if(result){result->vt=VT_BSTR;result->bstrVal=SysAllocString(label);}break;}
                 case 46:s->ribbon=arg(0).disp();s->lastLanguage=0;s->refreshLanguage();break;
+                case 47:{auto v=s->find(s->activeId);booleanResult(s->openManagement(v?v->hwnd:nullptr));break;}
                 default:return DISP_E_MEMBERNOTFOUND;
-            }return S_OK;
+            }if(id>2&&id!=24&&id!=35&&id!=45&&id!=46)logEvent(L"command.return",{{"dispid",id},{"activeId",(long long)s->activeId},{"outcome",result&&result->vt==VT_BOOL?(result->boolVal==VARIANT_TRUE?1:0):-1}});return S_OK;
         }catch(const ComError& e){s->report(e);return e.hr;}catch(...){log(L"addin.invoke.exception",E_FAIL);return E_FAIL;}
     }
     HRESULT STDMETHODCALLTYPE OnConnection(IDispatch* app,long,IDispatch* instance,SAFEARRAY**)override{
@@ -90,9 +92,9 @@ public:
     HRESULT STDMETHODCALLTYPE GetCustomUI(BSTR,BSTR* xml)override{
         if(!xml)return E_POINTER;
         const wchar_t* markup=LR"(<customUI onLoad="RibbonLoaded" xmlns="http://schemas.microsoft.com/office/2009/07/customui"><ribbon><tabs><tab id="ootTab" label="openOfficetab">
-<group id="ootDocs" getLabel="GetLabel"><button id="ootNew" getLabel="GetLabel" imageMso="FileNew" onAction="NewDocument"/><button id="ootNewIndependent" getLabel="GetLabel" onAction="NewIndependentDocument"/><button id="ootOpen" getLabel="GetLabel" imageMso="FileOpen" onAction="OpenDocument"/><button id="ootSave" getLabel="GetLabel" imageMso="FileSave" onAction="SaveAll"/><button id="ootRecent" getLabel="GetLabel" onAction="ShowRecentlyClosed"/></group>
-<group id="ootWindows" getLabel="GetLabel"><button id="ootShow" getLabel="GetLabel" onAction="ToggleVisible"/><button id="ootGroup" getLabel="GetLabel" onAction="ToggleGroup"/><button id="ootDetach" getLabel="GetLabel" onAction="DetachDocument"/><button id="ootJoin" getLabel="GetLabel" onAction="ChooseTabGroup"/><button id="ootRestore" getLabel="GetLabel" onAction="RestoreWindows"/></group>
-<group id="ootOptions" getLabel="GetLabel"><button id="ootWidth" getLabel="GetLabel" onAction="ShowWidth"/><button id="ootSettings" getLabel="GetLabel" imageMso="ControlProperties" onAction="ShowSettings"/><button id="ootRefresh" getLabel="GetLabel" imageMso="RefreshAll" onAction="Refresh"/><button id="ootDiagnose" getLabel="GetLabel" onAction="ShowDiagnostics"/><button id="ootExport" getLabel="GetLabel" onAction="ExportDiagnostics"/><button id="ootRecover" getLabel="GetLabel" onAction="Recover"/></group>
+<group id="ootDocs" getLabel="GetLabel"><button id="ootNew" getLabel="GetLabel" size="large" imageMso="FileNew" onAction="NewDocument"/><button id="ootNewIndependent" getLabel="GetLabel" imageMso="WindowNew" onAction="NewIndependentDocument"/><button id="ootOpen" getLabel="GetLabel" imageMso="FileOpen" onAction="OpenDocument"/><button id="ootSave" getLabel="GetLabel" imageMso="FileSave" onAction="SaveAll"/><button id="ootRecent" getLabel="GetLabel" imageMso="FileOpenRecentFile" onAction="ShowRecentlyClosed"/></group>
+<group id="ootWindows" getLabel="GetLabel"><button id="ootShow" size="large" getLabel="GetLabel" imageMso="ViewSideBySide" onAction="ToggleVisible"/><button id="ootGroup" getLabel="GetLabel" imageMso="WindowArrangeAll" onAction="ToggleGroup"/><button id="ootDetach" getLabel="GetLabel" imageMso="WindowNew" onAction="DetachDocument"/><button id="ootJoin" getLabel="GetLabel" imageMso="WindowsSwitch" onAction="ChooseTabGroup"/><button id="ootRestore" getLabel="GetLabel" imageMso="WindowArrangeAll" onAction="RestoreWindows"/></group>
+<group id="ootOptions" getLabel="GetLabel"><button id="ootCenter" size="large" getLabel="GetLabel" imageMso="ControlProperties" onAction="OpenManagementCenter"/><button id="ootWidth" getLabel="GetLabel" imageMso="ColumnWidth" onAction="ShowWidth"/><button id="ootSettings" getLabel="GetLabel" imageMso="ControlProperties" onAction="ShowSettings"/><button id="ootRefresh" getLabel="GetLabel" imageMso="RefreshAll" onAction="Refresh"/><button id="ootDiagnose" getLabel="GetLabel" imageMso="FileProperties" onAction="ShowDiagnostics"/><button id="ootExport" getLabel="GetLabel" imageMso="FileSaveAs" onAction="ExportDiagnostics"/><button id="ootRecover" getLabel="GetLabel" imageMso="ResetToDefault" onAction="Recover"/></group>
 </tab></tabs></ribbon></customUI>)";
         *xml=SysAllocString(markup);return *xml?S_OK:E_OUTOFMEMORY;
     }

@@ -82,6 +82,8 @@ public:
     std::function<FrameCloseChoice(HWND,size_t)> frameClosePrompt;
     bool refreshing=false,executing=false,creating=false,stopped=false,refreshPending=false;
     int failures=0;
+    bool lastActiveWindowQuerySucceeded=false;
+    int activeWindowMatchesNative=-1; // -1: no mapped native active root to compare.
     Session(IDispatch* application,const std::wstring& root=L"");
     ~Session();
     void start();void stop();void defer();bool refresh();
@@ -94,6 +96,8 @@ public:
     unsigned currentGroup()const;
     std::vector<std::shared_ptr<View>> tabViews(HWND root=nullptr)const;
     unsigned long long activeTabId(HWND root=nullptr)const;
+    unsigned long long displayedTabId(HWND root)const;
+    void setActiveView(unsigned long long id);
     bool showTabs(HWND root)const;
     bool setIndependent(unsigned long long id,bool independent);
     bool moveToGroup(unsigned long long id,unsigned group);
@@ -111,6 +115,7 @@ public:
     void align(const std::shared_ptr<View>& target,const std::shared_ptr<View>& source);
     void updateTaskbar();void restoreView(View&);
     void syncWindowObservers();void detachWindowObservers();void rootLayoutChanged(HWND root);
+    void reconcileWindowSelection(const std::shared_ptr<View>& source,bool minimized);
     void requestWindowLayout(HWND root,bool commanded=false,bool minimize=false);void processWindowLayout();
     void beginWindowTransition(HWND root);void restoreWindowMasks();
     bool windowFrameBusy()const{return nativeFrameDepth!=0||sizingRoot!=nullptr;}
@@ -128,6 +133,7 @@ public:
     void widthDialog(HWND owner);void showDiagnostics(HWND owner);void exportDiagnostics(HWND owner);
     void menu(HWND owner,unsigned long long id,POINT pt);
     void options(HWND owner,POINT pt);
+    bool openManagement(HWND owner,const wchar_t* page=L"overview");
     void report(const ComError& e);
     void persistView(const View& view);void initializePreference(View& view,bool isNew,const std::wstring& oldPath);
     void pollPersistence();void flushPersistence(unsigned milliseconds=0);bool resetFilePreferences(unsigned long long id);bool resetAllFilePreferences();

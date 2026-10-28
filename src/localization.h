@@ -82,7 +82,7 @@ inline constexpr Entry entries[]={
     {L"关闭本组全部文档",L"Close all documents in this group"},
     {L"点击窗口关闭按钮时",L"When clicking the window close button"},
     {L"标签外观",L"Tab appearance"},
-    {L"openOfficetab 0.1.9\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"openOfficetab 0.1.9\nFree and open source · MIT\nWord / Excel / PowerPoint\n\nBrowser-style tabs with Office's native documents and save flow.\nDrag to reorder, middle-click to close, right-click for more.\n\nTab locking prevents accidental tab-bar closes; it is not document protection."},
+    {L"openOfficetab 0.2.0\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"openOfficetab 0.2.0\nFree and open source · MIT\nWord / Excel / PowerPoint\n\nBrowser-style tabs with Office's native documents and save flow.\nDrag to reorder, middle-click to close, right-click for more.\n\nTab locking prevents accidental tab-bar closes; it is not document protection."},
     {L"文档标签",L"Document tabs"},
     {L"openOfficetab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作",L"openOfficetab · + New · ▾ Document list · ⋯ Settings\nDrag to reorder, middle-click to close, right-click for more"},
     {L"openOfficetab 标签栏",L"openOfficetab tab bar"},
@@ -95,7 +95,7 @@ inline constexpr Entry entries[]={
     {L"标签与窗口",L"Tabs and windows"},{L"显示 / 隐藏标签栏",L"Show / hide tab bar"},
     {L"独立窗口显示",L"Independent window"},{L"加入 / 移动到标签组",L"Join / move to tab group"},
     {L"恢复窗口排列",L"Restore window arrangement"},{L"设置与恢复",L"Settings and recovery"},
-    {L"标签设置",L"Tab settings"},{L"刷新标签",L"Refresh tabs"},
+    {L"标签设置",L"Tab settings"},{L"刷新标签",L"Refresh tabs"},{L"管理中心",L"Management center"},
     {L"导出脱敏诊断",L"Export sanitized diagnostics"},
     {L"语言 / Language",L"Language / 语言"},{L"跟随系统（默认）",L"Follow Windows (default)"}
 };
@@ -116,7 +116,7 @@ inline constexpr RibbonLabel ribbonLabels[]={
     {L"ootOpen",L"打开文档"},{L"ootSave",L"保存本组全部标签"},{L"ootRecent",L"最近关闭…"},
     {L"ootWindows",L"标签与窗口"},{L"ootShow",L"显示 / 隐藏标签栏"},{L"ootGroup",L"单任务栏模式"},
     {L"ootDetach",L"独立窗口显示"},{L"ootJoin",L"加入 / 移动到标签组"},{L"ootRestore",L"恢复窗口排列"},
-    {L"ootOptions",L"设置与恢复"},{L"ootWidth",L"标签宽度"},{L"ootSettings",L"标签设置"},
+    {L"ootOptions",L"设置与恢复"},{L"ootCenter",L"管理中心"},{L"ootWidth",L"标签宽度"},{L"ootSettings",L"标签设置"},
     {L"ootRefresh",L"刷新标签"},{L"ootDiagnose",L"加载诊断"},{L"ootExport",L"导出脱敏诊断"},{L"ootRecover",L"恢复标签栏与窗口"}
 };
 inline const wchar_t* ribbonLabel(int language,const std::wstring& id){

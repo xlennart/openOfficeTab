@@ -41,8 +41,10 @@ bool Settings::synchronize(){
     if(savePending&&!save())return false;
     Settings fresh;fresh.root=root;if(!fresh.load())return false;
     bool different=language!=fresh.language||themeMode!=fresh.themeMode||frameCloseAction!=fresh.frameCloseAction||group!=fresh.group||dark!=fresh.dark||tabWidth!=fresh.tabWidth||widthMode!=fresh.widthMode||accentPosition!=fresh.accentPosition||barStyle!=fresh.barStyle||barColor!=fresh.barColor||customBarColor!=fresh.customBarColor;
+    different=different||autoHide!=fresh.autoHide||doubleClose!=fresh.doubleClose;
+    autoHide=fresh.autoHide;doubleClose=fresh.doubleClose;
     themeMode=fresh.themeMode;frameCloseAction=fresh.frameCloseAction;group=fresh.group;dark=fresh.dark;tabWidth=fresh.tabWidth;widthMode=fresh.widthMode;accentPosition=fresh.accentPosition;barStyle=fresh.barStyle;barColor=fresh.barColor;customBarColor=fresh.customBarColor;
     language=fresh.language;
-    for(auto key:{L"language",L"themeMode",L"frameCloseAction",L"group",L"dark",L"tabWidth",L"widthMode",L"accentPosition",L"barStyle",L"style",L"barColor",L"customBarColor"})baseline[key]=fresh.baseline[key];
+    for(auto key:{L"language",L"themeMode",L"frameCloseAction",L"group",L"dark",L"tabWidth",L"widthMode",L"accentPosition",L"barStyle",L"style",L"barColor",L"customBarColor",L"autoHide",L"doubleClose"})baseline[key]=fresh.baseline[key];
     return different;
 }

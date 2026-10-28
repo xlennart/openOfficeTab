@@ -23,9 +23,11 @@
 
 openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：点击切换、拖动排序、右键管理，并能将某个文档移出标签组，继续用独立窗口编辑。它保留 Office 原有文档对象和保存提示，不需要把文件转换成其他格式。
 
-当前版本为 0.1.9，修复 Excel 输入公式时，通过标签切换到其他工作簿选取单元格引用失败的问题。提供源码、EXE 安装程序和 ZIP 安装包；完整修复与验证范围见 [验证记录](docs/validation.md)。
+当前版本为 **0.2.0**，新增桌面管理中心和结构化运行日志，对标签与文档内容不同步进行初步修复。提供源码、EXE 和 ZIP；完整验证范围及仍待观察的问题见 [验证记录](docs/validation.md)。
 
-插件与安装器现已支持中英文界面，新增语言设置，默认跟随 Windows 显示语言；也可手动选择简体中文或英文。
+原生标签栏、菜单支持中英文，默认跟随 Windows 显示语言，也可在“…”菜单手动选择。新版管理中心目前使用简体中文。
+
+下载：[GitHub Releases](https://github.com/xlennart/openOfficetab/releases/latest) · [CNB 国内镜像](https://cnb.cool/xlennart/openofficetab/-/releases)。两端提供相同安装包和校验文件。
 
 ## 看看效果
 
@@ -72,6 +74,14 @@ openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 以上截图由使用者提供，展示 0.1.7 版本。通过 **… → 标签外观** 可以切换两种样式；浅色融合模式的默认底色为 `#F0F0F0`。[英文 README](README.md#screenshots) 提供对应的英文界面截图。
 
+## 管理中心与问题反馈
+
+从 **openOfficetab → 设置与恢复 → 管理中心** 进入；也可使用开始菜单中的 openOfficetab 管理中心。概览查看组件状态，“外观与交互”调整标签，“诊断与修复”检查或修复注册，“关于与更新”检查新版。
+
+点击“检查更新”时自动探测并选择可用线路，无需手动挑选镜像。更新元数据经过签名验证，安装包核对 SHA-256；自动下载和自动安装需要主动开启，安装等待 Office 退出，不代替你关闭文档。
+
+若再次遇到标签、内容或窗口异常，请在 **诊断与修复 → 导出诊断与日志** 导出 JSON，在原 issue 下说明触发步骤和发生时间并附上文件。结构化时间线记录操作、Office 事件、窗口/标签编号及错误码，默认不采集文档名称、路径、正文、单元格、账号或令牌，不自动上传。日志有轮转与容量限制，详见 [诊断日志说明](docs/diagnostic-logging.md)。相关问题先保持打开，继续收集使用反馈。
+
 ## 它能做什么
 
 | 功能 | 操作与行为 |
@@ -87,7 +97,9 @@ openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 | 文件偏好 | 记住文件的手动宽度和独立窗口选择，跨重启保留；提供重置入口 |
 | 界面语言 | 中英文界面，默认按 Windows 显示语言自动选择，也可手动指定；跨重启保留 |
 | 设置同步 | 语言、单任务栏、明暗主题、关闭偏好、外观、颜色与默认宽度同步到已打开的 Office 实例 |
-| 诊断与恢复 | 查看加载状态、导出脱敏诊断、恢复标签栏与窗口；安装器可检查和修复注册 |
+| 管理中心 | 整合组件安装、外观设置、诊断修复与更新；从功能区直接进入管理页 |
+| 诊断与日志 | 导出脱敏操作时间线作为 issue 附件；恢复标签栏与窗口，保留文档编辑 |
+| 更新 | 自动探测可用线路、验证发布签名和安装包哈希；保留设置，等待 Office 退出 |
 | 防误关 | 锁定标签，避免从标签栏误关闭 |
 | 窗口协调 | 同组切换沿用当前窗口的尺寸和位置，适配分屏；独立窗口和其他组不跟随。单任务栏模式可选；0.1.6 对新配置默认开启，保留已有明确选择 |
 | 外观设置 | 浅灰融合开口标签 / 独立白色圆角面板；强调线顶部 / 底部 / 无；按应用配色，跟随 Office / 系统明暗主题 |
@@ -96,24 +108,24 @@ openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 安装
 
-1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.1.9-setup-x64.exe`。
+1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.2.0-setup-x64.exe`。
 2. 保存文档并退出 Word、Excel、PowerPoint。
-3. 双击安装程序，点击 **安装 / 更新**。
+3. 双击安装程序，在安装页选择组件后点击 **安装**。
 4. 重新打开 Office 文档，标签栏会出现在功能区下方。
 
 安装按当前 Windows 用户注册，无需管理员权限。安装程序不会替你关闭 Office 窗口。
 
-也可下载 `openOfficetab-0.1.9-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
+也可下载 `openOfficetab-0.2.0-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
 
 Release 附有 `SHA256SUMS.txt`。安装程序尚未做代码签名，可先核对文件校验值，或自行从源码构建。
 
 ```powershell
-Get-FileHash .\openOfficetab-0.1.9-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.2.0-setup-x64.exe -Algorithm SHA256
 ```
 
 ### 卸载
 
-保存文档并退出三款 Office，再运行同一个安装程序，点击 **卸载插件**；或从解压包运行 `Uninstall.cmd`。默认保留设置和日志。
+保存文档并退出三款 Office，进入管理中心“诊断与修复”，点击 **卸载**；或从解压包运行 `Uninstall.cmd`。默认保留设置和日志。
 
 需要一并清除设置时，可在 ZIP 解压目录执行：
 
@@ -125,7 +137,7 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 ### 界面语言
 
-在 **… → 语言 / Language**，或功能区 **openOfficetab → 标签设置 → 语言 / Language** 中选择 **跟随系统（默认） / 简体中文 / English**。自动模式根据 Windows 显示语言选择：中文用简体中文，其他语言用英文。选择会跨重启保存，并同步到已打开的 Office 实例；刷新功能区、菜单和后续打开的插件对话框，不重建文档窗格。文件名、路径和正文不翻译；Office 保存提示和 Windows 原生窗口沿用各自语言。安装器有独立的语言选择。
+在 **… → 语言 / Language** 中选择 **跟随系统（默认） / 简体中文 / English**。自动模式根据 Windows 显示语言选择：中文用简体中文，其他语言用英文。选择会跨重启保存，并同步到已打开的 Office 实例；刷新功能区、菜单和后续打开的插件对话框，不重建文档窗格。文件名、路径和正文不翻译；Office 保存提示和 Windows 原生窗口沿用各自语言。管理中心目前使用简体中文，不改变原生插件语言。
 
 ### 让一个文档使用独立窗口
 
@@ -187,7 +199,7 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 功能区提供 **加载诊断**、**导出脱敏诊断**、**恢复标签栏与窗口**。恢复会重建插件自己的标签栏、显示标签并关闭单标签自动隐藏，保留文件、编辑、组成员和顺序。0.1.6 同时保留单任务栏选择（0.1.5 的恢复命令会关闭它）。
 
-插件完全没有加载时，用 EXE 安装器的 **加载诊断** 查看注册状态；保存并退出 Office 后再点 **修复注册**。诊断导出不包含文件名、路径、正文、账号或原始日志，修复不修改 Office 安全策略。
+插件完全没有加载时，打开管理中心 **诊断与修复** 查看注册状态；保存并退出 Office 后再点 **修复**。诊断导出不包含文件名、路径、正文、账号或原始日志，修复不修改 Office 安全策略。
 
 ### 找到设置和恢复入口
 
@@ -231,7 +243,7 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 **配置和日志存在哪里？**
 
-位于 `%LOCALAPPDATA%\openOfficetab`。`settings.ini` 保存全局设置；`documents.ini` 保存按应用区分的文件偏好和最近关闭路径。路径仅作格式编码，不是加密；这些文件留在本机，不会上传，脱敏诊断也不会包含路径历史。问题反馈建议只提供相关错误行，避免公开真实文件名和路径。
+位于 `%LOCALAPPDATA%\openOfficetab`。`settings.ini` 保存全局设置；`documents.ini` 保存按应用区分的文件偏好和最近关闭路径。路径仅作格式编码，不是加密；这些文件留在本机，不会上传，脱敏诊断也不会包含路径历史。发生问题后建议使用管理中心的“导出诊断与日志”，将生成的 JSON 作为 issue 附件；不要直接上传设置文件或旧版原始日志。
 
 **修改设置后其他窗口没变化？**
 
@@ -241,6 +253,7 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 | 版本 | 日期 | 主要更新 |
 | :--- | :--- | :--- |
+| [0.2.0](https://github.com/xlennart/openOfficetab/releases/tag/v0.2.0) | 2026-10-28 | 管理中心、脱敏日志导出与自动选线更新；标签与文档内容同步的初步修复；统一功能区布局。 |
 | [0.1.9](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.9) | 2026-10-23 | 修复 Excel 输入公式时通过标签选取其他工作簿单元格引用；编辑期间延后窗口协调，保留原生公式输入流程。 |
 | [0.1.8](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.8) | 2026-10-19 | 新建原生命令排队；等待功能区内容归位后创建窗格、协调窗口；增加实际功能区内容回归检查。 |
 | [0.1.7](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.7) | 2026-10-18 | 完整中英文界面；可保存的语言设置，自动跟随 Windows 显示语言；功能区实时翻译；双语安装器和安装说明。 |
@@ -262,7 +275,7 @@ pwsh -File .\scripts\build.ps1 -Architecture x64
 pwsh -File .\scripts\package.ps1
 ```
 
-构建产生 `dist/x64/openOfficetab.dll`；打包产生 EXE、ZIP 和校验文件。EXE 使用 Windows 自带 .NET Framework 编译器生成。GitHub Actions 会编译并校验安装包；Office 的实际运行测试需要本机安装桌面 Office。
+原生构建产生 `dist/x64/openOfficetab.dll`；`scripts/build-desktop.ps1` 使用 Node.js、Rust/MSVC 构建 Tauri 管理中心及 Windows .NET Framework 本地服务。管理中心使用 WebView2，Office 内的标签栏仍为原生 C++。打包产生 EXE、ZIP、校验文件和签名更新元数据。GitHub Actions 会编译并校验安装包；Office 的实际运行测试需要本机安装桌面 Office。
 
 源码、测试与发布流程见 [开发说明](docs/development.md)；与 Office Tab 的差别及建议见 [功能对比与开发优先级](docs/comparison.md)。欢迎通过 Issues 提交可复现的问题或功能建议；请注明 Windows、Office 版本、位数及缩放比例。
 

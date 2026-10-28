@@ -1,0 +1,40 @@
+html,body{margin:0;min-width:320px;background:#f7f8fb;overflow-x:hidden}
+body{padding:14px 20px 20px}
+#oot-design{color-scheme:light}
+#oot-design .o-toolbar{padding-right:0;-webkit-user-select:none;user-select:none}
+#oot-design .o-toolbar>span{font-size:11px}
+#oot-design .o-bar{-webkit-user-select:none;user-select:none;padding-right:0}
+#oot-design .o-window-tools{display:flex;align-items:center;align-self:stretch;letter-spacing:normal}
+#oot-design .o-window-tools button{width:46px;border:0;border-radius:0;color:var(--o-sub);background:transparent;display:grid;place-items:center}
+#oot-design .o-window-tools button:hover{background:var(--o-line)}
+#oot-design .o-window-tools button:last-child:hover{background:#c42b1c;color:white}
+#oot-design .o-window-tools svg{width:15px;height:15px;stroke-width:1.5}
+#oot-design .o-signature{display:inline-flex;color:var(--o-sub);font-size:11px;text-decoration:none;margin-top:10px}
+#oot-design .o-signature:hover{color:var(--o-blue);text-decoration:underline}
+#oot-design .o-footer-links .o-signature{margin-top:0;margin-left:auto}
+#oot-design .o-route:focus-visible,#oot-design button:focus-visible,#oot-design a:focus-visible{outline:2px solid var(--o-blue);outline-offset:3px}
+@media(max-width:760px){body{padding:10px}#oot-design .o-toolbar>span{flex-basis:100%}}
+@media(max-width:490px){#oot-design .o-window-tools{display:flex}#oot-design .o-window-tools button{width:32px}}
+/* Production window: preserve the approved product layout, remove review aids. */
+html,body{height:100%;padding:0}
+#oot-design{height:100vh}
+#oot-design .o-toolbar{display:none!important}
+#oot-design .o-window{height:100%;min-height:0;border-radius:0!important;display:flex;flex-direction:column;box-shadow:none}
+#oot-design .o-install,#oot-design .o-center{flex:1;min-height:0;overflow:auto}
+#oot-design .o-toast.is-error{color:#b42318}
+#oot-design .o-status-line[data-status=warning]{color:var(--o-orange)}
+#oot-design button:disabled{cursor:wait}
+#oot-design .o-center,#oot-design .o-install{overflow:hidden}
+#oot-design .o-center-main,#oot-design .o-install-main{height:100%;min-height:0;overflow:auto}
+#oot-design .o-nav,#oot-design .o-install-side{min-height:0;overflow:auto}
+html,body{overflow:hidden}
+#oot-design .o-bar{flex:0 0 48px}
+#oot-design .o-center,#oot-design .o-install{grid-template-rows:minmax(0,1fr)}
+#oot-design .o-nav,#oot-design .o-install-side{height:100%;overflow:hidden;overscroll-behavior:none}
+#oot-design .o-center-main,#oot-design .o-install-main{overscroll-behavior:contain;scrollbar-gutter:stable}
+#oot-design .o-bottom{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+#oot-design .o-bottom>.o-right-actions,#oot-design .o-bottom>.o-btn{grid-column:2;justify-self:end}
+#oot-design .o-bottom>.o-toast{grid-column:1/-1}
+#oot-design .o-bottom>.o-toast:empty{display:none}
+
+#oot-design .o-window-tools{display:flex!important;flex-shrink:0}

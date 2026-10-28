@@ -12,3 +12,13 @@
 __pycache__/
 .vs/
 .vscode/
+
+# AOCI agent host integration (machine-bound; do not commit)
+.codex/config.toml
+.codex/config.toml.backup.*
+
+# Tauri frontend dependencies and generated bundle
+/desktop/node_modules/
+/desktop/dist/
+/desktop/src-tauri/target/
+/desktop/src-tauri/gen/

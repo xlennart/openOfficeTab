@@ -1,0 +1,12 @@
+{
+  "ownedSources": [
+    {
+      "name": "CNB 国内镜像",
+      "feedUrl": "https://cnb.cool/xlennart/openofficetab/-/releases/latest/download/openofficetab-update.json",
+      "releaseBase": "https://cnb.cool/xlennart/openofficetab/-/releases/download/",
+      "probeUrl": "https://cnb.cool/xlennart/openofficetab/-/releases/latest/download/SHA256SUMS.txt",
+      "latestApi": "https://api.cnb.cool/xlennart/openofficetab/-/releases/latest",
+      "redirectHosts": ["asset.cnb.cool"]
+    }
+  ]
+}

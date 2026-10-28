@@ -1,0 +1,13 @@
+{
+  "source": "approved Visualize desktop design, 2026-10-27",
+  "sourceSha256": "1902fd52cea459381290275a44b474f743c1f046cc1d44e9d8073ce7b6ecc42f",
+  "originalCssSha256": "3a3980fdaf6d296d113bad7c6fc09b48af17984255e0cc0e1013a0e86bf628fc",
+  "brandPngSha256": "351e44a3cb6e06fe5fe3d155c3408d83f0f02c0396676025db7eaa5274110247",
+  "adaptations": [
+    "local bundled icons",
+    "native window controls",
+    "author links",
+    "explicit review status",
+    "in-memory interaction only"
+  ]
+}

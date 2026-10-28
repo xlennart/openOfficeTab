@@ -77,7 +77,7 @@ public:
     bool boolean(bool fallback=false)const{if(v.vt==VT_EMPTY||v.vt==VT_ERROR)return fallback;return number(fallback?-1:0)!=0;}
     std::wstring str()const{if(v.vt!=VT_BSTR||!v.bstrVal)return L"";return std::wstring(v.bstrVal,SysStringLen(v.bstrVal));}
 };
-class ComError:public std::exception {public: HRESULT hr; std::wstring where; ComError(HRESULT h,std::wstring w):hr(h),where(std::move(w)){} const char* what()const noexcept override{return "Office COM call failed";}};
+class ComError:public std::exception {public: HRESULT hr; std::wstring where; HRESULT detail; ComError(HRESULT h,std::wstring w,HRESULT d=S_OK):hr(h),where(std::move(w)),detail(d){} const char* what()const noexcept override{return "Office COM call failed";}};
 inline Var call(IDispatch* p,const wchar_t* name,WORD flags=DISPATCH_PROPERTYGET,std::vector<Var> args={}) {
     if(!p)throw ComError(E_POINTER,name);
     LPOLESTR n=const_cast<LPOLESTR>(name);DISPID id;HRESULT hr=p->GetIDsOfNames(IID_NULL,&n,1,LOCALE_USER_DEFAULT,&id);
@@ -88,14 +88,14 @@ inline Var call(IDispatch* p,const wchar_t* name,WORD flags=DISPATCH_PROPERTYGET
     Var r;EXCEPINFO ex{};UINT bad=0;hr=p->Invoke(id,IID_NULL,LOCALE_USER_DEFAULT,flags,&dp,&r.v,&ex,&bad);
     if(ex.pfnDeferredFillIn)ex.pfnDeferredFillIn(&ex);
     SysFreeString(ex.bstrSource);SysFreeString(ex.bstrDescription);SysFreeString(ex.bstrHelpFile);
-    if(FAILED(hr))throw ComError(hr,name);return r;
+    if(FAILED(hr))throw ComError(hr,name,ex.scode);return r;
 }
 inline Var prop(IDispatch* p,const wchar_t* n){try{return call(p,n);}catch(...){return {};}}
 inline void put(IDispatch* p,const wchar_t* n,Var x){call(p,n,DISPATCH_PROPERTYPUT,{std::move(x)});}
 inline Ptr<IDispatch> item(IDispatch* p,long n){return call(p,L"Item",DISPATCH_PROPERTYGET|DISPATCH_METHOD,{Var(n)}).disp();}
 inline std::wstring json(const std::wstring& s){std::wstring r=L"\"";for(wchar_t c:s){if(c==L'"'||c==L'\\'){r+=L'\\';r+=c;}else if(c<32){wchar_t b[8];swprintf_s(b,L"\\u%04x",c);r+=b;}else r+=c;}return r+L"\"";}
 inline std::wstring dataDir(){wchar_t p[MAX_PATH];if(FAILED(SHGetFolderPathW(nullptr,CSIDL_LOCAL_APPDATA,nullptr,0,p)))return L"";std::wstring d=std::wstring(p)+L"\\openOfficetab";CreateDirectoryW(d.c_str(),nullptr);return d;}
-inline void log(const wchar_t* event,HRESULT hr=S_OK){std::wstring path=dataDir()+L"\\runtime.log";HANDLE h=CreateFileW(path.c_str(),FILE_APPEND_DATA,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);if(h==INVALID_HANDLE_VALUE)return;SYSTEMTIME st;GetLocalTime(&st);wchar_t b[512];swprintf_s(b,L"%04d-%02d-%02d %02d:%02d:%02d pid=%lu %s hr=%08x\r\n",st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond,GetCurrentProcessId(),event,(unsigned)hr);int len=WideCharToMultiByte(CP_UTF8,0,b,-1,nullptr,0,nullptr,nullptr);std::string u(len,0);WideCharToMultiByte(CP_UTF8,0,b,-1,u.data(),len,nullptr,nullptr);DWORD wrote;WriteFile(h,u.data(),len-1,&wrote,nullptr);CloseHandle(h);}
+#include "runtime-log.h"
 inline int dpi(HWND w){return w?(int)GetDpiForWindow(w):96;}
 
 #define DISPATCH_STUBS \

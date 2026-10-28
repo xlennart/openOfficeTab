@@ -60,6 +60,17 @@ INT_PTR CALLBACK widthProc(HWND dialog,UINT message,WPARAM wp,LPARAM lp){
 }
 std::wstring hex(HRESULT hr){wchar_t text[16];swprintf_s(text,L"0x%08X",(unsigned)hr);return text;}
 }
+bool Session::openManagement(HWND owner,const wchar_t* page){
+    if(wcscmp(page,L"overview")&&wcscmp(page,L"appearance")&&wcscmp(page,L"repair")&&wcscmp(page,L"updates"))return false;
+    wchar_t buffer[32768]{};DWORD size=sizeof(buffer);
+    if(RegGetValueW(HKEY_CURRENT_USER,L"Software\\openOfficetab",L"CenterPath",RRF_RT_REG_SZ,nullptr,buffer,&size)!=ERROR_SUCCESS)return false;
+    std::wstring path=buffer,prefix=dataDir()+L"\\app\\",suffix=L"\\openOfficetab.Center.exe";
+    if(path.size()!=prefix.size()+12+suffix.size()||_wcsnicmp(path.c_str(),prefix.c_str(),prefix.size())||_wcsicmp(path.c_str()+prefix.size()+12,suffix.c_str()))return false;
+    for(size_t i=prefix.size();i<prefix.size()+12;i++)if(!((path[i]>=L'0'&&path[i]<=L'9')||(path[i]>=L'a'&&path[i]<=L'f')))return false;
+    DWORD attributes=GetFileAttributesW(path.c_str());if(attributes==INVALID_FILE_ATTRIBUTES||(attributes&FILE_ATTRIBUTE_DIRECTORY))return false;
+    std::wstring args=L"--page "+std::wstring(page)+L" --host "+hostLabel(host);
+    return (INT_PTR)ShellExecuteW(owner,L"open",path.c_str(),args.c_str(),nullptr,SW_SHOWNORMAL)>32;
+}
 bool Session::setLanguage(int mode){
     if(stopped||!i18n::valid(mode))return false;
     settings.synchronize();settings.language=mode;bool saved=settings.save();refreshLanguage();return saved;
@@ -105,6 +116,7 @@ void Session::widthDialog(HWND owner){
     if(result==IDOK)setTabWidth(choice.width,choice.mode);
 }
 bool Session::newTabGroup(unsigned long long id,const POINT* position){
+    logEvent(L"group.new.request",{{"viewId",(long long)id}});
     auto keep=shared_from_this();auto v=find(id);if(!v||stopped||executing||refreshing||!ownedWindow(v->hwnd))return false;
     unsigned group=nextGroupId++;if(!moveToGroup(id,group))return false;
     v=find(id);if(!v)return false;
@@ -116,6 +128,7 @@ bool Session::newTabGroup(unsigned long long id,const POINT* position){
     SetWindowPos(v->hwnd,nullptr,left,top,width,height,SWP_NOZORDER|SWP_NOACTIVATE);return true;
 }
 bool Session::drop(unsigned long long id,POINT screen){
+    logEvent(L"tab.drop.request",{{"viewId",(long long)id},{"x",screen.x},{"y",screen.y}});
     auto keep=shared_from_this();if(stopped||executing||refreshing)return false;auto source=find(id);if(!source)return false;
     HWND under=WindowFromPoint(screen),root=under?GetAncestor(under,GA_ROOT):nullptr;
     for(auto& pane:panes){auto target=find(pane.viewId);HWND bar=pane.control?pane.control->NativeWindow():nullptr;RECT bounds{};
@@ -141,10 +154,10 @@ std::wstring Session::diagnostics()const{
     size_t independent=0,mounted=0,visible=0;std::map<unsigned,int> groups;
     for(auto& v:views){if(v->independent)independent++;else groups[v->groupId]++;}
     for(auto& p:panes){HWND h=p.control?p.control->NativeWindow():nullptr;if(h&&IsWindow(h))mounted++;if(h&&IsWindowVisible(h))visible++;}
-    return L"{\"version\":\"0.1.9\",\"host\":"+json(hostLabel(host))+L",\"officeVersion\":"+json(version)+L",\"architecture\":\""+(sizeof(void*)==8?std::wstring(L"x64"):std::wstring(L"x86"))+L"\",\"connected\":"+(stopped?L"false":L"true")+L",\"loadBehavior\":"+std::to_wstring(registration)+L",\"registrationReadable\":"+(status==ERROR_SUCCESS?L"true":L"false")+L",\"eventsConnected\":"+(cookie?L"true":L"false")+L",\"paneFactoryAvailable\":"+(factory?L"true":L"false")+L",\"viewCount\":"+std::to_wstring(views.size())+L",\"groupCount\":"+std::to_wstring(groups.size())+L",\"independentCount\":"+std::to_wstring(independent)+L",\"paneCount\":"+std::to_wstring(panes.size())+L",\"mountedCount\":"+std::to_wstring(mounted)+L",\"visiblePaneCount\":"+std::to_wstring(visible)+L",\"visibleSetting\":"+(settings.visible?L"true":L"false")+L",\"autoHide\":"+(settings.autoHide?L"true":L"false")+L",\"tabWidth\":"+std::to_wstring(settings.tabWidth)+L",\"widthMode\":"+std::to_wstring(settings.widthMode)+L",\"accentPosition\":"+std::to_wstring(settings.accentPosition)+L",\"barStyle\":"+std::to_wstring(settings.barStyle)+L",\"barColor\":"+json(tabcolor::format(settings.barColor))+L",\"customBarColor\":"+(settings.customBarColor?L"true":L"false")+L",\"singleTaskbarSetting\":"+(settings.group?L"true":L"false")+L",\"languageSetting\":"+std::to_wstring(settings.language)+L",\"language\":"+json(language()==1?L"zh-CN":L"en")+L",\"themeMode\":"+std::to_wstring(settings.themeMode)+L",\"frameCloseAction\":"+std::to_wstring(settings.frameCloseAction)+L",\"observedRootCount\":"+std::to_wstring(rootObservers.size())+L",\"windowCoordination\":true,\"dark\":"+(darkMode()?L"true":L"false")+L",\"barBackground\":"+json(tabcolor::format((darkMode()&&settings.barStyle==1?surroundColor():tabcolor::background(darkMode(),settings.barStyle==1,settings.barColor,settings.customBarColor))))+L",\"surroundBackground\":"+json(tabcolor::format(surroundColor()))+L",\"settingsLiveSync\":true,\"settingsWritePending\":"+(settings.savePending?L"true":L"false")+L",\"recentlyClosedCount\":"+std::to_wstring(recentlyClosed().size())+L",\"closePending\":"+(pendingCloseId?L"true":L"false")+L",\"refreshFailures\":"+std::to_wstring(failures)+L",\"lastOperation\":"+json(lastOperation)+L",\"lastError\":"+json(hex(lastError))+L",\"privacy\":\"No document names, paths, content, account names or raw logs\"}";
+    return L"{\"version\":\"0.2.0\",\"host\":"+json(hostLabel(host))+L",\"officeVersion\":"+json(version)+L",\"architecture\":\""+(sizeof(void*)==8?std::wstring(L"x64"):std::wstring(L"x86"))+L"\",\"connected\":"+(stopped?L"false":L"true")+L",\"loadBehavior\":"+std::to_wstring(registration)+L",\"registrationReadable\":"+(status==ERROR_SUCCESS?L"true":L"false")+L",\"eventsConnected\":"+(cookie?L"true":L"false")+L",\"paneFactoryAvailable\":"+(factory?L"true":L"false")+L",\"viewCount\":"+std::to_wstring(views.size())+L",\"groupCount\":"+std::to_wstring(groups.size())+L",\"independentCount\":"+std::to_wstring(independent)+L",\"paneCount\":"+std::to_wstring(panes.size())+L",\"mountedCount\":"+std::to_wstring(mounted)+L",\"visiblePaneCount\":"+std::to_wstring(visible)+L",\"visibleSetting\":"+(settings.visible?L"true":L"false")+L",\"autoHide\":"+(settings.autoHide?L"true":L"false")+L",\"tabWidth\":"+std::to_wstring(settings.tabWidth)+L",\"widthMode\":"+std::to_wstring(settings.widthMode)+L",\"accentPosition\":"+std::to_wstring(settings.accentPosition)+L",\"barStyle\":"+std::to_wstring(settings.barStyle)+L",\"barColor\":"+json(tabcolor::format(settings.barColor))+L",\"customBarColor\":"+(settings.customBarColor?L"true":L"false")+L",\"singleTaskbarSetting\":"+(settings.group?L"true":L"false")+L",\"languageSetting\":"+std::to_wstring(settings.language)+L",\"language\":"+json(language()==1?L"zh-CN":L"en")+L",\"themeMode\":"+std::to_wstring(settings.themeMode)+L",\"frameCloseAction\":"+std::to_wstring(settings.frameCloseAction)+L",\"observedRootCount\":"+std::to_wstring(rootObservers.size())+L",\"windowCoordination\":true,\"dark\":"+(darkMode()?L"true":L"false")+L",\"barBackground\":"+json(tabcolor::format((darkMode()&&settings.barStyle==1?surroundColor():tabcolor::background(darkMode(),settings.barStyle==1,settings.barColor,settings.customBarColor))))+L",\"surroundBackground\":"+json(tabcolor::format(surroundColor()))+L",\"settingsLiveSync\":true,\"settingsWritePending\":"+(settings.savePending?L"true":L"false")+L",\"recentlyClosedCount\":"+std::to_wstring(recentlyClosed().size())+L",\"closePending\":"+(pendingCloseId?L"true":L"false")+L",\"refreshFailures\":"+std::to_wstring(failures)+L",\"lastOperation\":"+json(lastOperation)+L",\"lastError\":"+json(hex(lastError))+L",\"logSchema\":1,\"droppedLogRecords\":"+std::to_wstring(runtimelog::recorder().lost())+L",\"privacy\":\"No document names, paths, content, account names or legacy raw logs\"}";
 }
 void Session::showDiagnostics(HWND owner){
-    auto keep=shared_from_this();std::wstring advice=L"openOfficetab 0.1.9\n\n";
+    auto keep=shared_from_this();std::wstring advice=L"openOfficetab 0.2.0\n\n";
     if(!factory)advice+=tr(L"Office 尚未提供标签窗格工厂。请保存后重开 Office，或在安装器中检查和修复注册。\n");
     if(!settings.visible)advice+=tr(L"标签栏当前被隐藏，可使用“恢复标签栏与窗口”。\n");
     if(settings.autoHide)advice+=tr(L"已启用单标签自动隐藏。\n");
@@ -156,7 +169,8 @@ void Session::exportDiagnostics(HWND owner){
     auto keep=shared_from_this();wchar_t file[MAX_PATH]=L"openOfficetab-diagnostics.json";OPENFILENAMEW request{sizeof(request)};
     request.hwndOwner=owner;request.lpstrFile=file;request.nMaxFile=MAX_PATH;request.lpstrFilter=tr(L"JSON 诊断文件\0*.json\0\0");request.lpstrDefExt=L"json";request.Flags=OFN_OVERWRITEPROMPT|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR;
     if(!GetSaveFileNameW(&request))return;
-    auto data=diagnostics();int length=WideCharToMultiByte(CP_UTF8,0,data.data(),(int)data.size(),nullptr,0,nullptr,nullptr);std::string bytes(length,0);WideCharToMultiByte(CP_UTF8,0,data.data(),(int)data.size(),bytes.data(),length,nullptr,nullptr);
+    log(L"diagnostics.export");runtimelog::recorder().flush();
+    auto data=L"{\"snapshot\":"+diagnostics()+L",\"runtimeTimeline\":"+runtimelog::recorder().snapshot()+L",\"droppedLogRecords\":"+std::to_wstring(runtimelog::recorder().lost())+L"}";int length=WideCharToMultiByte(CP_UTF8,0,data.data(),(int)data.size(),nullptr,0,nullptr,nullptr);std::string bytes(length,0);WideCharToMultiByte(CP_UTF8,0,data.data(),(int)data.size(),bytes.data(),length,nullptr,nullptr);
     HANDLE output=CreateFileW(file,GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);DWORD written=0;
     bool ok=output!=INVALID_HANDLE_VALUE&&WriteFile(output,bytes.data(),(DWORD)bytes.size(),&written,nullptr)&&written==bytes.size();if(output!=INVALID_HANDLE_VALUE)CloseHandle(output);
     MessageBoxW(owner,ok?tr(L"已导出脱敏诊断，不包含文档名称、路径、正文、账号或原始日志。"):tr(L"诊断文件写入失败，请选择可写目录。"),tr(L"导出诊断"),MB_OK|(ok?MB_ICONINFORMATION:MB_ICONERROR));

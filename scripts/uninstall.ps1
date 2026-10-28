@@ -4,10 +4,15 @@ if($env:OPENOFFICETAB_SETUP_UTF8){[Console]::OutputEncoding=New-Object Text.UTF8
 . (Join-Path $PSScriptRoot 'localization.ps1')
 . (Join-Path $PSScriptRoot 'desktop-context.ps1')
 if(Invoke-DesktopContextScript -ScriptPath $PSCommandPath -Arguments @{Language=$Language;RemoveSettings=[bool]$RemoveSettings}){return}
+. (Join-Path $PSScriptRoot 'desktop-install.ps1')
+$maintenance=Enter-OotMaintenance
+try {
+Assert-OotCenterClosed
 if(@(Get-Process WINWORD,EXCEL,POWERPNT -ErrorAction SilentlyContinue).Count){throw (Get-OotText '请先保存文档并退出三款 Office，再运行卸载。' 'Save your work and fully exit all three Office applications before uninstalling.')}
 if([IntPtr]::Size -ne 8){throw (Get-OotText '请通过 Uninstall.cmd 在 64 位 PowerShell 中运行卸载。' 'Use Uninstall.cmd to uninstall from 64-bit PowerShell.')}
 $installRoot=Join-Path $env:LOCALAPPDATA 'openOfficetab'
 $bin=Join-Path $installRoot 'bin'
+Assert-OotNoReparse $installRoot
 foreach($architecture in 'x64','x86'){
     # Installations use hash-versioned directories so a loaded DLL is never
     # overwritten. Unregister one installed binary for each architecture.
@@ -27,4 +32,8 @@ foreach($architecture in 'x64','x86'){
 $expected=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'openOfficetab\bin'))
 if(Test-Path -LiteralPath $bin){$resolved=(Resolve-Path -LiteralPath $bin).Path;if($resolved -ne $expected){throw (Get-OotText '卸载路径校验失败。' 'Uninstall directory identity check failed.')};Remove-Item -LiteralPath $resolved -Recurse -Force}
 if($RemoveSettings){foreach($name in 'settings.ini','documents.ini','runtime.log'){$file=Join-Path $installRoot $name;if(Test-Path -LiteralPath $file){Remove-Item -LiteralPath $file -Force}}}
+Remove-OotUpdateTask
+Remove-OotDesktop
+foreach($name in 'cache','updates'){$path=Join-Path $installRoot $name;if(Test-Path -LiteralPath $path){$resolved=(Resolve-Path -LiteralPath $path).Path;if([IO.Path]::GetDirectoryName($resolved) -ne [IO.Path]::GetFullPath($installRoot)){throw 'Uninstall cache identity check failed.'};Remove-Item -LiteralPath $resolved -Recurse -Force}}
 Write-Host (Get-OotText 'openOfficetab 已卸载。默认保留设置和日志；使用 -RemoveSettings 可清除它们。' 'openOfficetab uninstalled. Settings and logs are kept by default; use -RemoveSettings to remove them.')
+} finally {$maintenance.ReleaseMutex();$maintenance.Dispose()}

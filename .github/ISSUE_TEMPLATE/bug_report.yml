@@ -1,0 +1,22 @@
+name: 故障报告 / Bug report
+description: 提供触发过程和诊断附件，帮助定位标签与窗口问题。
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 操作过程、预期和实际结果 / Steps and behavior
+      description: 间歇性问题请说明发生频率、文件大致大小、工作表或页数，以及问题出现在加载、切换、拖动还是关闭过程中。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境 / Environment
+      description: 请填写插件版本、Windows 版本、Office 应用与完整构建号、32/64 位及显示缩放比例。
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 诊断附件和视频 / Diagnostics and video
+      description: 问题发生后，在管理中心 → 诊断与修复 → 导出诊断与日志，将 JSON 拖入此处。也可附视频，并注明发生时间；诊断默认不含文档名称、路径或正文。

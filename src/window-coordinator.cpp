@@ -88,11 +88,11 @@ class RootObserver:public std::enable_shared_from_this<RootObserver> {
             if(m==WM_CANCELMODE&&!s->nativeFrameDepth&&s->operatingRoot==w)s->operatingRoot=nullptr;
         }
         HWND previous=s->operatingRoot;if(frameOperation||m==WM_ENTERSIZEMOVE)s->operatingRoot=w;
-        if(m==WM_ENTERSIZEMOVE)s->sizingRoot=w;
-        if(frameOperation)++s->nativeFrameDepth;
+        if(m==WM_ENTERSIZEMOVE){s->sizingRoot=w;RECT bounds{};GetWindowRect(w,&bounds);logEvent(L"window.drag.begin",{{"hwnd",(long long)(UINT_PTR)w},{"viewId",(long long)s->displayedTabId(w)},{"activeId",(long long)s->activeId},{"x",bounds.left},{"y",bounds.top},{"width",bounds.right-bounds.left},{"height",bounds.bottom-bounds.top}});}
+        if(frameOperation){logEvent(L"window.command",{{"hwnd",(long long)(UINT_PTR)w},{"command",(long long)command},{"activeId",(long long)s->activeId}});++s->nativeFrameDepth;}
         auto result=DefSubclassProc(w,m,a,b);
         if(frameOperation)--s->nativeFrameDepth;
-        if(m==WM_EXITSIZEMOVE&&s->sizingRoot==w)s->sizingRoot=nullptr;
+        if(m==WM_EXITSIZEMOVE){RECT bounds{};GetWindowRect(w,&bounds);logEvent(L"window.drag.end",{{"hwnd",(long long)(UINT_PTR)w},{"viewId",(long long)s->displayedTabId(w)},{"activeId",(long long)s->activeId},{"x",bounds.left},{"y",bounds.top},{"width",bounds.right-bounds.left},{"height",bounds.bottom-bounds.top}});if(s->sizingRoot==w)s->sizingRoot=nullptr;}
         // Never resize siblings or call the Office/shell COM interfaces from
         // an Office frame's size callback. Its layout is still in progress.
         if(frameOperation||m==WM_WINDOWPOSCHANGED||m==WM_SIZE||m==WM_EXITSIZEMOVE){
@@ -103,6 +103,9 @@ class RootObserver:public std::enable_shared_from_this<RootObserver> {
             s->requestWindowLayout(w,frameOperation||s->operatingRoot==w||minimized,minimized||(frameOperation&&command==SC_MINIMIZE));
         }
         if(frameOperation)s->operatingRoot=previous;else if(m==WM_EXITSIZEMOVE&&s->operatingRoot==w)s->operatingRoot=nullptr;
+        // Taskbar/Alt-Tab activation need not change geometry or raise an
+        // Office event. Queue reconciliation without COM work in this callback.
+        if(m==WM_ACTIVATE){logEvent(L"window.activate",{{"hwnd",(long long)(UINT_PTR)w},{"activation",LOWORD(a)},{"viewId",(long long)s->displayedTabId(w)},{"activeId",(long long)s->activeId},{"frameBusy",s->windowFrameBusy()}});if(LOWORD(a)!=WA_INACTIVE){s->redraw();s->defer();}}
         if(m==WM_THEMECHANGED||m==WM_SETTINGCHANGE){s->pollTheme(true);s->redraw();}
         return result;
     }
@@ -193,7 +196,7 @@ void Session::rootLayoutChanged(HWND root){
     if(peersMatch&&old!=groupSlots.end()&&old->second.minimized==next.minimized&&(next.minimized||(old->second.placement.showCmd==next.placement.showCmd&&EqualRect(&old->second.bounds,&next.bounds)))){
         // An unchanged slot must not post another refresh. In the modal
         // move/size loop this used to feed REFRESH back into itself forever.
-        if(commanded&&activeTabId(root)!=source->id){Guard guard(coordinatingWindows);if(!next.minimized)SetActiveWindow(root);groupActives[source->groupId]=source->id;activeId=source->id;defer();}return;
+        if(commanded){Guard guard(coordinatingWindows);reconcileWindowSelection(source,next.minimized);}return;
     }
     Guard guard(coordinatingWindows);bool foreground=GetAncestor(GetForegroundWindow(),GA_ROOT)==root;
     groupSlots[source->groupId]=next;
@@ -210,16 +213,20 @@ void Session::rootLayoutChanged(HWND root){
         // without taking foreground focus from another application.
         SetActiveWindow(root);
         if(foreground){SetWindowPos(root,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);SetForegroundWindow(root);}
-        // PowerPoint can activate a different DocumentWindow while its SDI
-        // frame is resized/restored. Native focus alone does not restore its
-        // object-model selection. Reconcile after all native geometry calls,
-        // at idle, under the same reentry guard; never activate a minimized view.
-        if(host==Host::PowerPoint&&source->window){
+    }
+    reconcileWindowSelection(source,next.minimized);
+}
+void Session::reconcileWindowSelection(const std::shared_ptr<View>& source,bool minimized){
+    if(!minimized){
+        SetActiveWindow(source->hwnd);
+        // Word needs the same native/COM agreement as PowerPoint. Run only
+        // at idle and after Ribbon transfer, including an unchanged restore slot.
+        if((host==Host::Word||host==Host::PowerPoint)&&source->window&&!windowlayout::ribbonInitializing(source->hwnd)){
             auto selected=prop(app.get(),L"ActiveWindow").disp();
-            if(selected.as<IUnknown>().get()!=source->window.as<IUnknown>().get())call(source->window.get(),L"Activate",DISPATCH_METHOD);
+            if((selected||host==Host::PowerPoint)&&selected.as<IUnknown>().get()!=source->window.as<IUnknown>().get())call(source->window.get(),L"Activate",DISPATCH_METHOD);
         }
     }
-    groupActives[source->groupId]=source->id;activeId=source->id;defer();
+    setActiveView(source->id);defer();
 }
 bool Session::queueFrameClose(HWND root){
     if(stopped||executing||refreshing||!settings.group||!timer||!owned(root)||!showTabs(root))return false;

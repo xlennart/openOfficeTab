@@ -39,7 +39,7 @@ void Session::pollPersistence(){
     if(settings.savePending||now-lastSettingsPoll>=250){
         lastSettingsPoll=now;bool wasGrouped=settings.group;bool changed=settings.synchronize();
         if(!settings.savePending)settingsStamp=store.stamp(L"settings.ini");
-        if(changed){if(wasGrouped&&!settings.group)restore();updateTaskbar();redraw();}
+        if(changed){logEvent(L"settings.observed",{{"visible",settings.visible},{"grouped",settings.group},{"width",settings.tabWidth},{"theme",settings.themeMode},{"language",settings.language}});if(wasGrouped&&!settings.group)restore();updateTaskbar();redraw();}
     }
     refreshLanguage();
 }

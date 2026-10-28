@@ -1,0 +1,24 @@
+[package]
+name = "openofficetab-center"
+version = "0.2.0"
+description = "openOfficetab installer and management center"
+authors = ["xlennart"]
+edition = "2021"
+license = "MIT"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["custom-protocol"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = "2"
+serde_json = "1"
+sha2 = "0.10"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
