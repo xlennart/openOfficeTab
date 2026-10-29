@@ -38,3 +38,46 @@ html,body{overflow:hidden}
 #oot-design .o-bottom>.o-toast:empty{display:none}
 
 #oot-design .o-window-tools{display:flex!important;flex-shrink:0}
+
+/* Reveal the first frame after the saved/system language has been applied. */
+#oot-design:not([data-language-ready]){visibility:hidden}
+#oot-design .o-language{display:grid;gap:6px;width:100%;max-width:210px;color:var(--o-sub);font-size:12px}
+#oot-design .o-language select{width:100%;min-width:0;border:1px solid var(--o-line);border-radius:6px;background:var(--o-paper);color:var(--o-text);font:inherit;padding:7px 8px}
+#oot-design .o-install-main>.o-language-slot{display:flex;justify-content:flex-end;flex-shrink:0}
+#oot-design .o-install-main>.o-language-slot .o-language{grid-template-columns:auto minmax(0,170px);align-items:center;max-width:260px}
+#oot-design .o-nav-foot{min-width:0;padding:16px 4px 4px}
+#oot-design .o-nav-copy{margin-top:16px}
+#oot-design .o-bar-caption{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#oot-design .o-window-tools{margin-left:auto}
+#oot-design .o-center-main>*,#oot-design .o-install-main>*{flex-shrink:0;min-width:0}
+#oot-design .o-btn,#oot-design .o-link,#oot-design .o-segment button{white-space:normal;overflow-wrap:anywhere;max-width:100%;min-width:0;line-height:1.4;text-align:center}
+#oot-design .o-segment button{min-height:36px}
+#oot-design .o-nav button{min-width:0;white-space:normal;overflow-wrap:anywhere;flex-shrink:0}
+#oot-design .o-app-title{min-width:0;flex-wrap:wrap;gap:8px}
+#oot-design .o-app-desc,#oot-design .o-plain-row>div,#oot-design .o-title-row>div,#oot-design .o-about>div{min-width:0;overflow-wrap:anywhere}
+#oot-design .o-plain-row>.o-btn{flex-shrink:0;max-width:45%}
+#oot-design .o-diagnostic .o-plain-row>span{min-width:0;text-align:right;max-width:55%;overflow-wrap:anywhere}
+#oot-design .o-title-row{flex-wrap:wrap}
+#oot-design .o-title-row>.o-pill{flex-shrink:0}
+#oot-design .o-right-actions{flex-wrap:wrap;min-width:0}
+#oot-design .o-bottom{position:sticky;bottom:0;z-index:2;background:var(--o-bg);padding:12px 0}
+#oot-design .o-install-footer{position:sticky;bottom:0;z-index:2;background:var(--o-bg);padding:12px 0}
+#oot-design .o-toast{overflow-wrap:anywhere}
+#oot-design .o-preview-toolbar{flex-wrap:wrap;gap:8px}
+#oot-design .o-host-tabs{min-width:0;flex-wrap:wrap}
+#oot-design .o-modal{max-height:100%;overflow:auto;min-width:0;max-width:430px}
+@media(max-width:680px){#oot-design .o-bar-caption{display:none}}
+@media(max-width:620px){
+ #oot-design .o-center{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+ #oot-design .o-nav{height:auto;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px 12px;border-right:0;border-bottom:1px solid var(--o-line)}
+ #oot-design .o-nav button{padding:7px 8px;font-size:12px;gap:7px}
+ #oot-design .o-nav-foot{display:block;grid-column:1/-1;padding:5px 0 0;margin:0}
+ #oot-design .o-nav-copy{display:none}
+ #oot-design .o-nav-foot .o-language{display:grid;grid-template-columns:auto minmax(0,190px);align-items:center;max-width:none;justify-content:space-between}
+ #oot-design .o-install{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+ #oot-design .o-install-side{display:none}
+ #oot-design .o-center-main,#oot-design .o-install-main{padding:20px 16px}
+ #oot-design .o-bottom{grid-template-columns:minmax(0,1fr)}
+ #oot-design .o-bottom>.o-right-actions,#oot-design .o-bottom>.o-btn{grid-column:1;width:100%;justify-self:stretch}
+ #oot-design .o-bottom>.o-link{justify-self:start}
+}

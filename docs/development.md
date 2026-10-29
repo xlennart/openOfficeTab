@@ -86,7 +86,7 @@ powershell -NoProfile -File tests/ribbon-runtime.ps1 -HostName PowerPoint
 
 修改源码后执行相应构建及运行验证；仅文档、安装器或打包变更不必重复所有 Office 流程。发布前检查源码、图片和 ZIP 不含个人路径、账号、日志或未审阅的截图。
 
-手动创建版本标签，上传 `delivery/` 中 EXE、ZIP、SHA256SUMS；CI 仅生成构建产物，不自动发布。版本号当前同步维护于源码、安装脚本、安装器、打包默认值和 README。
+经授权发布时手动创建版本标签，将同一提交、版本以及相同字节的 EXE、ZIP、SHA256SUMS 和签名更新清单同步到 GitHub、CNB；发布后匿名下载核对哈希与签名。CI 仅生成构建产物，不自动发布。不得以不同字节覆盖已发布版本。版本号同步维护于源码、安装脚本、安装器、打包默认值和 README。
 
 ## 0.1.5 存储与同步
 
@@ -110,6 +110,6 @@ powershell -NoProfile -File tests/ribbon-runtime.ps1 -HostName PowerPoint
 
 新增 `SetLanguage`（DISPID 44），既有编号保留；`GetLabel`（45）和 `RibbonLoaded`（46）服务 Ribbon 回调。语言更新通过 [IRibbonUI.Invalidate](https://learn.microsoft.com/en-us/office/vba/api/office.iribbonui.invalidate) 刷新已有功能区缓存，不重建文档窗格。语言同其他全局偏好按键合并并同步，临时失败下次空闲重试。文档名、路径、内容及原生 Office 保存流程不做翻译。
 
-0.1.7 的旧 WinForms 安装器语言选择独立于插件设置；0.2.0 的 Tauri 管理中心目前使用简体中文。`scripts/localization.ps1` 提供安装 / 卸载 / 诊断输出的选择，`-Language auto|zh-CN|en` 会通过桌面桥接显式传递。Windows PowerShell 5.1 执行的含中文脚本使用 UTF-8 BOM。安装包附英文 `README.md` 与中文 `README.zh-CN.md`。
+0.1.7 的旧 WinForms 安装器语言选择独立于插件设置；已发布的 0.2.0 Tauri 中心使用简体中文。0.2.1 使用 `desktop/src/messages.json` 共享前端与服务词表，并与原生插件共用 `language` 偏好。语言入口位于管理侧栏或安装内容区，JSON `language` 动作只合并该键；前端支持三模式与焦点同步，`--language auto|zh-CN|en` 可临时覆盖显示。`scripts/localization.ps1` 提供安装 / 卸载 / 诊断输出的选择，所选语言通过桌面桥接显式传递。Windows PowerShell 5.1 执行的含中文脚本使用 UTF-8 BOM。安装包附英文 `README.md` 与中文 `README.zh-CN.md`。
 
 运行 `python tests/check-localization.py` 和 `scripts/test-native.ps1` 检查词条、动态标签和持久化。旧 WinForms 安装器的 `tests/installer-localization-test.ps1` 仅适用于旧版；0.2.0 使用 `tests/desktop-package-test.ps1` 检查 Tauri 载荷。`tests/language-runtime.ps1` 只附着三个唯一且已保存的公开空白示例，验证实际载荷、三模式同步、回调和窗口稳定性，最后恢复原设置；运行输出禁止直接公开上传。

@@ -7,7 +7,7 @@ $ootServiceOutput=Join-Path $ootRoot 'build\desktop-service'
 New-Item -ItemType Directory -Force $ootServiceOutput | Out-Null
 $ootCompiler=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $ootServiceSources=@(Get-ChildItem -LiteralPath (Join-Path $ootDesktop 'service') -Filter '*.cs' -File | ForEach-Object FullName)
-& $ootCompiler /nologo /codepage:65001 /target:library /optimize+ ("/out:"+(Join-Path $ootServiceOutput 'openOfficetab.Service.dll')) ("/resource:"+(Join-Path $ootDesktop 'service\update-public-key.xml')+',openOfficetab.UpdatePublicKey') ("/resource:"+(Join-Path $ootDesktop 'service\update-sources.json')+',openOfficetab.UpdateSources') /reference:System.Web.Extensions.dll $ootServiceSources
+& $ootCompiler /nologo /codepage:65001 /target:library /optimize+ ("/out:"+(Join-Path $ootServiceOutput 'openOfficetab.Service.dll')) ("/resource:"+(Join-Path $ootDesktop 'service\update-public-key.xml')+',openOfficetab.UpdatePublicKey') ("/resource:"+(Join-Path $ootDesktop 'service\update-sources.json')+',openOfficetab.UpdateSources') ("/resource:"+(Join-Path $ootRoot 'desktop/src/messages.json')+',openOfficetab.DesktopMessages') /reference:System.Web.Extensions.dll $ootServiceSources
 if($LASTEXITCODE -ne 0){throw 'Local service build failed.'}
 $env:CARGO_TARGET_DIR=Join-Path $ootRoot 'build\tauri-target'
 $ootCargo=Join-Path $ootRoot 'build\toolchains\cargo\bin\cargo.exe'

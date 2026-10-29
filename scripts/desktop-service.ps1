@@ -1,6 +1,7 @@
 ﻿param(
-    [ValidateSet('state','appearance','hosts','install','repair','diagnostics','preferences','check-update','probe-routes','download-update','apply-update','background-update','uninstall','finish-uninstall')][string]$Action='state',
-    [switch]$Library,[string]$TestRoot,[int]$WaitForProcess,[string]$ParentStartTicks,[switch]$RemoveSettings,[string]$ResultFile
+    [ValidateSet('state','language','appearance','hosts','install','repair','diagnostics','preferences','check-update','probe-routes','download-update','apply-update','background-update','uninstall','finish-uninstall')][string]$Action='state',
+    [switch]$Library,[string]$TestRoot,[int]$WaitForProcess,[string]$ParentStartTicks,[switch]$RemoveSettings,[string]$ResultFile,
+    [ValidateSet('auto','zh-CN','en')][string]$Language='auto'
 )
 $ErrorActionPreference='Stop'
 [Console]::InputEncoding=[Text.UTF8Encoding]::new($false)
@@ -24,11 +25,11 @@ function Get-OotState {
     $architecture=if($TestRoot){'unknown'}else{[OpenOfficeTab.Desktop.Api]::OfficeArchitecture()}
     $center=if($TestRoot){$null}else{(Get-ItemProperty 'HKCU:\Software\openOfficetab' -ErrorAction SilentlyContinue).CenterPath}
     return [ordered]@{
-        version='0.2.0';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
+        version='0.2.1';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
         centerInstalled=[bool]($center -and (Test-Path -LiteralPath $center -PathType Leaf))
         architecture=$architecture;compatible=$architecture -eq 'x64';officeRunning=if($TestRoot){$false}else{[OpenOfficeTab.Desktop.Api]::OfficeRunning()};hosts=$hosts
         appearance=[ordered]@{themeMode=(Number 'themeMode' 0);barStyle=(Number 'barStyle' 1);tabWidth=(Number 'tabWidth' 120);widthMode=(Number 'widthMode' 2);autoHide=$native.autoHide -eq '1';doubleClose=$native.doubleClose -eq '1'}
-        preferences=(Get-OotPreferences)
+        preferences=(Get-OotPreferences);language=([OpenOfficeTab.Desktop.Api]::Language($script:DataRoot)|ConvertFrom-Json)
     }
 }
 function Assert-OotSystemMutation {
@@ -43,8 +44,16 @@ function Get-OotSelectedHosts($Request,[bool]$AllowEmpty=$true){
     return ,$names
 }
 function Invoke-OotDesktopAction([string]$Name,$Request){
+    $script:OotLocale=([OpenOfficeTab.Desktop.Api]::Language($script:DataRoot)|ConvertFrom-Json).locale
+    if($Language -ne 'auto'){$script:OotLocale=$Language}
+    if($Request.language -in @('zh-CN','en')){$script:OotLocale=$Request.language}
     switch($Name){
         'state' {return Get-OotState}
+        'language' {
+            if(($Request.mode -isnot [int] -and $Request.mode -isnot [long]) -or $Request.mode -lt 0 -or $Request.mode -gt 2){throw 'Invalid interface language.'}
+            [OpenOfficeTab.Desktop.Api]::Merge($script:DataRoot,'openOfficetab',(@{language=[string]$Request.mode}|ConvertTo-Json -Compress))
+            return Get-OotState
+        }
         'probe-routes' {if($TestRoot){throw 'Network probes are disabled with a test root.'};return ,@([OpenOfficeTab.Desktop.Api]::ProbeRoutes($script:DataRoot)|ConvertFrom-Json|ForEach-Object {foreach($route in $_){$route}})}
         'appearance' {
             $changes=@{}
@@ -72,7 +81,7 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
             $selected=if($Request.preserveHosts -eq $true -or $Name -eq 'repair'){@($oldState.hosts|Where-Object enabled|ForEach-Object name)}else{Get-OotSelectedHosts $Request $false}
             if(-not $oldState.installed -and $selected.Count -eq 0){$selected=@('Word','Excel','PowerPoint')}
             $selection=if($selected.Count){$selected -join ','}else{'None'}
-            & (Join-Path $PSScriptRoot 'install.ps1') -Architecture x64 -HostSelection $selection -CenterSource $Request.exePath -DesktopShortcut:($Request.shortcut -eq $true) -Language zh-CN *>&1 | Out-Null
+            & (Join-Path $PSScriptRoot 'install.ps1') -Architecture x64 -HostSelection $selection -CenterSource $Request.exePath -DesktopShortcut:($Request.shortcut -eq $true) -Language $script:OotLocale *>&1 | Out-Null
             $result=Get-OotState
             if(-not $result.installed -or -not $result.centerInstalled){throw '安装结果未通过校验。'}
             return $result
@@ -122,7 +131,7 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
             New-Item -ItemType Directory -Force (Join-Path $temp 'scripts'),(Join-Path $temp 'service') | Out-Null
             foreach($file in 'desktop-service.ps1','desktop-install.ps1','uninstall.ps1','desktop-context.ps1','localization.ps1'){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $temp 'scripts')}
             Copy-Item -LiteralPath $serviceAssembly -Destination (Join-Path $temp 'service\openOfficetab.Service.dll')
-            $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $temp 'scripts\desktop-service.ps1')+'"'),'-Action','finish-uninstall','-WaitForProcess',[string]$parent.Id,'-ParentStartTicks',[string]$parent.StartTime.ToUniversalTime().Ticks,'-ResultFile',('"'+(Join-Path ([IO.Path]::GetTempPath()) 'openOfficetab-uninstall-result.json')+'"'))
+            $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $temp 'scripts\desktop-service.ps1')+'"'),'-Action','finish-uninstall','-WaitForProcess',[string]$parent.Id,'-ParentStartTicks',[string]$parent.StartTime.ToUniversalTime().Ticks,'-Language',$script:OotLocale,'-ResultFile',('"'+(Join-Path ([IO.Path]::GetTempPath()) 'openOfficetab-uninstall-result.json')+'"'))
             if($Request.removeSettings -eq $true){$arguments+='-RemoveSettings'}
             Start-Process -FilePath (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -ArgumentList $arguments -WindowStyle Hidden | Out-Null
             $parent.Dispose();return @{exit=$true;message='管理中心关闭后完成卸载；结果记录在临时目录 openOfficetab-uninstall-result.json。'}
@@ -131,7 +140,7 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
             Assert-OotSystemMutation
             try{$parent=[Diagnostics.Process]::GetProcessById($WaitForProcess);if([string]$parent.StartTime.ToUniversalTime().Ticks -ne $ParentStartTicks){throw 'Uninstall parent identity changed.'};if(-not $parent.WaitForExit(30000)){throw '请先关闭管理中心。'}}catch [ArgumentException]{}finally{if($parent){$parent.Dispose()}}
             Assert-OotOfficeClosed
-            & (Join-Path $PSScriptRoot 'uninstall.ps1') -RemoveSettings:$RemoveSettings -Language zh-CN *>&1 | Out-Null
+            & (Join-Path $PSScriptRoot 'uninstall.ps1') -RemoveSettings:$RemoveSettings -Language $script:OotLocale *>&1 | Out-Null
             return @{uninstalled=$true}
         }
         default {throw 'Unsupported action.'}
@@ -150,7 +159,9 @@ try{
 }catch{
     $ootFailure=$_
     try{[OpenOfficeTab.Desktop.Api]::RecordAction($script:DataRoot,$Action,'error',$ootFailure.Exception.GetBaseException().HResult,0)}catch{}
-    $response=@{ok=$false;error=$ootFailure.Exception.GetBaseException().Message}
+    $ootException=$ootFailure.Exception.GetBaseException()
+    $ootLocale=if($script:OotLocale){$script:OotLocale}else{([OpenOfficeTab.Desktop.Api]::Language($script:DataRoot)|ConvertFrom-Json).locale}
+    $response=@{ok=$false;error=[OpenOfficeTab.Desktop.Api]::LocalizedError($ootException.Message,$ootLocale,$ootException.HResult);errorCode=$ootException.HResult}
     if($ResultFile){[IO.File]::WriteAllText($ResultFile,($response|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))}
     $response | ConvertTo-Json -Compress
     exit 1

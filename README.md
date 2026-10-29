@@ -23,9 +23,9 @@ Free · Open source · Native C++ · Windows desktop Office
 
 openOfficetab adds a document tab bar below the Office ribbon. Switch documents with a click, drag tabs to reorder them, manage files from the context menu, or move a document into an independent window. It keeps Office's existing documents and save prompts, with no file conversion required.
 
-**Current release: 0.2.0.** Adds a desktop management center and structured runtime logs, with initial improvements to tab/native-document selection alignment. Source code, an EXE installer and a ZIP package are available. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
+**Current release: 0.2.1.** Completes English and Chinese setup/management pages, shares language settings with the native add-in, and fixes long labels and smaller-window layouts. Structured runtime logs and the initial tab/document selection improvements from 0.2.0 remain available. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
 
-The native add-in supports English and Simplified Chinese through the **… → Language** menu, following the Windows display language by default. The new management center currently uses Simplified Chinese. The screenshots below show the English interface; [English installation instructions](docs/installation.en.md) are also available. Most supporting technical documents are in Chinese.
+The add-in supports English and Simplified Chinese through **… → Language**. The installer and management center share the same saved language setting, with a language selector in the sidebar or setup content area and Windows display-language detection by default. The screenshots below show the English interface; [English installation instructions](docs/installation.en.md) are also available. Most supporting technical documents are in Chinese.
 
 Downloads: [GitHub Releases](https://github.com/xlennart/openOfficetab/releases/latest) · [CNB mirror](https://cnb.cool/xlennart/openofficetab/-/releases). Both provide the same release assets and checksums.
 
@@ -98,24 +98,24 @@ Save All and bulk closing apply only to the current tab group. They exclude inde
 
 ## Installation
 
-1. Download `openOfficetab-0.2.0-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficetab/releases/latest).
+1. Download `openOfficetab-0.2.1-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficetab/releases/latest).
 2. Save your work and fully exit Word, Excel, and PowerPoint, including any old background instances.
-3. Run the installer and select the components and click **安装 (Install)**.
+3. Run the installer and select the components and click **Install**.
 4. Open an Office document again. The tab bar appears below the ribbon.
 
 Installation is per Windows user and does not require administrator privileges. The installer does not close Office windows for you.
 
-Alternatively, download `openOfficetab-0.2.0-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
+Alternatively, download `openOfficetab-0.2.1-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
 
 Releases include `SHA256SUMS.txt`. The installer is not code-signed; you can verify its checksum or build from source.
 
 ```powershell
-Get-FileHash .\openOfficetab-0.2.0-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.2.1-setup-x64.exe -Algorithm SHA256
 ```
 
 ### Uninstall
 
-Save your work and exit all three Office applications. Open the management center and select **诊断与修复 → 卸载**, or run `Uninstall.cmd` from the extracted ZIP. Settings and logs are kept by default.
+Save your work and exit all three Office applications. Open the management center and select **Diagnostics & repair → Uninstall**, or run `Uninstall.cmd` from the extracted ZIP. Settings and logs are kept by default.
 
 To remove settings as well, run this from the extracted package directory:
 
@@ -125,11 +125,11 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 ## Management center and diagnostics
 
-Open **openOfficetab → Settings and recovery → Management center** from the ribbon, or use the Start menu shortcut. The center provides component status, appearance, diagnostics/repair and updates. Its current UI is in Simplified Chinese.
+Open **openOfficetab → Settings and recovery → Management center** from the ribbon, or use the Start menu shortcut. The center provides component status, appearance, diagnostics/repair and updates. The center includes full English and Chinese interface text.
 
 A manual update check probes available routes automatically. Signed metadata and installer SHA-256 are verified; failed downloads can try another available route. Automatic downloads/installation are opt-in, and installation waits until Office exits.
 
-If a problem recurs, choose **诊断与修复 → 导出诊断与日志** to export a JSON report, then attach it to the original issue with the steps and approximate time. The bounded timeline records operations, Office events, process-local window/tab identities and error codes. Document names, paths, content, cell values, accounts and tokens are excluded by default; nothing is uploaded automatically. See [diagnostic logging](docs/diagnostic-logging.md). Related issues remain open for follow-up.
+If a problem recurs, choose **Diagnostics & repair → Export diagnostics and logs** to export a JSON report, then attach it to the original issue with the steps and approximate time. The bounded timeline records operations, Office events, process-local window/tab identities and error codes. Document names, paths, content, cell values, accounts and tokens are excluded by default; nothing is uploaded automatically. See [diagnostic logging](docs/diagnostic-logging.md). Related issues remain open for follow-up.
 
 ## User guide
 
@@ -137,7 +137,7 @@ The instructions below use the English interface labels.
 
 ### Choose the interface language
 
-Open **… → Language**. Select **Follow Windows (default)**, **Simplified Chinese**, or **English**. Automatic mode uses Chinese for Chinese Windows display languages and English for other languages. Your choice survives restarts and syncs across running Office instances. Ribbon labels, menus, and subsequent add-in dialogs update without recreating document panes. File names and contents stay unchanged; Office save prompts and native Windows dialogs retain their own language. The management center currently uses Simplified Chinese; its display language does not change the native add-in language.
+Open **… → Language**. Select **Follow Windows (default)**, **Simplified Chinese**, or **English**. Automatic mode uses Chinese for Chinese Windows display languages and English for other languages. Your choice survives restarts and syncs across running Office instances. Ribbon labels, menus, and subsequent add-in dialogs update without recreating document panes. File names and contents stay unchanged; Office save prompts and native Windows dialogs retain their own language. In the installer and center, the language selector in the sidebar or setup content area uses this same saved setting. Center windows refresh on focus after a native-language change. Static labels, runtime messages and sample content are translated; user file names, paths and content retain their original text.
 
 ### Use an independent window
 
@@ -203,7 +203,7 @@ Use **… → Default tab width…** or **Tab width** on the ribbon to set 80–
 
 The ribbon offers **Loading diagnostics**, **Export sanitized diagnostics**, and **Recover tabs and windows**. Recovery rebuilds the add-in's own bar, shows tabs, and disables single-tab auto-hide while preserving documents, edits, group membership, order, and the single-taskbar preference.
 
-If the add-in does not load at all, open **诊断与修复** in the management center. Save and exit Office before selecting **修复 (Repair)**. Sanitized diagnostics exclude file names, paths, document content, accounts, and raw logs. Repair does not change Office security policy.
+If the add-in does not load at all, open **Diagnostics & repair** in the management center. Save and exit Office before selecting **Repair**. Sanitized diagnostics exclude file names, paths, document content, accounts, and raw logs. Repair does not change Office security policy.
 
 Settings are available from `…` or **Tab settings** on the ribbon. Tab locking only guards against closing from the tab bar; an explicit title-bar group close still goes through Office's normal save flow.
 
@@ -253,6 +253,7 @@ Language, appearance, color, default width, single-taskbar mode, theme, and titl
 
 | Version | Date | Highlights |
 | :--- | :--- | :--- |
+| [0.2.1](https://github.com/xlennart/openOfficetab/releases/tag/v0.2.1) | 2026-10-29 | English and Chinese setup/management center, shared language settings, responsive layout fixes and English documentation labels. |
 | [0.2.0](https://github.com/xlennart/openOfficetab/releases/tag/v0.2.0) | 2026-10-28 | Management center, sanitized operation timelines, automatic update route selection and initial tab/document alignment improvements. |
 | [0.1.9](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.9) | 2026-10-23 | Preserve Excel formula entry when switching tabs to select cells from other workbooks; defer window coordination until editing ends. |
 | [0.1.8](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.8) | 2026-10-19 | Queue native new-document commands; defer pane creation and window coordination until ribbon content is ready; strengthen regression checks for actual ribbon content. |

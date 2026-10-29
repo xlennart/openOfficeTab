@@ -21,7 +21,7 @@ $source=Join-Path $taskRoot "dist\$Architecture\openOfficetab.dll"
 if(-not (Test-Path -LiteralPath $source)){throw (Get-OotText "找不到插件：$source" "Add-in not found: $source")}
 $sourceHash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
 $buildHash=$sourceHash.Substring(0,12).ToLowerInvariant()
-$destination=Join-Path $env:LOCALAPPDATA "openOfficetab\bin\0.2.0-$buildHash\$Architecture"
+$destination=Join-Path $env:LOCALAPPDATA "openOfficetab\bin\0.2.1-$buildHash\$Architecture"
 Assert-OotNoReparse (Join-Path $env:LOCALAPPDATA 'openOfficetab')
 New-Item -ItemType Directory -Force $destination | Out-Null
 $installed=Join-Path $destination 'openOfficetab.dll'
@@ -42,7 +42,7 @@ $results=foreach($app in 'Word','Excel','PowerPoint'){
     [pscustomobject]@{Application=$app;LoadBehavior=$entry.LoadBehavior}
 }
 Install-OotDesktop -TaskRoot $taskRoot -SourceDll $source -Architecture $Architecture -CenterSource $CenterSource -DesktopShortcut:$DesktopShortcut
-Write-Host (Get-OotText "openOfficetab 0.2.0 已安装到：$installed" "openOfficetab 0.2.0 installed to: $installed")
+Write-Host (Get-OotText "openOfficetab 0.2.1 已安装到：$installed" "openOfficetab 0.2.1 installed to: $installed")
 $results | Format-Table
 Write-Host (Get-OotText '重新打开 Office 后，标签会出现在功能区下方。可从 openOfficetab 功能区隐藏、设置或恢复窗口。' 'Reopen Office to see tabs below the ribbon. Use the openOfficetab ribbon to configure, hide, or recover tabs and windows.')
 } finally {$maintenance.ReleaseMutex();$maintenance.Dispose()}

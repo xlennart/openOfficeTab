@@ -1,13 +1,13 @@
-# openOfficetab 0.2.0 · Windows x64
+# openOfficetab 0.2.1 · Windows x64
 
 [简体中文](installation.md)
 
-Native document tabs for Word, Excel, and PowerPoint. The native add-in supports English and Simplified Chinese. The management center currently uses Simplified Chinese.
+Native document tabs for Word, Excel, and PowerPoint. The native add-in supports English and Simplified Chinese. The installer and center share this language setting.
 
 ## Install
 
 1. Save your work and fully exit Word, Excel, and PowerPoint, including background instances.
-2. Run the EXE, select the Office components and click **安装 (Install)**.
+2. Run the EXE, select the Office components and click **Install**.
 3. For the ZIP package, extract all files and run `Install.cmd`.
 4. Reopen an Office document. The tab bar appears below the ribbon.
 
@@ -15,9 +15,9 @@ Installation is per user and needs no administrator rights. The installer does n
 
 ## Interface language
 
-Open **… → Language / 语言**. Choose **Follow Windows (default)**, **简体中文**, or **English**. Automatic mode uses Chinese for Chinese Windows display languages and English for other languages. The choice persists across restarts and syncs across running Office instances. Menus and ribbon labels refresh without rebuilding document panes. Native Office save prompts and Windows file/color dialogs keep their own application's or system language. File names, paths, and document content are never translated.
+Open **… → Language**. Choose **Follow Windows (default)**, **Simplified Chinese**, or **English**. Automatic mode uses Chinese for Chinese Windows display languages and English for other languages. The choice persists across restarts and syncs across running Office instances. Menus and ribbon labels refresh without rebuilding document panes. Native Office save prompts and Windows file/color dialogs keep their own application's or system language. File names, paths, and document content are never translated.
 
-The management center uses Simplified Chinese and does not change the native add-in language. Existing settings are preserved by updates.
+In the installer and center, use the language selector in the sidebar or setup content area. It saves the same preference as the native add-in; center windows refresh on focus after a native-language change. Updates preserve existing settings. The Chinese option retains its native name in the picker so users can identify it.
 
 ## Use
 
@@ -33,9 +33,9 @@ Settings and logs live under `%LOCALAPPDATA%\openOfficetab`. File history stores
 
 ## Uninstall and recovery
 
-Save and fully exit Office before selecting **诊断与修复 → 卸载** in the management center or running `Uninstall.cmd`. Settings are kept by default. To remove them, run `powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings` from the extracted ZIP.
+Save and fully exit Office before selecting **Diagnostics & repair → Uninstall** in the management center or running `Uninstall.cmd`. Settings are kept by default. To remove them, run `powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings` from the extracted ZIP.
 
-If tabs are hidden, use **Recover tabs and windows** on the ribbon. If the add-in does not load, open **诊断与修复** in the management center; save and exit Office before **修复 (Repair)**. Do not disable Office security prompts.
+If tabs are hidden, use **Recover tabs and windows** on the ribbon. If the add-in does not load, open **Diagnostics & repair** in the management center; save and exit Office before **Repair**. Do not disable Office security prompts.
 
 See the repository's validation record for the tested environment and limits.
 
@@ -43,4 +43,4 @@ MIT License · https://github.com/xlennart/openOfficetab
 
 ## Management center and logs
 
-Use the ribbon management-center entry or Start menu shortcut. Export a JSON report from **诊断与修复 → 导出诊断与日志** and attach it to the original issue with the steps and approximate time. Structured logs exclude document names, paths, content, cell values, accounts and tokens by default; nothing is uploaded automatically. Update checks select available routes automatically, verify signed metadata and installer hashes, and preserve settings. Automatic download/install are opt-in; installation waits until Office exits.
+Use the ribbon management-center entry or Start menu shortcut. Export a JSON report from **Diagnostics & repair → Export diagnostics and logs** and attach it to the original issue with the steps and approximate time. Structured logs exclude document names, paths, content, cell values, accounts and tokens by default; nothing is uploaded automatically. Update checks select available routes automatically, verify signed metadata and installer hashes, and preserve settings. Automatic download/install are opt-in; installation waits until Office exits.

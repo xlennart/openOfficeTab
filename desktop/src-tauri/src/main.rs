@@ -29,9 +29,9 @@ fn open_external(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn export_diagnostics(app: tauri::AppHandle) -> Result<bool, String> {
+async fn export_diagnostics(app: tauri::AppHandle, language: Option<String>) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let report = service::backend("diagnostics", json!({}))?;
+        let report = service::backend("diagnostics", json!({"language":language}))?;
         if let Some(file) = app.dialog().file().set_file_name("openOfficetab-diagnostics.json").add_filter("JSON", &["json"]).blocking_save_file() {
             let path = file.into_path().map_err(|_| "Invalid export path.".to_string())?;
             fs::write(path, serde_json::to_vec_pretty(&report).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
@@ -44,11 +44,14 @@ fn page(args: &[String]) -> String {
     if let Some(index) = args.iter().position(|arg| arg == "--page") { if let Some(value) = args.get(index + 1) { if ["installer","overview","appearance","repair","updates"].contains(&value.as_str()) { return value.clone(); } } }
     if args.first().and_then(|name| std::path::Path::new(name).file_name()).is_some_and(|name| name.to_string_lossy().to_lowercase().contains("setup")) { "installer".into() } else { "overview".into() }
 }
+fn language(args: &[String]) -> Option<String> {
+    args.iter().position(|arg| arg=="--language").and_then(|index|args.get(index+1)).filter(|value|["auto","zh-CN","en"].contains(&value.as_str())).cloned()
+}
 #[tauri::command]
 fn boot() -> Value {
     let args: Vec<String> = std::env::args().collect();
     let host = args.iter().position(|arg| arg=="--host").and_then(|index|args.get(index+1)).filter(|host|["Word","Excel","PowerPoint"].contains(&host.as_str())).map_or("Word",|host|host.as_str());
-    json!({"page":page(&args),"host":host,"uninstall":args.iter().any(|s|s=="--uninstall")})
+    json!({"page":page(&args),"host":host,"language":language(&args),"uninstall":args.iter().any(|s|s=="--uninstall")})
 }
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -58,7 +61,7 @@ fn main() {
     }
     if args.iter().any(|arg| arg == "--silent" || arg == "--background-update") {
         let background = args.iter().any(|arg| arg == "--background-update");
-        let result = service::backend(if background {"background-update"} else {"install"}, json!({"preserveHosts":true,"hosts":["Word","Excel","PowerPoint"],"shortcut":false}));
+        let result = service::backend(if background {"background-update"} else {"install"}, json!({"preserveHosts":true,"hosts":["Word","Excel","PowerPoint"],"shortcut":false,"language":language(&args)}));
         // Explicit automation output stays in the caller's chosen local file;
         // diagnostic bundles only include the separately sanitized timeline.
         if let Some(index) = args.iter().position(|arg| arg == "--result-file") {
@@ -71,7 +74,7 @@ fn main() {
     let runtime = Arc::new(service::Runtime::default());
     let closing = runtime.clone();
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, _| { if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.set_focus(); let _ = window.emit("open-page", page(&args)); } }))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| { if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.set_focus(); let _ = window.emit("open-page", json!({"page":page(&args),"language":language(&args)})); } }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

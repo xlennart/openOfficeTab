@@ -1,6 +1,6 @@
 [package]
 name = "openofficetab-center"
-version = "0.2.0"
+version = "0.2.1"
 description = "openOfficetab installer and management center"
 authors = ["xlennart"]
 edition = "2021"

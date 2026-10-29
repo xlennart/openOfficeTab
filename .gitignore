@@ -22,3 +22,9 @@ __pycache__/
 /desktop/dist/
 /desktop/src-tauri/target/
 /desktop/src-tauri/gen/
+
+# Local project instructions and repository cognition (not public assets)
+/AGENTS.md
+/.aoci/
+/aoci.txt
+/aoci.*.txt

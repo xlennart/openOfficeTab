@@ -9,7 +9,7 @@ using Microsoft.Win32;
 namespace OpenOfficeTab.Desktop {
  internal static class DesktopProgram {internal const string Repo="https://github.com/xlennart/openOfficetab",Author="https://github.com/xlennart";}
  internal sealed class Services {
-  internal static readonly Version Version=new Version(0,2,0);
+  internal static readonly Version Version=new Version(0,2,1);
   internal readonly StateStore Store;internal bool Preview=false;
   internal Services(string root){Store=new StateStore(root);}
   internal static bool OfficeRunning(){foreach(string name in new[]{"WINWORD","EXCEL","POWERPNT"}){var processes=Process.GetProcessesByName(name);bool found=processes.Length>0;foreach(var process in processes)process.Dispose();if(found)return true;}return false;}
@@ -20,6 +20,9 @@ namespace OpenOfficeTab.Desktop {
   public static string DiagnosticTimeline(string root){return Json.Serialize(DiagnosticLog.Snapshot(root));}
   public static void RecordAction(string root,string action,string phase,int hr,long elapsed){DiagnosticLog.Action(root,action,phase,hr,elapsed);}
   public static string Read(string root){return Json.Serialize(new StateStore(root).Read());}
+  public static string Language(string root){return Json.Serialize(DesktopLanguage.Read(root));}
+  public static string ResolveLanguage(int mode,string systemLocale){return DesktopLanguage.Resolve(mode,systemLocale);}
+  public static string LocalizedError(string message,string locale,int hr){return DesktopLanguage.Error(message,locale,hr);}
   public static void Merge(string root,string section,string changes){new StateStore(root).Merge(section,Json.Deserialize<Dictionary<string,string>>(changes));}
   public static string Hash(string file){return StateStore.Sha256(file);}
   public static string Identity(string root){return StateStore.Identity(root);}

@@ -1,4 +1,5 @@
-﻿$ErrorActionPreference='Stop'
+﻿param([string]$ExpectedVersion='0.2.1')
+$ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'common.ps1')
 if(-not ('OotLanguageProbe' -as [type])){
@@ -21,7 +22,7 @@ foreach($hostName in 'Word','Excel','PowerPoint'){
     if($hostName -eq 'PowerPoint'){$app=[OfficeRot]::Attach($hostName);$docs=$app.Presentations}else{$app=([OfficeRot]::AttachFile($file)).Application;if($hostName -eq 'Word'){$docs=$app.Documents}else{$docs=$app.Workbooks}}
     if($docs.Count -ne 1 -or $docs.Item(1).FullName -ne $file -or -not [bool]$docs.Item(1).Saved){throw "Unique saved public fixture required: $hostName"}
     $api=$app.COMAddIns.Item('openOfficetab.Connect').Object;$state=$api.GetState()|ConvertFrom-Json
-    if($state.version -ne '0.1.8' -or $state.views.Count -ne 1){throw 'Wrong loaded version or unexpected views'}
+    if($state.version -ne $ExpectedVersion -or $state.views.Count -ne 1){throw 'Wrong loaded version or unexpected views'}
     [uint32]$officeProcess=0;[OotLanguageNative]::GetWindowThreadProcessId([IntPtr][long]$state.views[0].hwnd,[ref]$officeProcess)|Out-Null
     $loaded=@((Get-Process -Id $officeProcess).Modules|Where-Object ModuleName -eq 'openOfficetab.dll')
     if($loaded.Count -ne 1 -or (Get-FileHash -LiteralPath $loaded[0].FileName).Hash -ne $expectedHash){throw "Loaded payload mismatch: $hostName"}
@@ -48,7 +49,7 @@ try {
     $auto=if(([OotLanguageNative]::GetUserDefaultUILanguage() -band 0x3ff) -eq 4){'zh-CN'}else{'en'}
     Assert-Language $auto 0
     for($i=0;$i -lt $apis.Count;$i++){$s=$apis[$i].GetState()|ConvertFrom-Json;$reports+=[pscustomobject]@{Host=$s.host;Version=$s.version;LoadedSHA256=$expectedHash;EnglishChineseAndAuto=$true;LiveSync=$true;RibbonCallback=$true;PaneAndDocumentStable=$true}}
-    $reports|ConvertTo-Json -Depth 4|Set-Content -LiteralPath (Join-Path $taskRoot 'artifacts\language-runtime-v017.json') -Encoding UTF8
+    $reports|ConvertTo-Json -Depth 4|Set-Content -LiteralPath (Join-Path $taskRoot 'artifacts\language-runtime.json') -Encoding UTF8
     $reports|ConvertTo-Json -Depth 4
 } finally {
     $apis[0].SetLanguage($original)|Out-Null

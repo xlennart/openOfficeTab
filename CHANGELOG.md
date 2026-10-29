@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.2.1 · 2026-10-29
+
+- 安装器与管理中心补齐中英文：静态界面、动态状态、更新与错误提示、可访问名称和示例内容均使用同一词表；与原生插件共享持久化语言偏好，默认跟随 Windows 显示语言。
+- Complete English and Chinese localization across setup and the management center, including runtime status, update/error messages, accessible names and sample content. Share the native add-in's saved language preference and follow the Windows display language by default.
+- 同步修正英文使用说明的控件名称。原 0.2.0 附件保持原样。
+- Correct English documentation labels. Published 0.2.0 assets remain unchanged.
+- 调整语言入口位置，处理英文长文案换行和小窗口布局，保持窗口按钮与底部主要操作可见。
+- Move the language control into the sidebar or setup content; wrap long labels and keep window controls and primary footer actions visible in smaller windows.
+
 ## 0.2.0 · 2026-10-28
 
 - 新增桌面管理中心，整合安装、外观、诊断、修复与更新；功能区入口直接打开管理页。恢复原字号与紧凑窗口，统一功能区图标和主次布局。

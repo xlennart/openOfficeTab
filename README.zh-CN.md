@@ -23,9 +23,9 @@
 
 openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：点击切换、拖动排序、右键管理，并能将某个文档移出标签组，继续用独立窗口编辑。它保留 Office 原有文档对象和保存提示，不需要把文件转换成其他格式。
 
-当前版本为 **0.2.0**，新增桌面管理中心和结构化运行日志，对标签与文档内容不同步进行初步修复。提供源码、EXE 和 ZIP；完整验证范围及仍待观察的问题见 [验证记录](docs/validation.md)。
+当前版本为 **0.2.1**，补齐安装器与管理中心中英文，共享原生插件语言偏好，修正长文案和小窗口布局；保留 0.2.0 的结构化日志及标签与文档内容同步初步修复。提供源码、EXE 和 ZIP；完整验证范围及仍待观察的问题见 [验证记录](docs/validation.md)。
 
-原生标签栏、菜单支持中英文，默认跟随 Windows 显示语言，也可在“…”菜单手动选择。新版管理中心目前使用简体中文。
+原生标签栏、菜单支持中英文。安装器和管理中心支持中英文，在侧栏底部或安装内容区选择语言，与原生插件共享设置，默认跟随 Windows 显示语言。
 
 下载：[GitHub Releases](https://github.com/xlennart/openOfficetab/releases/latest) · [CNB 国内镜像](https://cnb.cool/xlennart/openofficetab/-/releases)。两端提供相同安装包和校验文件。
 
@@ -108,19 +108,19 @@ openOfficetab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 安装
 
-1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.2.0-setup-x64.exe`。
+1. 从 [Releases](https://github.com/xlennart/openOfficetab/releases/latest) 下载 `openOfficetab-0.2.1-setup-x64.exe`。
 2. 保存文档并退出 Word、Excel、PowerPoint。
 3. 双击安装程序，在安装页选择组件后点击 **安装**。
 4. 重新打开 Office 文档，标签栏会出现在功能区下方。
 
 安装按当前 Windows 用户注册，无需管理员权限。安装程序不会替你关闭 Office 窗口。
 
-也可下载 `openOfficetab-0.2.0-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
+也可下载 `openOfficetab-0.2.1-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
 
 Release 附有 `SHA256SUMS.txt`。安装程序尚未做代码签名，可先核对文件校验值，或自行从源码构建。
 
 ```powershell
-Get-FileHash .\openOfficetab-0.2.0-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.2.1-setup-x64.exe -Algorithm SHA256
 ```
 
 ### 卸载
@@ -253,6 +253,7 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 | 版本 | 日期 | 主要更新 |
 | :--- | :--- | :--- |
+| [0.2.1](https://github.com/xlennart/openOfficetab/releases/tag/v0.2.1) | 2026-10-29 | 安装器与管理中心中英双语，共享语言偏好，修正小窗口布局和英文说明控件名称。 |
 | [0.2.0](https://github.com/xlennart/openOfficetab/releases/tag/v0.2.0) | 2026-10-28 | 管理中心、脱敏日志导出与自动选线更新；标签与文档内容同步的初步修复；统一功能区布局。 |
 | [0.1.9](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.9) | 2026-10-23 | 修复 Excel 输入公式时通过标签选取其他工作簿单元格引用；编辑期间延后窗口协调，保留原生公式输入流程。 |
 | [0.1.8](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.8) | 2026-10-19 | 新建原生命令排队；等待功能区内容归位后创建窗格、协调窗口；增加实际功能区内容回归检查。 |

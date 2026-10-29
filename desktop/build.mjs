@@ -2,9 +2,11 @@ import { build } from 'esbuild';
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import {execFileSync} from 'node:child_process';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const output = path.join(root, 'dist');
+execFileSync(process.execPath,[path.join(root,'../tests/desktop-localization-test.mjs')],{stdio:'inherit'});
 // Catch missing required controls before shipping a shell whose initialization stops early.
 const markup = await readFile(path.join(root, 'src/index.html'), 'utf8');
 const controller = await readFile(path.join(root, 'src/center.js'), 'utf8');

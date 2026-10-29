@@ -1,4 +1,4 @@
-param([string]$Version='0.2.0')
+param([string]$Version='0.2.1')
 $ErrorActionPreference='Stop'
 $ootRoot=Split-Path $PSScriptRoot -Parent
 $ootDelivery=Join-Path $ootRoot 'delivery'
@@ -15,7 +15,10 @@ try {
     foreach($name in 'app/openOfficetab.Center.exe','service/openOfficetab.Service.dll','scripts/install.ps1','scripts/uninstall.ps1','scripts/desktop-service.ps1','scripts/desktop-install.ps1','dist/x64/openOfficetab.dll','LICENSE','THIRD-PARTY-NOTICES.txt','README.md','README.zh-CN.md'){
         if(-not $ootArchive.GetEntry($name)){throw "Missing package entry: $name"}
     }
-    foreach($entry in $ootArchive.Entries){if($entry.FullName.Contains('\') -or $entry.FullName -match '(^/|(^|/)\.\.(/|$))'){throw 'Unsafe ZIP path.'}}
+    foreach($entry in $ootArchive.Entries){
+        if($entry.FullName.Contains('\') -or $entry.FullName -match '(^/|(^|/)\.\.(/|$))'){throw 'Unsafe ZIP path.'}
+        if($entry.FullName -match '(^|/)(AGENTS\.md|\.aoci(/|$)|aoci(?:\.[^/]*)?\.txt$)'){throw 'Private governance asset in public package.'}
+    }
     $ootEntry=$ootArchive.GetEntry('app/openOfficetab.Center.exe');$ootStream=$ootEntry.Open();$ootSha=[Security.Cryptography.SHA256]::Create()
     try {$ootCenterHash=([BitConverter]::ToString($ootSha.ComputeHash($ootStream))).Replace('-','')}finally{$ootStream.Dispose();$ootSha.Dispose()}
     if($ootCenterHash -ne (Get-FileHash $ootSetup).Hash){throw 'Setup and installed center do not contain identical code.'}

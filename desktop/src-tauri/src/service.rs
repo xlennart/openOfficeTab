@@ -66,11 +66,11 @@ impl Default for Runtime { fn default() -> Self { Self { serial: Mutex::new(()),
 #[tauri::command]
 pub async fn service(action: String, mut request: Value, state: tauri::State<'_, Arc<Runtime>>) -> Result<Value, String> {
     if !request.is_object() { return Err("Invalid request.".into()); }
-    if !["state","appearance","hosts","install","repair","diagnostics","preferences","check-update","probe-routes","download-update","apply-update","uninstall"].contains(&action.as_str()) { return Err("Unsupported action.".into()); }
+    if !["state","language","appearance","hosts","install","repair","diagnostics","preferences","check-update","probe-routes","download-update","apply-update","uninstall"].contains(&action.as_str()) { return Err("Unsupported action.".into()); }
     request["preserveHosts"] = json!(false);
     let runtime = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let critical = ["appearance","hosts","install","repair","preferences","apply-update","uninstall"].contains(&action.as_str());
+        let critical = ["language","appearance","hosts","install","repair","preferences","apply-update","uninstall"].contains(&action.as_str());
         let _lock = if critical {Some(runtime.serial.lock().map_err(|_| "Service lock failed.".to_string())?)} else {None};
         if critical {runtime.critical.store(true, Ordering::SeqCst);}
         let result = backend(&action, request);

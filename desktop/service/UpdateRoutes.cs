@@ -37,7 +37,7 @@ namespace OpenOfficeTab.Desktop {
    ServicePointManager.SecurityProtocol|=SecurityProtocolType.Tls12;var uri=new Uri(url);
    for(int hop=0;hop<6;hop++){
     if(!Allowed(uri))throw new InvalidDataException("Download redirect is outside the configured routes.");
-    var request=(HttpWebRequest)WebRequest.Create(uri);request.AllowAutoRedirect=false;request.Method=method;request.UserAgent="openOfficetab/0.2.0";request.Timeout=4000;request.ReadWriteTimeout=5000;
+    var request=(HttpWebRequest)WebRequest.Create(uri);request.AllowAutoRedirect=false;request.Method=method;request.UserAgent="openOfficetab/0.2.1";request.Timeout=4000;request.ReadWriteTimeout=5000;
     var response=(HttpWebResponse)request.GetResponse();int status=(int)response.StatusCode;
     if(status>=300&&status<400){string next=response.Headers["Location"];response.Dispose();uri=new Uri(uri,next);continue;}return response;
    }throw new InvalidDataException("Too many download redirects.");
