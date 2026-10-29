@@ -63,7 +63,7 @@ public:
         if(!TryAcquireSRWLockExclusive(&lock)){InterlockedIncrement(&dropped);return;}
         try{
             SYSTEMTIME time;GetSystemTime(&time);char stamp[40];sprintf_s(stamp,"%04u-%02u-%02uT%02u:%02u:%02u.%03uZ",time.wYear,time.wMonth,time.wDay,time.wHour,time.wMinute,time.wSecond,time.wMilliseconds);
-            std::string row="{\"schema\":1,\"version\":\"0.2.1\",\"utc\":\""+std::string(stamp)+"\",\"tick\":"+std::to_string(GetTickCount64())+",\"runId\":"+std::to_string(runId)+",\"seq\":"+std::to_string(++sequence)+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"tid\":"+std::to_string(GetCurrentThreadId())+",\"host\":"+std::to_string(host)+",\"event\":\""+code(event)+"\",\"hr\":"+std::to_string((unsigned long)hr);
+            std::string row="{\"schema\":1,\"version\":\"0.2.2\",\"utc\":\""+std::string(stamp)+"\",\"tick\":"+std::to_string(GetTickCount64())+",\"runId\":"+std::to_string(runId)+",\"seq\":"+std::to_string(++sequence)+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"tid\":"+std::to_string(GetCurrentThreadId())+" ,\"bits\":"+std::to_string(sizeof(void*)*8)+",\"host\":"+std::to_string(host)+",\"event\":\""+code(event)+"\",\"hr\":"+std::to_string((unsigned long)hr);
             for(auto& field:fields){bool valid=field.key&&*field.key;for(const char* p=field.key;p&&*p;p++)if(!((*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||(*p>='0'&&*p<='9')))valid=false;if(valid)row+=",\""+std::string(field.key)+"\":"+std::to_string(field.value);}
             row+="}\n";
             if(pending.size()+row.size()<=Buffer)pending+=row;else InterlockedIncrement(&dropped);

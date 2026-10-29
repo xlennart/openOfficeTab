@@ -20,16 +20,26 @@ jobs:
         run: python tests/check-localization.py
       - name: Build native add-in
         shell: pwsh
-        run: ./scripts/build.ps1 -Architecture x64
+        run: |
+          ./scripts/build.ps1 -Architecture x64
+          ./scripts/build.ps1 -Architecture x86
       - name: Test layout, appearance, window state, persistence, close choices and localization
         shell: pwsh
-        run: ./scripts/test-native.ps1
+        run: |
+          ./scripts/test-native.ps1 -Architecture x64
+          ./scripts/test-native.ps1 -Architecture x86
+      - name: Verify both native DLL export ABIs without registration
+        shell: pwsh
+        run: ./tests/native-payload-test.ps1
       - name: Build Tauri center with embedded native payload
         shell: pwsh
         run: ./scripts/build-desktop.ps1 -SkipNative
       - name: Test shared settings and update validation
         shell: pwsh
-        run: powershell.exe -NoProfile -File ./tests/desktop-service-test.ps1
+        run: |
+          powershell.exe -NoProfile -File ./tests/desktop-service-test.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -File ./tests/uninstall-worker-test.ps1
       - name: Build and verify installers
         shell: pwsh
         run: ./scripts/package.ps1 -SkipBuild

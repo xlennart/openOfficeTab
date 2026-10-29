@@ -1,5 +1,16 @@
 # 更新记录
 
+## 0.2.2 · 2026-10-30
+
+- 统一 Windows x64 安装器同时携带 x86、x64 DLL，按实际 Office 程序位数选择；补齐安装、修复、诊断及 COM 注册视图处理。
+- Unified Windows x64 setup includes both native payloads and selects by Office executable architecture. Installation, repair and diagnostics use the matching COM registry view.
+- 增加双架构离线回归、DLL 导出及调用校验、包内两套载荷哈希检查；保留共享设置、停用宿主及签名更新协议。
+- Add dual-architecture regression, DLL export/ABI and embedded-payload integrity checks while preserving settings, disabled hosts and signed updates.
+- 新增独立更新窗口、版本与更新说明、确认后下载及 Office 退出后安装；修复确定/关闭按钮和自动、手动检查冲突。显示名统一为 openOfficeTab，并防止后台分组布局覆盖前台标签选择。
+- Add a separate update window with version/release notes, confirmed downloads and installation after Office exits. Fix confirm/close actions and concurrent checks, standardize the display name as openOfficeTab, and prevent background layout from overriding a foreground selection.
+- 修复跨位数进程模块检测和管理中心窗口标题竞态；卸载前等待自有后台服务结束。/ Fix cross-architecture module inspection and window-title ordering; wait for owned background service workers before uninstalling.
+- 32 位 Office 在 VMware Windows 11 LTSC 26100 x64 / Microsoft 365 Apps 16.0.20527.20112 x86 中测试；问题请按模板附复现、Office 版本位数及脱敏日志。/ 32-bit Office tested in that VMware environment; report issues using the template with reproduction steps, Office version/architecture and redacted logs.
+
 ## 0.2.1 · 2026-10-29
 
 - 安装器与管理中心补齐中英文：静态界面、动态状态、更新与错误提示、可访问名称和示例内容均使用同一词表；与原生插件共享持久化语言偏好，默认跟随 Windows 显示语言。

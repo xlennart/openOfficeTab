@@ -69,7 +69,7 @@ inline constexpr Entry entries[]={
     {L"加载诊断…",L"Loading diagnostics…"},{L"导出脱敏诊断…",L"Export sanitized diagnostics…"},
     {L"恢复标签栏与窗口",L"Recover tabs and windows"},
     {L"打开文档…",L"Open document…"},{L"打开日志与设置文件夹",L"Open logs and settings folder"},
-    {L"关于 openOfficetab",L"About openOfficetab"},
+    {L"关于 openOfficeTab",L"About openOfficeTab"},
     {L"融入应用背景（浅灰开口标签）",L"Blend with application (open-edge tabs)"},
     {L"独立标签栏（白色圆角面板）",L"Separate tab bar (rounded panel)"},
     {L"强调线：顶部",L"Accent line: top"},{L"强调线：底部",L"Accent line: bottom"},
@@ -82,10 +82,10 @@ inline constexpr Entry entries[]={
     {L"关闭本组全部文档",L"Close all documents in this group"},
     {L"点击窗口关闭按钮时",L"When clicking the window close button"},
     {L"标签外观",L"Tab appearance"},
-    {L"openOfficetab 0.2.1\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"openOfficetab 0.2.1\nFree and open source · MIT\nWord / Excel / PowerPoint\n\nBrowser-style tabs with Office's native documents and save flow.\nDrag to reorder, middle-click to close, right-click for more.\n\nTab locking prevents accidental tab-bar closes; it is not document protection."},
+    {L"openOfficeTab 0.2.2\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"openOfficeTab 0.2.2\nFree and open source · MIT\nWord / Excel / PowerPoint\n\nBrowser-style tabs with Office's native documents and save flow.\nDrag to reorder, middle-click to close, right-click for more.\n\nTab locking prevents accidental tab-bar closes; it is not document protection."},
     {L"文档标签",L"Document tabs"},
-    {L"openOfficetab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作",L"openOfficetab · + New · ▾ Document list · ⋯ Settings\nDrag to reorder, middle-click to close, right-click for more"},
-    {L"openOfficetab 标签栏",L"openOfficetab tab bar"},
+    {L"openOfficeTab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作",L"openOfficeTab · + New · ▾ Document list · ⋯ Settings\nDrag to reorder, middle-click to close, right-click for more"},
+    {L"openOfficeTab 标签栏",L"openOfficeTab tab bar"},
     {L"关闭文档窗口",L"Close document window"},
     {L"此窗口所在的标签组有 ",L"This tab group contains "},{L" 个文档。",L" documents."},
     {L"关闭当前文档，还是关闭本组全部文档？\n未保存的更改仍由 Office 询问；取消保存会停止后续关闭。",L"Close this document or the whole group?\nOffice will ask to save changes. Cancel stops remaining closes."},
@@ -121,6 +121,6 @@ inline constexpr RibbonLabel ribbonLabels[]={
 };
 inline const wchar_t* ribbonLabel(int language,const std::wstring& id){
     for(const auto& entry:ribbonLabels)if(id==entry.id)return text(language,entry.key);
-    return L"openOfficetab";
+    return L"openOfficeTab";
 }
 }

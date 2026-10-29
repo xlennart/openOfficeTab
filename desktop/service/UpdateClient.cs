@@ -9,7 +9,7 @@ using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
 namespace OpenOfficeTab.Desktop {
- internal sealed class ReleaseInfo {internal Version Version;internal string Tag,Name,Url,Hash;internal long Size;}
+ internal sealed class ReleaseInfo {internal Version Version;internal string Tag,Name,Url,Hash,NotesZh="",NotesEn="";internal long Size;}
  internal sealed class UpdateClient {
   readonly Services services;readonly Action<string,Stream,long> fetch;readonly UpdateRoutes routes;
   internal UpdateClient(Services value){services=value;routes=new UpdateRoutes(value.Store.Root);fetch=routes.Fetch;}
@@ -50,7 +50,8 @@ namespace OpenOfficeTab.Desktop {
    if(json==null){json=FetchText("https://api.github.com/repos/xlennart/openOfficetab/releases/latest",2*1024*1024);var checkedRelease=Parse(json);Directory.CreateDirectory(Path.GetDirectoryName(cache));File.WriteAllText(cache,json,new UTF8Encoding(false));return checkedRelease;}
    return Parse(json);
   }
-  internal bool IsNewer(ReleaseInfo release){Version installed=Services.Version;string value=(string)Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\openOfficetab","DesktopVersion",Services.Version.ToString());Version current;if(Version.TryParse(value,out current)&&current>installed)installed=current;return release.Version>installed;}
+  internal Version CurrentVersion(){Version installed=Services.Version;string value=(string)Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\openOfficetab","DesktopVersion",Services.Version.ToString());Version current;if(Version.TryParse(value,out current)&&current>installed)installed=current;return installed;}
+  internal bool IsNewer(ReleaseInfo release){return release.Version>CurrentVersion();}
   internal string Download(ReleaseInfo release){
    if(services.Preview)throw new InvalidOperationException("Preview cannot download updates.");
    if(release.Hash==null){string sums=FetchText(DesktopProgram.Repo+"/releases/download/"+release.Tag+"/SHA256SUMS.txt",65536);foreach(string line in sums.Split('\n')){var match=Regex.Match(line.TrimEnd('\r'),"^([0-9a-fA-F]{64})  "+Regex.Escape(release.Name)+"$");if(match.Success)release.Hash=match.Groups[1].Value.ToLowerInvariant();}if(release.Hash==null)throw new InvalidDataException("No installer checksum.");}

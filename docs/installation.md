@@ -1,10 +1,12 @@
-# openOfficetab 0.2.1 · Windows x64
+# openOfficeTab · Windows x64
 
 为 Word、Excel、PowerPoint 添加原生文档标签。免费，MIT 开源。
 
 [English](installation.en.md)
 
 原生插件支持中英文。安装器与管理中心同样支持中英文。
+
+0.2.2 在 **64 位 Windows** 下自动匹配 32 位或 64 位 Office。同一 EXE 和 ZIP 包含两种原生插件，管理中心仍为 x64。见 [架构与测试说明](office-x86.md)。
 
 ## 语言设置
 
@@ -20,11 +22,13 @@
 
 ## 使用
 
+从 0.2.2 起，点击“检查更新”会打开独立窗口，显示新版本与更新说明，或提示“当前已是最新版”。点击“立即更新”后下载、校验并安装。请先保存并退出 Office，现有设置会保留；Office 运行时保持该窗口打开，退出后自动继续。
+
 - 点击切换，拖动排序，点击 × 或中键关闭。
 - 同组切换沿用点击所在窗口的当前尺寸和位置，适配分屏；独立窗口和其他标签组不跟随。
 - 标签后的 + 新建，向下箭头列出文档，… 打开设置。
 - 右键“在独立窗口中显示”，将当前窗口移出标签组；原文件和未保存内容保留。
-- 在独立窗口的 openOfficetab 功能区点击“加入 / 移动到标签组”，选择目标组。
+- 在独立窗口的 openOfficeTab 功能区点击“加入 / 移动到标签组”，选择目标组。
 - 拖出标签形成新标签组窗口，拖到另一窗口的标签栏合并；右键菜单也提供拆分与移动。
 - 功能区和标签菜单可直接“新建为独立窗口”。分组仅限同一应用实例、本次会话。
 - “默认标签宽度”可设置 80–360，选择固定、标题长度或空间不足时压缩。
@@ -57,9 +61,9 @@ powershell -NoProfile -File scripts/uninstall.ps1 -RemoveSettings
 
 设置和日志位于 `%LOCALAPPDATA%\openOfficetab`。遇到未显示标签的情况，先重开 Office，再核对 COM 加载项及标签显隐设置。
 
-已验证 Windows 11、Office Home 2024 x64（16.0.20430.20146），200% 缩放。不支持 Office 网页版或 macOS。其他 Office 版本、x86、ARM64 尚未验证。安装程序尚未做代码签名；Release 提供 SHA256SUMS 校验文件，源码可自行构建。
+0.2.2 已验证宿主机 Office 16.0.20527.20088 x64，以及 VMware 中的 Windows 11 LTSC 26100 x64 / Office 16.0.20527.20112 x86。早期 200% 缩放记录保留在验证说明中。其他版本和 ARM64 未全量实测，不支持 Office 网页版或 macOS。安装程序尚未做代码签名；Release 提供 SHA256SUMS 校验文件，源码可自行构建。
 
-完整说明、截图、源码和问题反馈：[xlennart/openOfficetab](https://github.com/xlennart/openOfficetab)。
+完整说明、截图、源码和问题反馈：[xlennart/openOfficeTab](https://github.com/xlennart/openOfficeTab)。
 
 新配置默认启用单任务栏；已有明确关闭选择会保留。此设置跨进程同步且重开后保留，独立窗口保留独立任务栏入口。黑色 Office 主题的融合主体、外缘和顶部接缝统一为 `#262626`，深灰主题使用相应深灰，选中标签为 `#323232`。
 

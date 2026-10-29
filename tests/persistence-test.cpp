@@ -22,15 +22,18 @@ int wmain(int argc,wchar_t** argv){
     CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     wchar_t current[32768];GetCurrentDirectoryW(32768,current);std::wstring root=std::wstring(current)+L"\\persistence-test-"+std::to_wstring(GetCurrentProcessId());CreateDirectoryW(root.c_str(),nullptr);storage::Store store(root);
     Settings a,b;a.root=b.root=root;assert(a.load()&&b.load());
+    // Match the nonblocking production contract: a rejected atomic replace is
+    // retained as savePending and retried at idle, rather than silently lost.
+    auto saved=[](Settings& setting){for(int retry=0;retry<100;retry++){if(setting.save())return true;assert(setting.savePending);Sleep(10);}return false;};
     assert(a.group&&b.group); // clean profile defaults to single taskbar
-    a.group=false;assert(a.save());assert(b.synchronize()&&!b.group);
-    a.group=true;assert(a.save());assert(b.synchronize()&&b.group);
+    a.group=false;assert(saved(a));assert(b.synchronize()&&!b.group);
+    a.group=true;assert(saved(a));assert(b.synchronize()&&b.group);
     Settings reopenedSettings;reopenedSettings.root=root;assert(reopenedSettings.load()&&reopenedSettings.group);
-    a.barStyle=0;assert(a.save());b.barColor=RGB(18,171,205);b.customBarColor=true;assert(b.save());
+    a.barStyle=0;assert(saved(a));b.barColor=RGB(18,171,205);b.customBarColor=true;assert(saved(b));
     Settings merged;merged.root=root;assert(merged.load()&&merged.barStyle==0&&merged.barColor==RGB(18,171,205));
     assert(a.synchronize()&&a.barColor==RGB(18,171,205));assert(b.synchronize()&&b.barStyle==0);
-    a.tabWidth=180;assert(a.save());b.dark=true;assert(b.save());assert(merged.synchronize()&&merged.tabWidth==180&&merged.dark);
-    a.themeMode=3;a.frameCloseAction=2;assert(a.save());assert(b.synchronize()&&b.themeMode==3&&b.frameCloseAction==2);
+    a.tabWidth=180;assert(saved(a));b.dark=true;assert(saved(b));assert(merged.synchronize()&&merged.tabWidth==180&&merged.dark);
+    a.themeMode=3;a.frameCloseAction=2;assert(saved(a));assert(b.synchronize()&&b.themeMode==3&&b.frameCloseAction==2);
     assert(!officetheme::dark(0,0,true)&&!officetheme::dark(0,5,true));
     assert(officetheme::dark(0,3,false)&&officetheme::dark(0,4,false));
     assert(officetheme::dark(0,6,true)&&!officetheme::dark(0,6,false));
@@ -75,7 +78,7 @@ int wmain(int argc,wchar_t** argv){
     assert(session->settings.group); // repairing chrome must not reset the chosen taskbar mode
     session.reset();Settings afterShutdown;afterShutdown.root=root;assert(afterShutdown.load()&&afterShutdown.group);
     // A deliberate opt-out survives a new session and unrelated settings edits.
-    afterShutdown.group=false;assert(afterShutdown.save());reopenedSettings.dark=true;assert(reopenedSettings.save());
+    afterShutdown.group=false;assert(saved(afterShutdown));reopenedSettings.dark=true;assert(saved(reopenedSettings));
     Settings optedOut;optedOut.root=root;assert(optedOut.load()&&!optedOut.group);
     DestroyWindow(native);
     for(auto name:{L"settings.ini",L"documents.ini",L"race.ini"})DeleteFileW(store.path(name).c_str());RemoveDirectoryW(root.c_str());CoUninitialize();

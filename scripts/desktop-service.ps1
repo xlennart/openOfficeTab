@@ -25,9 +25,9 @@ function Get-OotState {
     $architecture=if($TestRoot){'unknown'}else{[OpenOfficeTab.Desktop.Api]::OfficeArchitecture()}
     $center=if($TestRoot){$null}else{(Get-ItemProperty 'HKCU:\Software\openOfficetab' -ErrorAction SilentlyContinue).CenterPath}
     return [ordered]@{
-        version='0.2.1';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
+        version='0.2.2';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
         centerInstalled=[bool]($center -and (Test-Path -LiteralPath $center -PathType Leaf))
-        architecture=$architecture;compatible=$architecture -eq 'x64';officeRunning=if($TestRoot){$false}else{[OpenOfficeTab.Desktop.Api]::OfficeRunning()};hosts=$hosts
+        architecture=$architecture;compatible=[Environment]::Is64BitOperatingSystem -and $architecture -in @('x64','x86');officeRunning=if($TestRoot){$false}else{[OpenOfficeTab.Desktop.Api]::OfficeRunning()};hosts=$hosts
         appearance=[ordered]@{themeMode=(Number 'themeMode' 0);barStyle=(Number 'barStyle' 1);tabWidth=(Number 'tabWidth' 120);widthMode=(Number 'widthMode' 2);autoHide=$native.autoHide -eq '1';doubleClose=$native.doubleClose -eq '1'}
         preferences=(Get-OotPreferences);language=([OpenOfficeTab.Desktop.Api]::Language($script:DataRoot)|ConvertFrom-Json)
     }
@@ -76,21 +76,19 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
         }
         {$_ -in @('install','repair')} {
             Assert-OotSystemMutation;Assert-OotOfficeClosed
-            if([OpenOfficeTab.Desktop.Api]::OfficeArchitecture() -ne 'x64'){throw '当前安装包只支持 64 位 Office；无法确认位数时不会执行安装。'}
+            $architecture=[OpenOfficeTab.Desktop.Api]::SelectArchitecture('auto',[OpenOfficeTab.Desktop.Api]::OfficeArchitecture(),[Environment]::Is64BitOperatingSystem)
             $oldState=Get-OotState
             $selected=if($Request.preserveHosts -eq $true -or $Name -eq 'repair'){@($oldState.hosts|Where-Object enabled|ForEach-Object name)}else{Get-OotSelectedHosts $Request $false}
-            if(-not $oldState.installed -and $selected.Count -eq 0){$selected=@('Word','Excel','PowerPoint')}
+            if(@($oldState.hosts|Where-Object registered).Count -eq 0 -and $selected.Count -eq 0){$selected=@('Word','Excel','PowerPoint')}
             $selection=if($selected.Count){$selected -join ','}else{'None'}
-            & (Join-Path $PSScriptRoot 'install.ps1') -Architecture x64 -HostSelection $selection -CenterSource $Request.exePath -DesktopShortcut:($Request.shortcut -eq $true) -Language $script:OotLocale *>&1 | Out-Null
+            & (Join-Path $PSScriptRoot 'install.ps1') -Architecture $architecture -HostSelection $selection -CenterSource $Request.exePath -DesktopShortcut:($Request.shortcut -eq $true) -Language $script:OotLocale *>&1 | Out-Null
             $result=Get-OotState
             if(-not $result.installed -or -not $result.centerInstalled){throw '安装结果未通过校验。'}
             return $result
         }
         'diagnostics' {
             $state=Get-OotState
-            $registered=(Get-ItemProperty 'HKCU:\Software\Classes\CLSID\{65F17021-3B6B-4C5E-B54B-512806431710}\InprocServer32' -ErrorAction SilentlyContinue).'(default)'
-            $payload=Join-Path $script:PackageRoot 'dist\x64\openOfficetab.dll'
-            $match=[bool]($registered -and (Test-Path -LiteralPath $registered) -and ([OpenOfficeTab.Desktop.Api]::Hash($registered) -eq [OpenOfficeTab.Desktop.Api]::Hash($payload)))
+            $match=[OpenOfficeTab.Desktop.Api]::MatchesPayload($script:PackageRoot,$state.architecture)
             return [ordered]@{version=$state.version;architecture=$state.architecture;installed=$state.installed;matchesThisPackage=$match;hosts=$state.hosts;runtimeTimeline=([OpenOfficeTab.Desktop.Api]::DiagnosticTimeline($script:DataRoot)|ConvertFrom-Json);documentDataIncluded=$false;privacy='Event codes and numeric identities only; no document names, paths, content, accounts, URLs or legacy raw logs'}
         }
         'preferences' {
@@ -109,7 +107,8 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
             $mutex=[Threading.Mutex]::new($false,('Local\openOfficetab.Update.'+[OpenOfficeTab.Desktop.Api]::Identity($script:DataRoot)))
             $held=$false
             try{
-                try{$held=$mutex.WaitOne(0)}catch [Threading.AbandonedMutexException]{$held=$true}
+                $lockWait=if($Name -eq 'check-update'){30000}else{0}
+                try{$held=$mutex.WaitOne($lockWait)}catch [Threading.AbandonedMutexException]{$held=$true}
                 if(-not $held){throw '另一项更新检查正在运行，请稍后重试。'}
                 $preferences=Get-OotPreferences
                 if($Name -eq 'background-update' -and (-not $preferences.autoCheck -or -not $preferences.autoDownload)){return @{skipped=$true}}
@@ -129,7 +128,7 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
             $parent=[Diagnostics.Process]::GetProcessById([int]$Request.callerPid)
             $temp=Join-Path ([IO.Path]::GetTempPath()) ('openOfficetab-remove-'+[guid]::NewGuid().ToString('N'))
             New-Item -ItemType Directory -Force (Join-Path $temp 'scripts'),(Join-Path $temp 'service') | Out-Null
-            foreach($file in 'desktop-service.ps1','desktop-install.ps1','uninstall.ps1','desktop-context.ps1','localization.ps1'){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $temp 'scripts')}
+            foreach($file in 'desktop-service.ps1','desktop-install.ps1','uninstall.ps1','desktop-context.ps1','localization.ps1','office-architecture.ps1'){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $temp 'scripts')}
             Copy-Item -LiteralPath $serviceAssembly -Destination (Join-Path $temp 'service\openOfficetab.Service.dll')
             $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $temp 'scripts\desktop-service.ps1')+'"'),'-Action','finish-uninstall','-WaitForProcess',[string]$parent.Id,'-ParentStartTicks',[string]$parent.StartTime.ToUniversalTime().Ticks,'-Language',$script:OotLocale,'-ResultFile',('"'+(Join-Path ([IO.Path]::GetTempPath()) 'openOfficetab-uninstall-result.json')+'"'))
             if($Request.removeSettings -eq $true){$arguments+='-RemoveSettings'}

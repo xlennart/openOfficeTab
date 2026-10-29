@@ -383,8 +383,8 @@ void Session::activate(unsigned long long id,HWND owner){
             if(GetWindowThreadProcessId(target->hwnd,nullptr)==GetCurrentThreadId()&&GetActiveWindow()!=target->hwnd)SetActiveWindow(target->hwnd);
         }
         // A deliberate tab selection supersedes an older, deferred restore
-        // command from another frame in the same group.
-        if(queuedLayoutRoot&&groupForWindow(queuedLayoutRoot)==target->groupId){queuedLayoutRoot=nullptr;queuedLayoutCommand=false;if(timer)KillTimer(timer,4);}
+        // command from any group; an older group must not steal this selection.
+        if(queuedLayoutRoot){queuedLayoutRoot=nullptr;queuedLayoutCommand=false;queuedLayoutMinimize=false;if(timer)KillTimer(timer,4);}
     }catch(const ComError& e){report(e);}
     refresh();auto current=find(id);
     if(current){HWND previous=operatingRoot;operatingRoot=current->hwnd;try{rootLayoutChanged(current->hwnd);}catch(...){operatingRoot=previous;throw;}operatingRoot=previous;}
@@ -543,7 +543,7 @@ bool Session::recover(){
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.2.1\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    std::wstring r=L"{\"version\":\"0.2.2\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
@@ -573,7 +573,7 @@ void Session::menu(HWND owner,unsigned long long id,POINT pt){
 void Session::options(HWND owner,POINT pt){
     auto keep=shared_from_this();HMENU m=CreatePopupMenu();auto add=[&](UINT n,const wchar_t* t,bool check=false){AppendMenuW(m,MF_STRING|(check?MF_CHECKED:0),n,tr(t));};
     add(1,L"显示标签栏",settings.visible);add(2,L"单任务栏模式",settings.group);add(4,L"单标签时自动隐藏",settings.autoHide);add(5,L"双击标签关闭",settings.doubleClose);AppendMenuW(m,MF_SEPARATOR,0,nullptr);
-    add(6,L"标签置于顶部",settings.position==1);add(7,L"标签置于底部",settings.position==3);add(8,L"恢复窗口排列与任务栏");add(12,L"默认标签宽度…");add(17,L"最近关闭…");add(18,L"清除本应用已记住的文件设置");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(13,L"加载诊断…");add(14,L"导出脱敏诊断…");add(15,L"恢复标签栏与窗口");add(16,L"新建为独立窗口");add(9,L"打开文档…");add(10,L"打开日志与设置文件夹");add(11,L"关于 openOfficetab");
+    add(6,L"标签置于顶部",settings.position==1);add(7,L"标签置于底部",settings.position==3);add(8,L"恢复窗口排列与任务栏");add(12,L"默认标签宽度…");add(17,L"最近关闭…");add(18,L"清除本应用已记住的文件设置");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(13,L"加载诊断…");add(14,L"导出脱敏诊断…");add(15,L"恢复标签栏与窗口");add(16,L"新建为独立窗口");add(9,L"打开文档…");add(10,L"打开日志与设置文件夹");add(11,L"关于 openOfficeTab");
     HMENU appearance=CreatePopupMenu();
     AppendMenuW(appearance,MF_STRING|(settings.barStyle==1?MF_CHECKED:0),23,tr(L"融入应用背景（浅灰开口标签）"));
     AppendMenuW(appearance,MF_STRING|(settings.barStyle==0?MF_CHECKED:0),24,tr(L"独立标签栏（白色圆角面板）"));
@@ -607,5 +607,5 @@ void Session::options(HWND owner,POINT pt){
     if(cmd>=30&&cmd<=33)setThemeMode((int)cmd-30);if(cmd>=40&&cmd<=42)setFrameCloseAction((int)cmd-40);
     if(cmd>=50&&cmd<=52)setLanguage((int)cmd-50);
     if(cmd==17)recentMenu(owner,pt);if(cmd==18)resetAllFilePreferences();
-    if(cmd==11)MessageBoxW(owner,tr(L"openOfficetab 0.2.1\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficetab"),MB_OK|MB_ICONINFORMATION);
+    if(cmd==11)MessageBoxW(owner,tr(L"openOfficeTab 0.2.2\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficeTab"),MB_OK|MB_ICONINFORMATION);
 }

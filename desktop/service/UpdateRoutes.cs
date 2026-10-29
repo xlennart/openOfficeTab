@@ -37,7 +37,7 @@ namespace OpenOfficeTab.Desktop {
    ServicePointManager.SecurityProtocol|=SecurityProtocolType.Tls12;var uri=new Uri(url);
    for(int hop=0;hop<6;hop++){
     if(!Allowed(uri))throw new InvalidDataException("Download redirect is outside the configured routes.");
-    var request=(HttpWebRequest)WebRequest.Create(uri);request.AllowAutoRedirect=false;request.Method=method;request.UserAgent="openOfficetab/0.2.1";request.Timeout=4000;request.ReadWriteTimeout=5000;
+    var request=(HttpWebRequest)WebRequest.Create(uri);request.AllowAutoRedirect=false;request.Method=method;request.UserAgent="openOfficetab/0.2.2";request.Timeout=4000;request.ReadWriteTimeout=5000;
     var response=(HttpWebResponse)request.GetResponse();int status=(int)response.StatusCode;
     if(status>=300&&status<400){string next=response.Headers["Location"];response.Dispose();uri=new Uri(uri,next);continue;}return response;
    }throw new InvalidDataException("Too many download redirects.");
@@ -113,6 +113,14 @@ namespace OpenOfficeTab.Desktop {
   }
  }
  internal static class SignedReleaseMetadata {
+  internal static void ReadNotes(ReleaseInfo release,Dictionary<string,object> data){
+   if(!data.ContainsKey("notes"))return;
+   var notes=data["notes"] as Dictionary<string,object>;if(notes==null)throw new InvalidDataException("Invalid signed release notes.");
+   foreach(string locale in new[]{"zh-CN","en"})if(notes.ContainsKey(locale)){
+    var text=notes[locale] as string;if(text==null||text.Length>6000||text.IndexOf('\0')>=0)throw new InvalidDataException("Invalid signed release notes.");
+    if(locale=="zh-CN")release.NotesZh=text;else release.NotesEn=text;
+   }
+  }
   internal static ReleaseInfo Parse(string envelope){
    var serializer=new JavaScriptSerializer{MaxJsonLength=65536};var signed=serializer.Deserialize<Dictionary<string,string>>(envelope);
    byte[] payload=Convert.FromBase64String(signed["payload"]),signature=Convert.FromBase64String(signed["signature"]);
@@ -122,7 +130,7 @@ namespace OpenOfficeTab.Desktop {
    if(Convert.ToInt32(data["schemaVersion"])!=1||(string)data["protocol"]!="openofficetab-desktop-v1"||(string)data["architecture"]!="x64")throw new InvalidDataException("Unsupported update protocol.");
    var asset=new Dictionary<string,object>{{"name",data["name"]},{"browser_download_url",data["url"]},{"size",data["size"]},{"digest","sha256:"+(string)data["sha256"]}};
    var metadata=new Dictionary<string,object>{{"tag_name",data["tag"]},{"draft",false},{"prerelease",false},{"assets",new[]{asset}}};
-   var release=UpdateClient.Parse(serializer.Serialize(metadata));if(release.Version.ToString()!=(string)data["version"])throw new InvalidDataException("Inconsistent signed version.");return release;
+   var release=UpdateClient.Parse(serializer.Serialize(metadata));if(release.Version.ToString()!=(string)data["version"])throw new InvalidDataException("Inconsistent signed version.");ReadNotes(release,data);return release;
   }
  }
 }

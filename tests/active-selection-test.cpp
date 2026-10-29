@@ -101,14 +101,24 @@ void test(Host host){
     wchar_t content[32];GetWindowTextW(GetActiveWindow(),content,32);assert(std::wstring(content)==L"content B");
     // Office can restore the old root reentrantly during the native handover.
     SetActiveWindow(a);app->properties[L"ActiveWindow"]=Var(wa.get());s->refresh();
-    struct Restore {HWND previous;int remaining;};Restore restore{a,2};
-    auto restoreProc=+[](HWND w,UINT m,WPARAM p,LPARAM l,UINT_PTR,DWORD_PTR ref)->LRESULT{
-        auto result=DefSubclassProc(w,m,p,l);auto r=reinterpret_cast<Restore*>(ref);
-        if(m==WM_ACTIVATE&&LOWORD(p)!=WA_INACTIVE&&r->remaining>0){r->remaining--;SetActiveWindow(r->previous);}return result;
-    };
-    assert(SetWindowSubclass(b,restoreProc,137,reinterpret_cast<DWORD_PTR>(&restore)));
+    struct Restore {HWND previous;int remaining;
+        static LRESULT CALLBACK proc(HWND w,UINT m,WPARAM p,LPARAM l,UINT_PTR,DWORD_PTR ref){
+            auto result=DefSubclassProc(w,m,p,l);auto r=reinterpret_cast<Restore*>(ref);
+            if(m==WM_ACTIVATE&&LOWORD(p)!=WA_INACTIVE&&r->remaining>0){r->remaining--;SetActiveWindow(r->previous);}return result;
+        }
+    };Restore restore{a,2};
+    assert(SetWindowSubclass(b,Restore::proc,137,reinterpret_cast<DWORD_PTR>(&restore)));
     s->activate(2,a);assert(restore.remaining==0&&GetActiveWindow()==b&&s->activeId==2&&prop(app.get(),L"ActiveWindow").disp().get()==wb.get());
-    RemoveWindowSubclass(b,restoreProc,137);
+    RemoveWindowSubclass(b,Restore::proc,137);
+    // A passive resize in another group must not steal a deliberate selection.
+    s->find(2)->groupId=2;s->groupActives[2]=2;s->groupSlots.erase(2);
+    SetActiveWindow(a);app->properties[L"ActiveWindow"]=Var(wa.get());s->setActiveView(1);
+    s->rootLayoutChanged(b);
+    assert(s->activeId==1&&GetActiveWindow()==a&&prop(app.get(),L"ActiveWindow").disp().get()==wa.get());
+    // A queued restore from a different group is older than the explicit click.
+    s->queuedLayoutRoot=b;s->queuedLayoutCommand=true;s->activate(1,a);
+    assert(!s->queuedLayoutRoot&&s->activeId==1);
+    s->find(2)->groupId=1;s->groupActives.erase(2);s->groupSlots.clear();
     // Disabled modal roots must not be "selected" through COM behind a dialog.
     SetActiveWindow(a);app->properties[L"ActiveWindow"]=Var(wa.get());s->refresh();before=wb->activations;
     EnableWindow(b,FALSE);s->activate(2,a);assert(wb->activations==before&&s->activeId==1&&GetActiveWindow()==a);EnableWindow(b,TRUE);

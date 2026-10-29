@@ -28,5 +28,5 @@ export function bindStaticTranslations(root){
  for(const element of [root,...root.querySelectorAll('*')])for(const attribute of ['alt','title','aria-label']){
   const key=element.getAttribute(attribute);if(Object.hasOwn(messages,key))bindings.push(()=>element.setAttribute(attribute,t(key)));
  }
- return ()=>{bindings.forEach(apply=>apply());document.documentElement.lang=locale;document.title=t('openOfficetab 管理中心');};
+ return ()=>{bindings.forEach(apply=>apply());document.documentElement.lang=locale;document.title=t('openOfficeTab 管理中心');};
 }

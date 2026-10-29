@@ -113,3 +113,7 @@ powershell -NoProfile -File tests/ribbon-runtime.ps1 -HostName PowerPoint
 0.1.7 的旧 WinForms 安装器语言选择独立于插件设置；已发布的 0.2.0 Tauri 中心使用简体中文。0.2.1 使用 `desktop/src/messages.json` 共享前端与服务词表，并与原生插件共用 `language` 偏好。语言入口位于管理侧栏或安装内容区，JSON `language` 动作只合并该键；前端支持三模式与焦点同步，`--language auto|zh-CN|en` 可临时覆盖显示。`scripts/localization.ps1` 提供安装 / 卸载 / 诊断输出的选择，所选语言通过桌面桥接显式传递。Windows PowerShell 5.1 执行的含中文脚本使用 UTF-8 BOM。安装包附英文 `README.md` 与中文 `README.zh-CN.md`。
 
 运行 `python tests/check-localization.py` 和 `scripts/test-native.ps1` 检查词条、动态标签和持久化。旧 WinForms 安装器的 `tests/installer-localization-test.ps1` 仅适用于旧版；0.2.0 使用 `tests/desktop-package-test.ps1` 检查 Tauri 载荷。`tests/language-runtime.ps1` 只附着三个唯一且已保存的公开空白示例，验证实际载荷、三模式同步、回调和窗口稳定性，最后恢复原设置；运行输出禁止直接公开上传。
+
+## Dual-architecture Office delivery
+
+See [English implementation and VM acceptance notes](office-x86.en.md) / [32 位 Office 制作与验收说明](office-x86.md). The unified x64 Windows center embeds both DLLs. Test x86 Office in the VMware desktop and x64 Office on the host; see the linked versioned evidence and coverage limits.

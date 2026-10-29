@@ -4,6 +4,7 @@ use std::{fs, io::Write, os::windows::{fs::MetadataExt, process::CommandExt}, pa
 macro_rules! asset { ($path:literal) => { include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../", $path)) as &[u8] }; }
 const FILES: &[(&str, &[u8])] = &[
     ("dist/x64/openOfficetab.dll", asset!("dist/x64/openOfficetab.dll")),
+    ("dist/x86/openOfficetab.dll", asset!("dist/x86/openOfficetab.dll")),
     ("service/openOfficetab.Service.dll", asset!("build/desktop-service/openOfficetab.Service.dll")),
     ("LICENSE", asset!("LICENSE")),
     ("scripts/install.ps1", asset!("scripts/install.ps1")),
@@ -13,8 +14,13 @@ const FILES: &[(&str, &[u8])] = &[
     ("scripts/diagnose.ps1", asset!("scripts/diagnose.ps1")),
     ("scripts/desktop-context.ps1", asset!("scripts/desktop-context.ps1")),
     ("scripts/localization.ps1", asset!("scripts/localization.ps1")),
+    ("scripts/office-architecture.ps1", asset!("scripts/office-architecture.ps1")),
 ];
 fn hex(bytes: &[u8]) -> String { bytes.iter().map(|b| format!("{b:02x}")).collect() }
+pub fn verify_payloads(path: &str) -> std::io::Result<()> {
+    let entries: Vec<Value> = FILES.iter().take(2).map(|(name, bytes)| json!({"path":name,"sha256":hex(&Sha256::digest(bytes))})).collect();
+    fs::write(path, serde_json::to_vec(&entries)?)
+}
 pub fn verify(path: &str) -> std::io::Result<()> { fs::write(path, hex(&Sha256::digest(FILES[0].1))) }
 fn payload() -> Result<PathBuf, String> {
     let mut digest = Sha256::new();
@@ -61,8 +67,8 @@ pub fn backend(action: &str, mut request: Value) -> Result<Value, String> {
     let response: Value = serde_json::from_slice(&output.stdout).map_err(|_| "本地服务未返回有效结果，请检查安装文件是否完整。".to_string())?;
     if output.status.success() && response["ok"] == true { Ok(response["data"].clone()) } else { Err(response["error"].as_str().unwrap_or("操作未完成。").into()) }
 }
-pub struct Runtime { serial: Mutex<()>, pub critical: AtomicBool }
-impl Default for Runtime { fn default() -> Self { Self { serial: Mutex::new(()), critical: AtomicBool::new(false) } } }
+pub struct Runtime { serial: Mutex<()>, update_check: Mutex<()>, pub critical: AtomicBool }
+impl Default for Runtime { fn default() -> Self { Self { serial: Mutex::new(()), update_check: Mutex::new(()), critical: AtomicBool::new(false) } } }
 #[tauri::command]
 pub async fn service(action: String, mut request: Value, state: tauri::State<'_, Arc<Runtime>>) -> Result<Value, String> {
     if !request.is_object() { return Err("Invalid request.".into()); }
@@ -70,6 +76,7 @@ pub async fn service(action: String, mut request: Value, state: tauri::State<'_,
     request["preserveHosts"] = json!(false);
     let runtime = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let _check = if action == "check-update" {Some(runtime.update_check.lock().map_err(|_| "Service lock failed.".to_string())?)} else {None};
         let critical = ["language","appearance","hosts","install","repair","preferences","apply-update","uninstall"].contains(&action.as_str());
         let _lock = if critical {Some(runtime.serial.lock().map_err(|_| "Service lock failed.".to_string())?)} else {None};
         if critical {runtime.critical.store(true, Ordering::SeqCst);}

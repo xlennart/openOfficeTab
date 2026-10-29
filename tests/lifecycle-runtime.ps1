@@ -1,4 +1,4 @@
-﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture,[string]$ExpectedVersion='0.2.1')
+﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture,[string]$ExpectedVersion='0.2.2',[switch]$DeferProcessExitCheck)
 $ErrorActionPreference='Stop'
 if($env:CODEX_WINDOWS_SANDBOX_PACKAGE_FAMILY){throw 'Run outside the development process context.'}
 $taskRoot=Split-Path $PSScriptRoot -Parent
@@ -28,10 +28,12 @@ public sealed class PowerPointCloseCancel : NativeCloseCancel,IPptCancel {public
 public static class TestWindows {
  [StructLayout(LayoutKind.Sequential)]public struct Point {public int X,Y;}
  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr w);
+ [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr w,IntPtr after,int x,int y,int width,int height,uint flags);
  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point p);
  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr w,uint flags);
  [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
- public static void Front(long w){SetForegroundWindow(new IntPtr(w));}
+ public static void Front(long w){var window=new IntPtr(w);SetWindowPos(window,IntPtr.Zero,0,0,0,0,0x13);SetForegroundWindow(window);}
+ public static void ExposeDropTarget(long w,bool above){SetWindowPos(new IntPtr(w),new IntPtr(above?-1:-2),0,0,0,0,0x13);}
  public static object RootAt(int x,int y){var old=SetThreadDpiAwarenessContext(new IntPtr(-4));try{return GetAncestor(WindowFromPoint(new Point{X=x,Y=y}),2).ToInt64();}finally{if(old!=IntPtr.Zero)SetThreadDpiAwarenessContext(old);}}
 
  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
@@ -65,7 +67,7 @@ $fixturePath=Join-Path $taskRoot ('tests\fixtures\'+$fixtureName)
 if(-not $UseExistingFixture){Start-Process -FilePath $fixturePath -WindowStyle Normal}
 $fixture=$null;$app=$null;$api=$null;$hook=$null
 $deadline=[DateTime]::UtcNow.AddSeconds(12)
-do{try{$fixture=[OfficeRot]::AttachFile($fixturePath)}catch{Start-Sleep -Milliseconds 100}}while(-not $fixture -and [DateTime]::UtcNow -lt $deadline)
+do{try{if($HostName -eq 'PowerPoint'){$running=[OfficeRot]::Attach('PowerPoint');$fixture=$running.Presentations.Item(1);[void][Runtime.InteropServices.Marshal]::ReleaseComObject($running);$running=$null}else{$fixture=[OfficeRot]::AttachFile($fixturePath)}}catch{Start-Sleep -Milliseconds 100}}while(-not $fixture -and [DateTime]::UtcNow -lt $deadline)
 if(-not $fixture -or $fixture.FullName -ne $fixturePath){throw 'Exact fixture not found; all open documents preserved.'}
 $app=$fixture.Application
 switch($HostName){'Word'{$collection=$app.Documents};'Excel'{$collection=$app.Workbooks};'PowerPoint'{$collection=$app.Presentations}}
@@ -77,6 +79,7 @@ if($before.version -ne $ExpectedVersion){throw 'Wrong add-in version.'}
 $baseId=$before.views[0].id;$baseRoot=$before.views[0].hwnd
 [uint32]$officePid=0
 [void][TestWindows]::GetWindowThreadProcessId([IntPtr]$baseRoot,[ref]$officePid)
+$officeStartUtc=(Get-Process -Id $officePid).StartTime.ToUniversalTime().ToString('o')
 $originalWidth=$before.diagnostics.tabWidth;$originalMode=$before.diagnostics.widthMode
 try{
     $hookType=$HostName+'CloseCancel'
@@ -104,6 +107,7 @@ try{
     $newGroup=($split.views|Where-Object id -eq $newId).groupId
     if(($split.views|Where-Object id -eq $newId).hwnd -ne $newRoot -or $created.Saved){throw 'Split replaced or saved the document.'}
     $api.Activate($baseId)
+    $baseActivated=Wait-State {param($s)$s.activeId -eq $baseId}
     $api.SaveAll();$api.CloseOther($baseId)
     $excluded=Wait-State {param($s)$s.views.Count -eq 2}
     if($created.Saved){throw 'Group save touched another group.'}
@@ -133,6 +137,7 @@ try{
     if(-not $api.Close($independentId)){throw 'Test document close failed.'}
     $closedExtra=Wait-State {param($s)$s.views.Count -eq 2 -and -not $s.diagnostics.closePending}
     $api.Activate($newId)
+    $newActivated=Wait-State {param($s)$s.activeId -eq $newId}
     for($index=0;$index -lt 2;$index++){
         $api.NewDocument()
         $expectedCount=3+$index
@@ -149,8 +154,15 @@ try{
     $targetPane=$readyForDrop.paneMetrics|Where-Object viewId -eq $baseId
     $dropX=[int]($targetPane.displayLeft+$targetPane.width/2)
     $dropY=[int]($targetPane.displayTop+$targetPane.height/2)
-    if([long][TestWindows]::RootAt($dropX,$dropY) -ne [long]$baseRoot){throw 'Target bar is not exposed under the test drop coordinates.'}
-    if(-not $api.DropTab($newId,$dropX,$dropY)){throw 'Cross-window drop command failed.'}
+    # Arrange only this owned fixture above unrelated desktop windows. This
+    # tests the drop command, without depending on Windows foreground grants.
+    [TestWindows]::ExposeDropTarget([long]$baseRoot,$true)
+    try{
+        $dropDeadline=[DateTime]::UtcNow.AddSeconds(3)
+        while([long][TestWindows]::RootAt($dropX,$dropY) -ne [long]$baseRoot -and [DateTime]::UtcNow -lt $dropDeadline){Start-Sleep -Milliseconds 80}
+        if([long][TestWindows]::RootAt($dropX,$dropY) -ne [long]$baseRoot){throw 'Target bar is not exposed under the test drop coordinates.'}
+        if(-not $api.DropTab($newId,$dropX,$dropY)){throw 'Cross-window drop command failed.'}
+    }finally{[TestWindows]::ExposeDropTarget([long]$baseRoot,$false)}
     $merged=Wait-State {param($s)($s.views|Where-Object id -eq $newId).groupId -eq ($s.views|Where-Object id -eq $baseId).groupId}
     if(($merged.views|Where-Object id -eq $newId).hwnd -ne $newRoot -or $created.Saved){throw 'Merge replaced or saved the document.'}
     $api.ToggleVisible()
@@ -187,8 +199,8 @@ try{
     [GC]::Collect();[GC]::WaitForPendingFinalizers()
     $closeDeadline=[DateTime]::UtcNow.AddSeconds(8)
     do{Start-Sleep -Milliseconds 60;$alive=Get-Process -Id $officePid -ErrorAction SilentlyContinue}while($alive -and [DateTime]::UtcNow -lt $closeDeadline)
-    if($alive){throw 'Office process remains after last document close.'}
-    $result=[pscustomobject]@{Host=$HostName;Version=$ExpectedVersion;Passed=$true;LastDocumentExitsApplication=$true;NativeCloseCancelPreserved=$true;UnsavedBeforeCloseCancelVerified=($HostName -ne 'PowerPoint');IndependentDocumentSurvives=$true;WidthBoundsPassed=$true;MultipleGroupsPassed=$true;CrossWindowDropPassed=$true;NativeDocumentAndWindowPreserved=$true;BatchScopeAndCancelPassed=$true;RecoverLayoutPassed=$true;DiagnosticsRedacted=$true}
+    if($alive -and -not $DeferProcessExitCheck){throw 'Office process remains after last document close.'}
+    $result=[pscustomobject]@{Host=$HostName;Version=$ExpectedVersion;Passed=(-not $alive);LastDocumentExitsApplication=(-not $alive);ProcessId=$officePid;ProcessStartUtc=$officeStartUtc;ProcessExitDeferred=([bool]$alive);NativeCloseCancelPreserved=$true;UnsavedBeforeCloseCancelVerified=($HostName -ne 'PowerPoint');IndependentDocumentSurvives=$true;WidthBoundsPassed=$true;MultipleGroupsPassed=$true;CrossWindowDropPassed=$true;NativeDocumentAndWindowPreserved=$true;BatchScopeAndCancelPassed=$true;RecoverLayoutPassed=$true;DiagnosticsRedacted=$true}
     $result|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $taskRoot ('artifacts\lifecycle-'+$HostName+'.json')) -Encoding UTF8
     $result|Format-List
 }catch{

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/branding/openofficetab.png" alt="openOfficetab icon" width="128" height="128">
+<img src="assets/branding/openofficetab.png" alt="openOfficeTab icon" width="128" height="128">
 
-# openOfficetab
+# openOfficeTab
 
 **Browser-style document tabs for Word, Excel, and PowerPoint.**
 
@@ -10,28 +10,32 @@ Free · Open source · Native C++ · Windows desktop Office
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4.svg)](#compatibility)
-[![Build](https://github.com/xlennart/openOfficetab/actions/workflows/build.yml/badge.svg)](https://github.com/xlennart/openOfficetab/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/xlennart/openOfficetab)](https://github.com/xlennart/openOfficetab/releases/latest)
+[![Build](https://github.com/xlennart/openOfficeTab/actions/workflows/build.yml/badge.svg)](https://github.com/xlennart/openOfficeTab/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/xlennart/openOfficetab)](https://github.com/xlennart/openOfficeTab/releases/latest)
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download](https://github.com/xlennart/openOfficetab/releases/latest) · [User guide](#user-guide) · [Release history](#release-history) · [Report an issue](https://github.com/xlennart/openOfficetab/issues) · [Development](docs/development.md)
+[Download](https://github.com/xlennart/openOfficeTab/releases/latest) · [User guide](#user-guide) · [Release history](#release-history) · [Report an issue](https://github.com/xlennart/openOfficeTab/issues) · [Development](docs/development.md)
 
 </div>
 
 ---
 
-openOfficetab adds a document tab bar below the Office ribbon. Switch documents with a click, drag tabs to reorder them, manage files from the context menu, or move a document into an independent window. It keeps Office's existing documents and save prompts, with no file conversion required.
+openOfficeTab adds a document tab bar below the Office ribbon. Switch documents with a click, drag tabs to reorder them, manage files from the context menu, or move a document into an independent window. It keeps Office's existing documents and save prompts, with no file conversion required.
 
-**Current release: 0.2.1.** Completes English and Chinese setup/management pages, shares language settings with the native add-in, and fixes long labels and smaller-window layouts. Structured runtime logs and the initial tab/document selection improvements from 0.2.0 remain available. See the [validation record](docs/validation.md) for tested behavior and remaining limits.
+**Current release: 0.2.2.** One installer selects native 32-bit or 64-bit Office support on 64-bit Windows. This version adds a separate update window, fixes foreground tab selection and cross-architecture loading diagnostics, and retains shared English/Chinese settings and redacted logs. See the [validation record](docs/validation-v0.2.2.md) for actual coverage and limits.
 
 The add-in supports English and Simplified Chinese through **… → Language**. The installer and management center share the same saved language setting, with a language selector in the sidebar or setup content area and Windows display-language detection by default. The screenshots below show the English interface; [English installation instructions](docs/installation.en.md) are also available. Most supporting technical documents are in Chinese.
 
-Downloads: [GitHub Releases](https://github.com/xlennart/openOfficetab/releases/latest) · [CNB mirror](https://cnb.cool/xlennart/openofficetab/-/releases). Both provide the same release assets and checksums.
+Downloads: [GitHub Releases](https://github.com/xlennart/openOfficeTab/releases/latest) · [CNB mirror](https://cnb.cool/xlennart/openofficetab/-/releases). Both provide the same release assets and checksums.
+
+The installer and management center remain x64; both Office DLLs are included. See the [architecture and test notes](docs/office-x86.en.md).
+
+32-bit Office is tested in VMware on Windows 11 Enterprise LTSC 26100 (64-bit), using 32-bit Microsoft 365 Apps 16.0.20527.20112. This test environment does not cover every Office build. If a problem occurs, use the [bug report template](https://github.com/xlennart/openOfficeTab/issues/new?template=bug_report.yml), include reproduction steps and the Office version/architecture, and attach the exported, redacted diagnostic log and a video when useful.
 
 ## Screenshots
 
-English Office and openOfficetab, with blank example files. Both tab appearances are shown below: **blended open-edge tabs** and a **separate rounded panel**. Expand each comparison to see the alternative.
+English Office and openOfficeTab, with blank example files. Both tab appearances are shown below: **blended open-edge tabs** and a **separate rounded panel**. Expand each comparison to see the alternative.
 
 ### Word · Blue accent
 
@@ -98,19 +102,19 @@ Save All and bulk closing apply only to the current tab group. They exclude inde
 
 ## Installation
 
-1. Download `openOfficetab-0.2.1-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficetab/releases/latest).
+1. Download `openOfficetab-0.2.2-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficeTab/releases/latest).
 2. Save your work and fully exit Word, Excel, and PowerPoint, including any old background instances.
 3. Run the installer and select the components and click **Install**.
 4. Open an Office document again. The tab bar appears below the ribbon.
 
 Installation is per Windows user and does not require administrator privileges. The installer does not close Office windows for you.
 
-Alternatively, download `openOfficetab-0.2.1-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
+Alternatively, download `openOfficetab-0.2.2-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
 
 Releases include `SHA256SUMS.txt`. The installer is not code-signed; you can verify its checksum or build from source.
 
 ```powershell
-Get-FileHash .\openOfficetab-0.2.1-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.2.2-setup-x64.exe -Algorithm SHA256
 ```
 
 ### Uninstall
@@ -125,9 +129,11 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 ## Management center and diagnostics
 
-Open **openOfficetab → Settings and recovery → Management center** from the ribbon, or use the Start menu shortcut. The center provides component status, appearance, diagnostics/repair and updates. The center includes full English and Chinese interface text.
+Open **openOfficeTab → Settings and recovery → Management center** from the ribbon, or use the Start menu shortcut. The center provides component status, appearance, diagnostics/repair and updates. The center includes full English and Chinese interface text.
 
 A manual update check probes available routes automatically. Signed metadata and installer SHA-256 are verified; failed downloads can try another available route. Automatic downloads/installation are opt-in, and installation waits until Office exits.
+
+In 0.2.2, **Check for updates** opens a separate window with the new version and release notes, or **You're up to date**. Choose **Update now** to download, verify and install. The save-work and settings-retention notice is shown directly; if Office is running, leave the update window open and exit Office to continue.
 
 If a problem recurs, choose **Diagnostics & repair → Export diagnostics and logs** to export a JSON report, then attach it to the original issue with the steps and approximate time. The bounded timeline records operations, Office events, process-local window/tab identities and error codes. Document names, paths, content, cell values, accounts and tokens are excluded by default; nothing is uploaded automatically. See [diagnostic logging](docs/diagnostic-logging.md). Related issues remain open for follow-up.
 
@@ -143,7 +149,7 @@ Open **… → Language**. Select **Follow Windows (default)**, **Simplified Chi
 
 Right-click a tab and select **Show in an independent window**. The window hides its tab bar, stops following the group, and regains its own taskbar entry. The document is neither closed nor reopened.
 
-To rejoin, select **Join / move to tab group** on the **openOfficetab** ribbon and choose a group. The ribbon and tab menu also offer **New independent document**.
+To rejoin, select **Join / move to tab group** on the **openOfficeTab** ribbon and choose a group. The ribbon and tab menu also offer **New independent document**.
 
 Saved local files remember this choice across restarts. Unsaved documents keep it in memory until their first save. If a file has multiple editing views, the selected view is detached; the last explicit choice becomes the default when that file is reopened. Group membership itself lasts only for the current session.
 
@@ -211,12 +217,12 @@ Settings are available from `…` or **Tab settings** on the ribbon. Tab locking
 
 ### Development environment
 
-The current development machine uses the following environment (checked on October 18, 2026):
+The current development machine uses the following environment (checked on October 30, 2026):
 
 | Component | Version |
 | :--- | :--- |
 | Operating system | Windows 11 Enterprise 26H2, 64-bit; OS build **26300.9711**. |
-| Office | Microsoft Office Home 2024, Click-to-Run, **64-bit**; version **16.0.20430.20182**. |
+| Office | Microsoft Office desktop, Click-to-Run, **64-bit**; version **16.0.20527.20088**. |
 | Host applications | Word, Excel, and PowerPoint from the Office installation above. |
 
 These versions describe the development environment, rather than minimum requirements or a guarantee of compatibility with every Office version. The earlier runtime test record below used Office **16.0.20430.20146**; the development installation has since been updated.
@@ -227,8 +233,8 @@ These versions describe the development environment, rather than minimum require
 | :--- | :--- |
 | Earlier runtime-tested environment | Windows 11; Office Home 2024 x64; Word / Excel / PowerPoint 16.0.20430.20146. |
 | Tested display scale | 200%. This Office installation imposes a minimum horizontal pane height of 80 physical pixels, approximately 40 DIP. |
-| Release architecture | x64. Match **Office's bitness**, not just Windows bitness. |
-| x86 / other Office versions | The build script has an x86 option, but runtime behavior is unverified and no x86 installer is provided. |
+| Release architecture | 0.2.2: automatic x86/x64 Office selection on 64-bit Windows, with both native payloads in the same installer. |
+| x86 / other Office versions | 32-bit Office tested in VMware with build 16.0.20527.20112; 64-bit Office tested on the host with build 16.0.20527.20088. Other builds are not all covered. |
 | Office for the web / macOS | Unsupported. This is a native Windows COM add-in. |
 
 This is an early usable release, with no claim of feature parity with mature commercial tab add-ins. Configurable global shortcuts and complete accessibility support are not yet available. See the [validation record](docs/validation.md) for methods and limits.
@@ -253,19 +259,20 @@ Language, appearance, color, default width, single-taskbar mode, theme, and titl
 
 | Version | Date | Highlights |
 | :--- | :--- | :--- |
-| [0.2.1](https://github.com/xlennart/openOfficetab/releases/tag/v0.2.1) | 2026-10-29 | English and Chinese setup/management center, shared language settings, responsive layout fixes and English documentation labels. |
-| [0.2.0](https://github.com/xlennart/openOfficetab/releases/tag/v0.2.0) | 2026-10-28 | Management center, sanitized operation timelines, automatic update route selection and initial tab/document alignment improvements. |
-| [0.1.9](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.9) | 2026-10-23 | Preserve Excel formula entry when switching tabs to select cells from other workbooks; defer window coordination until editing ends. |
-| [0.1.8](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.8) | 2026-10-19 | Queue native new-document commands; defer pane creation and window coordination until ribbon content is ready; strengthen regression checks for actual ribbon content. |
-| [0.1.7](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.7) | 2026-10-18 | English and Chinese UI; saved language selection with Windows display-language detection; live Ribbon translation; bilingual installer and package instructions. |
-| [0.1.6](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.6) | 2026-10-17 | Persist single-taskbar mode and enable it by default for new configurations; Office / Windows theme following; coordinated window operations and close choices; fixes for resizing and PowerPoint activation. |
-| [0.1.5](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.5) | 2026-10-15 | Recently closed files, remembered per-file widths and independent windows, live appearance sync, and ribbon seam refinements. |
-| [0.1.4](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.4) | 2026-10-13 | Split-screen tab switching across all three applications, ribbon ownership fixes, and custom tab-bar colors with a `#F0F0F0` default. |
-| [0.1.3](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.3) | 2026-10-11 | Blended open-edge tabs, three accent-line positions, and individual tab-edge resizing. |
-| [0.1.2](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.2) | 2026-10-11 | Exit after the final document closes, independent-window workflows, multiple groups, width policies, diagnostics, and recovery. |
-| [0.1.1](https://github.com/xlennart/openOfficetab/releases/tag/v0.1.1) | 2026-10-10 | First public release: native tabs for Word, Excel, and PowerPoint, document management, and x64 EXE / ZIP packages. |
+| [0.2.2](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.2) | 2026-10-30 | Unified x86/x64 Office installer, separate update window, loading diagnostics and tab-selection fixes. |
+| [0.2.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.1) | 2026-10-29 | English and Chinese setup/management center, shared language settings, responsive layout fixes and English documentation labels. |
+| [0.2.0](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.0) | 2026-10-28 | Management center, sanitized operation timelines, automatic update route selection and initial tab/document alignment improvements. |
+| [0.1.9](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.9) | 2026-10-23 | Preserve Excel formula entry when switching tabs to select cells from other workbooks; defer window coordination until editing ends. |
+| [0.1.8](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.8) | 2026-10-19 | Queue native new-document commands; defer pane creation and window coordination until ribbon content is ready; strengthen regression checks for actual ribbon content. |
+| [0.1.7](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.7) | 2026-10-18 | English and Chinese UI; saved language selection with Windows display-language detection; live Ribbon translation; bilingual installer and package instructions. |
+| [0.1.6](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.6) | 2026-10-17 | Persist single-taskbar mode and enable it by default for new configurations; Office / Windows theme following; coordinated window operations and close choices; fixes for resizing and PowerPoint activation. |
+| [0.1.5](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.5) | 2026-10-15 | Recently closed files, remembered per-file widths and independent windows, live appearance sync, and ribbon seam refinements. |
+| [0.1.4](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.4) | 2026-10-13 | Split-screen tab switching across all three applications, ribbon ownership fixes, and custom tab-bar colors with a `#F0F0F0` default. |
+| [0.1.3](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.3) | 2026-10-11 | Blended open-edge tabs, three accent-line positions, and individual tab-edge resizing. |
+| [0.1.2](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.2) | 2026-10-11 | Exit after the final document closes, independent-window workflows, multiple groups, width policies, diagnostics, and recovery. |
+| [0.1.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.1.1) | 2026-10-10 | First public release: native tabs for Word, Excel, and PowerPoint, document management, and x64 EXE / ZIP packages. |
 
-Dates follow the project's release notes in China Standard Time (UTC+8). For detailed changes, see [CHANGELOG.md](CHANGELOG.md) (Chinese); downloads and release-specific notes are on [Releases](https://github.com/xlennart/openOfficetab/releases).
+Dates follow the project's release notes in China Standard Time (UTC+8). For detailed changes, see [CHANGELOG.md](CHANGELOG.md) (Chinese); downloads and release-specific notes are on [Releases](https://github.com/xlennart/openOfficeTab/releases).
 
 ## Development and contributing
 
@@ -273,14 +280,15 @@ Install Visual Studio Build Tools with C++ tools and the Windows SDK, then run:
 
 ```powershell
 pwsh -File .\scripts\build.ps1 -Architecture x64
+pwsh -File .\scripts\build.ps1 -Architecture x86
 pwsh -File .\scripts\test-native.ps1
 pwsh -File .\scripts\package.ps1
 ```
 
-The build produces `dist/x64/openOfficetab.dll`; packaging produces an EXE, a ZIP, and checksums. The desktop build uses Node.js, Rust/MSVC and Windows .NET Framework. Its Tauri/WebView2 management center runs separately; the Office tab bar remains native C++. Packaging also emits signed update metadata. GitHub Actions builds the add-in and verifies tests and installer payloads; actual Office runtime tests require a local desktop Office installation.
+The builds produce `dist/x64/openOfficetab.dll` and `dist/x86/openOfficetab.dll`; packaging produces an EXE, a ZIP, and checksums. The desktop build uses Node.js, Rust/MSVC and Windows .NET Framework. Its Tauri/WebView2 management center runs separately; the Office tab bar remains native C++. Packaging also emits signed update metadata. GitHub Actions builds the add-in and verifies tests and installer payloads; actual Office runtime tests require a local desktop Office installation.
 
-See the [development guide](docs/development.md) for source, testing, and release workflows, and the [feature comparison](docs/comparison.md) for differences from Office Tab and possible next steps. Reproducible bug reports and suggestions are welcome through [Issues](https://github.com/xlennart/openOfficetab/issues). Include Windows and Office versions, Office bitness, and display scale.
+See the [development guide](docs/development.md) for source, testing, and release workflows, and the [feature comparison](docs/comparison.md) for differences from Office Tab and possible next steps. Reproducible bug reports and suggestions are welcome through [Issues](https://github.com/xlennart/openOfficeTab/issues). Include Windows and Office versions, Office bitness, and display scale.
 
 ## License
 
-[MIT](LICENSE). openOfficetab is an independent implementation and includes no source code or binaries from the reference product. It is not affiliated with Microsoft or ExtendOffice. Office and other product names belong to their respective owners.
+[MIT](LICENSE). openOfficeTab is an independent implementation and includes no source code or binaries from the reference product. It is not affiliated with Microsoft or ExtendOffice. Office and other product names belong to their respective owners.

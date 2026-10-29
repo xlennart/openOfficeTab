@@ -10,9 +10,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Forms;
 
-[assembly: AssemblyTitle("openOfficetab Setup")]
-[assembly: AssemblyDescription("Install openOfficetab for the current Windows user")]
-[assembly: AssemblyProduct("openOfficetab")]
+[assembly: AssemblyTitle("openOfficeTab Setup")]
+[assembly: AssemblyDescription("Install openOfficeTab for the current Windows user")]
+[assembly: AssemblyProduct("openOfficeTab")]
 [assembly: AssemblyVersion("0.1.9.0")]
 [assembly: AssemblyFileVersion("0.1.9.0")]
 
@@ -53,7 +53,7 @@ internal static class Setup {
         private bool English { get { return languageChoice.SelectedIndex == 2 || (languageChoice.SelectedIndex <= 0 && CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != "zh"); } }
         private string T(string chinese, string english) { return English ? english : chinese; }
         private void ApplyLanguage() {
-            Text = T("openOfficetab · 安装与恢复", "openOfficetab · Setup and recovery");
+            Text = T("openOfficeTab · 安装与恢复", "openOfficeTab · Setup and recovery");
             subtitle.Text = T("Word / Excel / PowerPoint 文档标签 · 0.1.9 · x64", "Document tabs for Word / Excel / PowerPoint · 0.1.9 · x64");
             instructions.Text = T("安装、卸载或修复前，请保存并退出三款 Office；加载诊断可直接运行。\n按当前用户安装，无需管理员权限；完成后重新打开文档。", "Save and exit all three Office apps before installing, removing, or repairing.\nDiagnostics can run at any time. Installation is per user; no administrator needed.");
             languageCaption.Text = T("安装器语言", "Installer language");
@@ -64,14 +64,14 @@ internal static class Setup {
             details.Text = T("设置默认保留。插件使用 MIT 许可证，安装文件不修改 Office 安全策略。", "Settings are kept by default. MIT licensed. The installer does not change Office security policy.");
         }
         internal SetupWindow() {
-            Text = "openOfficetab · 安装与恢复";
+            Text = "openOfficeTab · 安装与恢复";
             ClientSize = new Size(640, 454);
             Font = new Font("Segoe UI", 10);
             AutoScaleMode = AutoScaleMode.Dpi;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
-            Controls.Add(new Label { Text = "openOfficetab", Font = new Font(Font.FontFamily, 23, FontStyle.Bold), Location = new Point(24, 18), AutoSize = true });
+            Controls.Add(new Label { Text = "openOfficeTab", Font = new Font(Font.FontFamily, 23, FontStyle.Bold), Location = new Point(24, 18), AutoSize = true });
             subtitle.SetBounds(26, 68, 588, 26);
             instructions.SetBounds(26, 103, 588, 58);
             languageCaption.SetBounds(26, 169, 145, 26);

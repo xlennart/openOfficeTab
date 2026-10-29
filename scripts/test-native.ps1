@@ -1,14 +1,15 @@
-﻿$ErrorActionPreference='Stop'
+﻿param([ValidateSet('x64','x86')][string]$Architecture='x64')
+$ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
 $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $vsPath=& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if(-not $vsPath){throw 'C++ build tools are required.'}
 $vcvars=Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'
-$testBuild=Join-Path $taskRoot 'build\native-tests'
+$testBuild=Join-Path $taskRoot "build\native-tests\$Architecture"
 New-Item -ItemType Directory -Force -Path $testBuild | Out-Null
 $batch=@"
 @echo off
-call "$vcvars" x64 >nul
+call "$vcvars" $Architecture >nul
 if not "%errorlevel%"=="0" exit /b 1
 cd /d "$testBuild"
 cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\runtime-log-test.cpp" /Fe:"$testBuild\runtime-log-test.exe" /link ole32.lib shell32.lib

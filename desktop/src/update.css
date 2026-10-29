@@ -1,0 +1,37 @@
+html,body{margin:0;height:100%;overflow:hidden;background:#f7f8fb}
+#oot-design.u-window{height:100%;box-sizing:border-box;display:flex;flex-direction:column;background:var(--o-bg);color:var(--o-text);font:400 14px/1.6 "Segoe UI","Microsoft YaHei UI",sans-serif;visibility:hidden}
+#oot-design.u-window[data-ready]{visibility:visible}
+#oot-design.u-window *{box-sizing:border-box}
+#oot-design.u-window [hidden]{display:none!important}
+#oot-design .u-chrome{flex:none;display:flex;align-items:center;gap:9px;min-height:48px;padding:0 8px 0 18px;background:var(--o-side);border-bottom:1px solid var(--o-line);user-select:none}
+#oot-design .u-chrome img{width:22px;height:22px}
+#oot-design .u-chrome strong{font-weight:500}
+#oot-design .u-chrome>span{color:var(--o-sub);font-size:13px}
+#oot-design button{font:inherit;cursor:pointer}
+#oot-design button:focus-visible{outline:2px solid var(--o-blue);outline-offset:2px}
+#oot-design #u-close{margin-left:auto;flex:none;width:36px;height:36px;display:grid;place-items:center;border:0;background:transparent;color:var(--o-sub);border-radius:5px}
+#oot-design #u-close:hover{background:var(--o-line)}
+#oot-design #u-close svg{width:17px;height:17px}
+#oot-design .u-body{flex:1;min-height:0;overflow:auto;padding:26px 28px;display:flex;flex-direction:column;gap:20px;overflow-wrap:anywhere}
+#oot-design .u-heading{display:flex;align-items:center;gap:14px}
+#oot-design .u-heading svg{flex:none;width:30px;height:30px;color:var(--o-blue)}
+#oot-design h1{font-size:22px;font-weight:500;line-height:1.4;margin:0}
+#oot-design h2{font-size:14px;font-weight:500;margin:0 0 10px}
+#oot-design p{margin:0}
+#oot-design .u-version{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 16px;padding-bottom:18px;border-bottom:1px solid var(--o-line)}
+#oot-design .u-version strong{font-size:16px;font-weight:500}
+#oot-design #u-current-version,#oot-design #u-status,#oot-design #u-safety{color:var(--o-sub);font-size:13px}
+#oot-design #u-notes{white-space:pre-wrap;overflow-wrap:anywhere}
+#oot-design #u-status:empty{display:none}
+#oot-design #u-progress{width:100%;accent-color:var(--o-blue)}
+#oot-design #u-error{color:light-dark(#b42318,#ffa89f)}
+#oot-design .u-footer{flex:none;padding:17px 28px 21px;background:var(--o-paper);border-top:1px solid var(--o-line);display:grid;gap:14px}
+#oot-design .u-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px}
+#oot-design .u-actions button{min-width:94px;min-height:40px;max-width:100%;padding:9px 18px;border:1px solid var(--o-line);border-radius:7px;background:var(--o-paper);color:var(--o-text);white-space:normal;overflow-wrap:anywhere}
+#oot-design .u-actions .u-primary{background:var(--o-blue);border-color:var(--o-blue);color:#fff}
+#oot-design button:disabled{opacity:.6;cursor:default}
+#oot-design.u-window[data-phase=latest] .u-body{justify-content:center;align-items:center;text-align:center}
+#oot-design.u-window[data-phase=latest] .u-heading{flex-direction:column}
+#oot-design.u-window[data-phase=latest] .u-heading svg{width:46px;height:46px;color:var(--o-green)}
+#oot-design.u-window[data-phase=latest] .u-version{border:0;padding:0;justify-content:center}
+@media(max-width:450px){#oot-design .u-body{padding:22px 18px}#oot-design .u-footer{padding:16px 18px 18px}#oot-design .u-chrome>span{display:none}#oot-design h1{font-size:20px}}

@@ -2,7 +2,7 @@
 $ErrorActionPreference='Stop'
 $ootRoot=Split-Path $PSScriptRoot -Parent
 $ootDesktop=Join-Path $ootRoot 'desktop'
-if(-not $SkipNative){& (Join-Path $PSScriptRoot 'build.ps1') -Architecture x64;if($LASTEXITCODE -ne 0){throw 'Native add-in build failed.'}}
+foreach($architecture in 'x64','x86'){if(-not $SkipNative){& (Join-Path $PSScriptRoot 'build.ps1') -Architecture $architecture;if($LASTEXITCODE -ne 0){throw 'Native add-in build failed.'}};if(-not(Test-Path -LiteralPath (Join-Path $ootRoot "dist/$architecture/openOfficetab.dll"))){throw "Build the $architecture payload first."}}
 $ootServiceOutput=Join-Path $ootRoot 'build\desktop-service'
 New-Item -ItemType Directory -Force $ootServiceOutput | Out-Null
 $ootCompiler=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'

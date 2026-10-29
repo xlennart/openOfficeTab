@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>openOfficeTab</title><link rel="stylesheet" href="./design.css"><link rel="stylesheet" href="./update.css"><script src="./update.js" defer></script></head><body>
+<div id="oot-design" class="u-window">
+ <header class="u-chrome" data-tauri-drag-region><img src="./assets/brand.png" alt=""><strong data-tauri-drag-region>openOfficeTab</strong><span id="u-caption" data-tauri-drag-region>软件更新</span><button id="u-close" type="button" aria-label="关闭更新窗口"><i data-lucide="x" aria-hidden="true"></i></button></header>
+ <main class="u-body" aria-busy="true">
+  <div class="u-heading"><i id="u-symbol" data-lucide="package-check" aria-hidden="true"></i><h1 id="u-title">正在检查更新…</h1></div>
+  <div class="u-version" id="u-version" hidden><strong id="u-new-version"></strong><span id="u-current-version"></span></div>
+  <section id="u-release" hidden aria-labelledby="u-notes-heading"><h2 id="u-notes-heading">本次更新</h2><div id="u-notes"></div></section>
+  <div id="u-status" role="status" aria-live="polite"></div>
+  <progress id="u-progress" aria-label="更新进度" hidden></progress>
+  <p id="u-error" role="alert" hidden></p>
+ </main>
+ <footer class="u-footer"><p id="u-safety" hidden>更新前请保存并退出 Office。现有设置将保留。</p><div class="u-actions"><button id="u-later" type="button" hidden>暂不更新</button><button id="u-action" class="u-primary" type="button" disabled>检查更新</button></div></footer>
+</div>
+</body></html>

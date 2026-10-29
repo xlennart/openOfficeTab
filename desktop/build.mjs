@@ -15,12 +15,12 @@ for (const match of controller.matchAll(/\$\('([^']+)'\)/g)) {
   if (!ids.has(match[1])) throw new Error(`Missing required UI control: ${match[1]}`);
 }
 await mkdir(output, { recursive: true });
-for (const name of ['index.html', 'design.css', 'shell.css', 'assets']) {
+for (const name of ['index.html', 'update.html', 'design.css', 'shell.css', 'update.css', 'assets']) {
   await cp(path.join(root, 'src', name), path.join(output, name), { recursive: true });
 }
 await build({
-  entryPoints: [path.join(root, 'src/app.js')],
-  outfile: path.join(output, 'app.js'),
+  entryPoints: [path.join(root, 'src/app.js'),path.join(root, 'src/update.js')],
+  outdir: output,
   bundle: true,
   minify: true,
   format: 'iife',

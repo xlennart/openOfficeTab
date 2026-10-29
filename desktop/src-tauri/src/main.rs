@@ -51,10 +51,35 @@ fn language(args: &[String]) -> Option<String> {
 fn boot() -> Value {
     let args: Vec<String> = std::env::args().collect();
     let host = args.iter().position(|arg| arg=="--host").and_then(|index|args.get(index+1)).filter(|host|["Word","Excel","PowerPoint"].contains(&host.as_str())).map_or("Word",|host|host.as_str());
-    json!({"page":page(&args),"host":host,"language":language(&args),"uninstall":args.iter().any(|s|s=="--uninstall")})
+    json!({"page":page(&args),"host":host,"language":language(&args),"version":env!("CARGO_PKG_VERSION"),"uninstall":args.iter().any(|s|s=="--uninstall")})
+}
+#[tauri::command]
+fn set_update_language(app: tauri::AppHandle, language: String) -> Result<(), String> {
+    if !["zh-CN", "en"].contains(&language.as_str()) { return Err("Invalid interface language.".into()); }
+    if let Some(window) = app.get_webview_window("update") { window.emit("update-language", &language).map_err(|e| e.to_string())?; }
+    Ok(())
+}
+#[tauri::command]
+async fn open_update_window(app: tauri::AppHandle, language: String) -> Result<(), String> {
+    if !["zh-CN", "en"].contains(&language.as_str()) { return Err("Invalid interface language.".into()); }
+    if let Some(window) = app.get_webview_window("update") {
+        window.emit("check-update", &language).map_err(|e| e.to_string())?;
+        window.unminimize().map_err(|e| e.to_string())?;
+        return window.set_focus().map_err(|e| e.to_string());
+    }
+    let title = if language == "en" {"openOfficeTab Software update"} else {"openOfficeTab 软件更新"};
+    let mut builder = tauri::WebviewWindowBuilder::new(&app, "update", tauri::WebviewUrl::App(format!("update.html?language={language}").into()))
+        .title(title).inner_size(560.0, 530.0).min_inner_size(360.0, 400.0)
+        .decorations(false).resizable(true).center();
+    if let Some(owner) = app.get_webview_window("main") { builder = builder.owner(&owner).map_err(|e| e.to_string())?; }
+    builder.build().map(|_| ()).map_err(|e| e.to_string())
 }
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if let Some(index) = args.iter().position(|arg| arg == "--verify-payloads") {
+        let ok = args.get(index + 1).is_some_and(|path| service::verify_payloads(path).is_ok());
+        std::process::exit(if ok {0} else {1});
+    }
     if let Some(index) = args.iter().position(|arg| arg == "--verify") {
         let ok = args.get(index + 1).is_some_and(|path| service::verify(path).is_ok());
         std::process::exit(if ok {0} else {1});
@@ -90,6 +115,6 @@ fn main() {
         })
         .manage(runtime)
         .on_window_event(move |_, event| { if let tauri::WindowEvent::CloseRequested { api, .. } = event { if closing.critical.load(Ordering::SeqCst) { api.prevent_close(); } } })
-        .invoke_handler(tauri::generate_handler![boot, service::service, export_diagnostics, open_external])
+        .invoke_handler(tauri::generate_handler![boot, service::service, export_diagnostics, open_external, open_update_window, set_update_language])
         .run(tauri::generate_context!()).expect("Unable to launch openOfficetab");
 }

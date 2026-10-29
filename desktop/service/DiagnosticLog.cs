@@ -47,7 +47,7 @@ namespace OpenOfficeTab.Desktop {
      try{held=mutex.WaitOne(0);}catch(AbandonedMutexException){held=true;}if(!held)return;
      string file=Path.Combine(directory,"desktop-current.jsonl");if(File.Exists(file)&&Link(file))return;
      if(File.Exists(file)&&new FileInfo(file).Length>Limit-4096){for(int i=3;i>=1;i--){string old=i==1?file:file+"."+(i-1)+".jsonl",next=file+"."+i+".jsonl";if(File.Exists(next))File.Delete(next);if(File.Exists(old))File.Move(old,next);}}
-     var row=new {schema=1,version="0.2.1",utc=DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",CultureInfo.InvariantCulture),pid=System.Diagnostics.Process.GetCurrentProcess().Id,tid=Thread.CurrentThread.ManagedThreadId,host=3,hr=hr,elapsedMs=elapsed,@event="service."+action+"."+phase};
+     var row=new {schema=1,version="0.2.2",utc=DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",CultureInfo.InvariantCulture),pid=System.Diagnostics.Process.GetCurrentProcess().Id,tid=Thread.CurrentThread.ManagedThreadId,host=3,bits=IntPtr.Size*8,hr=hr,elapsedMs=elapsed,@event="service."+action+"."+phase};
      using(var output=new FileStream(file,FileMode.Append,FileAccess.Write,FileShare.Read))using(var writer=new StreamWriter(output,new UTF8Encoding(false)))writer.WriteLine(Serializer().Serialize(row));
     }finally{if(held)mutex.ReleaseMutex();}}
    }catch(IOException){}catch(UnauthorizedAccessException){}

@@ -11,8 +11,13 @@ function Install-OotDesktop {
     if(-not(Test-Path -LiteralPath $centerSource)){$centerSource=Join-Path $TaskRoot 'openOfficetab.Center.exe'}
     if(-not(Test-Path -LiteralPath $centerSource)){return}
     $files=@(@{Source=$centerSource;Relative='openOfficetab.Center.exe'},@{Source=$SourceDll;Relative="dist\$Architecture\openOfficetab.dll"},@{Source=(Join-Path $TaskRoot 'LICENSE');Relative='LICENSE'})
-    foreach($name in 'install.ps1','uninstall.ps1','diagnose.ps1','desktop-context.ps1','desktop-install.ps1','desktop-service.ps1','localization.ps1'){$files+=@{Source=(Join-Path $PSScriptRoot $name);Relative=('scripts\'+$name)}}
+    foreach($name in 'install.ps1','uninstall.ps1','diagnose.ps1','desktop-context.ps1','desktop-install.ps1','desktop-service.ps1','localization.ps1','office-architecture.ps1'){$files+=@{Source=(Join-Path $PSScriptRoot $name);Relative=('scripts\'+$name)}}
     $files+=@{Source=(Join-Path $TaskRoot 'service\openOfficetab.Service.dll');Relative='service\openOfficetab.Service.dll'}
+    foreach($other in @('x86','x64')|Where-Object {$_ -ne $Architecture}){
+        $candidate=Join-Path $TaskRoot "dist\$other\openOfficetab.dll"
+        if(-not(Test-Path -LiteralPath $candidate)){throw 'A required Office architecture payload is missing.'}
+        $files+=@{Source=$candidate;Relative="dist\$other\openOfficetab.dll"}
+    }
     $identity=($files | ForEach-Object {$_.Relative+':'+(Get-FileHash -LiteralPath $_.Source -Algorithm SHA256).Hash}) -join "`n"
     $sha=[Security.Cryptography.SHA256]::Create()
     try{$hash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($identity))).Replace('-','').Substring(0,12)).ToLowerInvariant()}finally{$sha.Dispose()}
@@ -26,16 +31,16 @@ function Install-OotDesktop {
     $center=Join-Path $directory 'openOfficetab.Center.exe'
     $key='HKCU:\Software\openOfficetab';New-Item -Path $key -Force | Out-Null
     Set-ItemProperty -LiteralPath $key -Name CenterPath -Value $center
-    Set-ItemProperty -LiteralPath $key -Name DesktopVersion -Value '0.2.1'
+    Set-ItemProperty -LiteralPath $key -Name DesktopVersion -Value '0.2.2'
     $shell=New-Object -ComObject WScript.Shell
     try{
         $menu=Join-Path ([Environment]::GetFolderPath('Programs')) 'openOfficetab'
         New-Item -ItemType Directory -Path $menu -Force | Out-Null
-        $link=$shell.CreateShortcut((Join-Path $menu 'openOfficetab 管理中心.lnk'));$link.TargetPath=$center;$link.WorkingDirectory=$directory;$link.IconLocation=$center+',0';$link.Description='openOfficetab · made by @xlennart';$link.Save()
+        $link=$shell.CreateShortcut((Join-Path $menu 'openOfficetab 管理中心.lnk'));$link.TargetPath=$center;$link.WorkingDirectory=$directory;$link.IconLocation=$center+',0';$link.Description='openOfficeTab · made by @xlennart';$link.Save()
         if($DesktopShortcut){$link=$shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'openOfficetab.lnk'));$link.TargetPath=$center;$link.WorkingDirectory=$directory;$link.IconLocation=$center+',0';$link.Save()}
     }finally{[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell)}
     $uninstall='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\openOfficetab';New-Item -Path $uninstall -Force | Out-Null
-    foreach($pair in @{DisplayName='openOfficetab';DisplayVersion='0.2.1';Publisher='xlennart';DisplayIcon=($center+',0');UninstallString=('"'+$center+'" --uninstall');URLInfoAbout='https://github.com/xlennart/openOfficetab';InstallLocation=$directory}.GetEnumerator()){Set-ItemProperty -LiteralPath $uninstall -Name $pair.Key -Value $pair.Value}
+    foreach($pair in @{DisplayName='openOfficeTab';DisplayVersion='0.2.2';Publisher='xlennart';DisplayIcon=($center+',0');UninstallString=('"'+$center+'" --uninstall');URLInfoAbout='https://github.com/xlennart/openOfficetab';InstallLocation=$directory}.GetEnumerator()){Set-ItemProperty -LiteralPath $uninstall -Name $pair.Key -Value $pair.Value}
     Set-ItemProperty -LiteralPath $uninstall -Name NoModify -Value 1 -Type DWord
     Set-ItemProperty -LiteralPath $uninstall -Name NoRepair -Value 1 -Type DWord
     Add-Type -Path (Join-Path $directory 'service\openOfficetab.Service.dll')
@@ -68,6 +73,23 @@ function Set-OotUpdateTask([bool]$Enabled){
 function Assert-OotCenterClosed {
     $appRoot=Join-Path $env:LOCALAPPDATA 'openOfficetab\app'
     foreach($process in @(Get-Process 'openOfficetab.Center' -ErrorAction SilentlyContinue)){if($process.Path -and $process.Path.StartsWith($appRoot+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Close the management center and wait for its update check to finish before uninstalling.'}}
+    # Closing the window can leave its bounded update request finishing in a
+    # separate PowerShell process. Wait before unregistering or deleting files;
+    # never terminate a worker or mistake an unrelated script for our service.
+    $cacheRoot=Join-Path $env:LOCALAPPDATA 'openOfficetab\cache'
+    $deadline=[DateTime]::UtcNow.AddSeconds(30)
+    do {
+        $workers=@(Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" | Where-Object {
+            if($_.ProcessId -eq $PID){return $false}
+            if($_.CommandLine -notmatch '(?i)(?:^|\s)-File\s+(?:"(?<service>[^"]+)"|(?<service>\S+))'){return $false}
+            $servicePath=[IO.Path]::GetFullPath($Matches.service).Replace('/','\')
+            $servicePath.EndsWith('\scripts\desktop-service.ps1',[StringComparison]::OrdinalIgnoreCase) -and
+                ($servicePath.StartsWith($appRoot+'\',[StringComparison]::OrdinalIgnoreCase) -or $servicePath.StartsWith($cacheRoot+'\',[StringComparison]::OrdinalIgnoreCase))
+        })
+        if(-not $workers.Count){return}
+        if([DateTime]::UtcNow -ge $deadline){throw 'Close the management center and wait for its update check to finish before uninstalling.'}
+        Start-Sleep -Milliseconds 200
+    } while($true)
 }
 function Remove-OotUpdateTask {
     $service=New-Object -ComObject Schedule.Service

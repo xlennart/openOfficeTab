@@ -207,14 +207,16 @@ void Session::rootLayoutChanged(HWND root){
             if(windowlayout::apply(target->hwnd,next.placement,next.bounds)){target->moved=true;windowlayout::capture(target->hwnd,target->applied,target->appliedBounds);}
         }
     }
-    if(!next.minimized){
+    if(!next.minimized&&(foreground||commanded)){
         // Excel may change its active SDI frame while an inactive sibling is
         // restored. Keep the initiating frame active within this UI thread,
         // without taking foreground focus from another application.
         SetActiveWindow(root);
         if(foreground){SetWindowPos(root,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);SetForegroundWindow(root);}
     }
-    reconcileWindowSelection(source,next.minimized);
+    // Background groups still receive geometry updates, but cannot change the
+    // native/COM selection and redirect a later SaveAll to another document.
+    if(foreground||commanded)reconcileWindowSelection(source,next.minimized);
 }
 void Session::reconcileWindowSelection(const std::shared_ptr<View>& source,bool minimized){
     if(!minimized){

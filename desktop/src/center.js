@@ -13,9 +13,12 @@ let snapshot=null,savedNative=null,savedAppearance={...defaults},busy=false,rele
 let languageOverride=null,toastState=null,updatePhase='checked',automaticCheckFailed=false,installedHosts=null;
 const translateStatic=bindStaticTranslations(root);
 let lastDiagnostics=null;
+let captionUpdate=Promise.resolve();
 function refreshCaption(){
  $('oot-caption').textContent=state.route==='installer'?t('安装与恢复'):t('管理中心');
- frame.setTitle(state.route==='installer'?t('openOfficetab 安装器'):t('openOfficetab 管理中心')).catch(()=>{});
+ const title=state.route==='installer'?t('openOfficeTab 安装器'):t('openOfficeTab 管理中心');
+ document.title=title;
+ captionUpdate=captionUpdate.then(()=>frame.setTitle(title)).catch(()=>{});
 }
 function placeLanguage(){
  const slot=state.route==='installer'?($('oot-install-done').hidden?$('oot-install-language'):$('oot-done-language')):$('oot-center-language');
@@ -26,11 +29,11 @@ function applySnapshotLanguage(value){
  const mode=languageOverride==null?saved.mode:({'auto':0,'zh-CN':1,en:2}[languageOverride]??saved.mode);
  const locale=languageOverride==null?saved.locale:resolveLanguage(mode,saved.systemLocale);
  const changed=currentLocale()!==locale||!root.dataset.languageReady;
- if(changed){setLocale(locale);translateStatic();refreshCaption();root.dataset.languageReady='true';}
+ if(changed){setLocale(locale);translateStatic();refreshCaption();root.dataset.languageReady='true';invoke('set_update_language',{language:locale}).catch(()=>{});}
  $('oot-language').value=String(mode);return changed;
 }
 function renderUpdateResult(){
- $('oot-update-description').textContent=automaticCheckFailed?t('管理中心 0.2.1 · 更新检查暂不可用'):t('管理中心 0.2.1');
+ $('oot-update-description').textContent=automaticCheckFailed?t('管理中心 0.2.2 · 更新检查暂不可用'):t('管理中心 0.2.2');
  if(!release)return;
  $('oot-update-result').hidden=false;
  const titles={waiting:'更新已下载，等待 Office 退出',installed:'更新安装完成'};
@@ -72,7 +75,7 @@ function renderEnvironment(){
  const running=snapshot?.officeRunning;const compatible=snapshot?.compatible;
  $('oot-env').classList.toggle('blocked',Boolean(snapshot&&(!compatible||running)));
  $('oot-env-title').textContent=!snapshot?t('正在检查安装环境…'):!compatible?t('需要匹配的 Office 位数'):running?t('请先保存并退出 Office'):t('安装环境已就绪');
- $('oot-env-note').textContent=!snapshot?t('正在读取本机状态。'):!compatible?(snapshot.architecture==='x86'?t('当前 Office 为 32 位，此安装包适用于 64 位 Office。'):t('无法确认 Office 位数，请确认已安装受支持的桌面版 Office。')):running?t('Office 仍在运行。退出后点击“重新检测”，不会关闭你的文档。'):t('已确认 64 位 Office，可安装所选组件。');
+ $('oot-env-note').textContent=!snapshot?t('正在读取本机状态。'):!compatible?(snapshot.architecture==='conflict'?t('Office 位数信息存在冲突，请检查 Office 安装后重新检测。'):t('无法确认 Office 位数，请确认已安装受支持的桌面版 Office。')):running?t('Office 仍在运行。退出后点击“重新检测”，不会关闭你的文档。'):t('已确认 {bits} 位 Office，可安装所选组件。',{bits:snapshot.architecture==='x86'?32:64});
  $('oot-install-button').textContent=running?t('重新检测'):t('安装');
  $('oot-install-button').disabled=busy||!snapshot||!compatible||(!running&&root.querySelectorAll('[data-install-host]:checked').length===0);
 }
@@ -98,7 +101,7 @@ async function diagnostics(){
  lastDiagnostics=report;renderDiagnostics(report);toast(t('检查完成。'));
 }
 function renderDiagnostics(report){
- const rows=root.querySelectorAll('.o-diagnostic .o-plain-row>span');rows[0].textContent=report.architecture==='x64'?t('64 位 · 匹配'):report.architecture==='x86'?t('32 位 · 不匹配'):t('未能确认');rows[1].textContent=report.installed?(report.matchesThisPackage?t('与此安装包一致'):t('已注册，版本需核对')):t('未安装或文件缺失');
+ const rows=root.querySelectorAll('.o-diagnostic .o-plain-row>span');rows[0].textContent=report.architecture==='x64'?t('64 位 · 匹配'):report.architecture==='x86'?t('32 位 · 匹配'):t('未能确认');rows[1].textContent=report.installed?(report.matchesThisPackage?t('与此安装包一致'):t('已注册，版本需核对')):t('未安装或文件缺失');
  const active=report.hosts.filter(host=>host.running);
  $('oot-loaded-state').textContent=!active.length?t('等待 Office 启动后核对'):active.some(host=>!host.moduleReadable)?t('部分进程载荷未能核对'):active.every(host=>host.loaded&&host.matchesRegistration)?t('已加载，路径与注册一致'):t('未加载或仍运行旧载荷，需重启 Office');
  const preview={...report};if(report.runtimeTimeline)preview.runtimeTimeline={...report.runtimeTimeline,eventCount:report.runtimeTimeline.events.length,events:report.runtimeTimeline.events.slice(-30)};
@@ -146,6 +149,7 @@ async function savePreferences(changed){
 }
 for(const [key,id] of [['autoCheck','oot-auto-check'],['autoDownload','oot-auto-download'],['autoInstall','oot-auto-install']])$(id).addEventListener('change',()=>savePreferences(key));
 async function checkUpdate(automatic=false){
+ if(!automatic){try{await invoke('open_update_window',{language:currentLocale()});}catch(error){toast(String(error),true);}return;}
  let result;
  if(automatic){try{result=await invoke('service',{action:'check-update',request:{}});}catch(error){automaticCheckFailed=true;renderUpdateResult();return;}}
  else result=await operation('check-update',{},t('正在检查更新…'));
@@ -157,7 +161,7 @@ async function installUpdate(){
  if(!release?.available)return;const result=await operation('apply-update',{version:release.version},t('正在下载、校验并安装更新…'));if(!result)return;
  waitingUpdate=Boolean(result.waitingForOffice);updatePhase=waitingUpdate?'waiting':'installed';renderUpdateResult();toast(waitingUpdate?t('已保留经过校验的更新。'):t('安装版本已核对。'));
 }
-$('oot-check-update').addEventListener('click',()=>checkUpdate());$('oot-install-update').addEventListener('click',installUpdate);
+$('oot-check-update').addEventListener('click',()=>checkUpdate());$('oot-install-update').addEventListener('click',()=>checkUpdate());
 $('oot-uninstall').addEventListener('click',()=>{$('oot-uninstall-dialog').hidden=false;$('oot-uninstall-cancel').focus();});
 $('oot-uninstall-cancel').addEventListener('click',()=>{$('oot-uninstall-dialog').hidden=true;$('oot-uninstall').focus();});
 $('oot-uninstall-confirm').addEventListener('click',async()=>{const result=await operation('uninstall',{removeSettings:$('oot-remove-history').checked},t('正在准备卸载…'));if(result?.exit){$('oot-uninstall-dialog').hidden=true;await frame.close();}});
@@ -169,7 +173,7 @@ createIcons({icons:{ArrowUpRight,Check,CircleArrowUp,CircleCheck,CodeXml,House,I
 async function initialize(){
 renderPreview();setBusy(true);
 try{
- const boot=await invoke('boot');languageOverride=boot.language;state.host=boot.host;snapshot=await invoke('service',{action:'state',request:{}});setSnapshot(snapshot,true);setBusy(false);route(boot.page);
+ const boot=await invoke('boot');languageOverride=boot.language;state.host=boot.host;state.route=boot.page;snapshot=await invoke('service',{action:'state',request:{}});setSnapshot(snapshot,true);setBusy(false);route(boot.page);
  await window.__TAURI__.event.listen('open-page',event=>{if(busy)return;const context=typeof event.payload==='string'?{page:event.payload}:event.payload;if(context.language!=null){languageOverride=context.language;setSnapshot(snapshot);}route(context.page);});
  if(boot.uninstall)$('oot-uninstall').click();
  if(snapshot.preferences.autoCheck&&boot.page!=='installer'&&!busy)void checkUpdate(true);

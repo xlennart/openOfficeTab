@@ -1,6 +1,9 @@
-﻿param([switch]$OpenFixtures,[string]$ExpectedVersion='0.2.1')
+﻿param([switch]$OpenFixtures,[string]$ExpectedVersion='0.2.2',[ValidateSet('auto','x86','x64')][string]$Architecture='auto')
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
+. (Join-Path $taskRoot 'scripts/office-architecture.ps1')
+$Language='auto'
+$Architecture=Resolve-OotInstallArchitecture $Architecture
 New-Item -ItemType Directory -Path (Join-Path $taskRoot 'artifacts') -Force | Out-Null
 if($env:CODEX_WINDOWS_SANDBOX_PACKAGE_FAMILY){throw 'Run this verification outside the development process context.'}
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -9,8 +12,8 @@ $registration=foreach($hostName in 'Word','Excel','PowerPoint'){
     if($entry.LoadBehavior -ne 3){throw "Startup registration failed: $hostName"}
     [pscustomobject]@{Host=$hostName;LoadBehavior=$entry.LoadBehavior}
 }
-$dllPath=(Get-ItemProperty -LiteralPath 'HKCU:\Software\Classes\CLSID\{65F17021-3B6B-4C5E-B54B-512806431710}\InprocServer32').'(default)'
-$sourceHash=(Get-FileHash -LiteralPath (Join-Path $taskRoot 'dist\x64\openOfficetab.dll')).Hash
+$dllPath=[OpenOfficeTab.Desktop.Api]::RegisteredDll($Architecture)
+$sourceHash=(Get-FileHash -LiteralPath (Join-Path $taskRoot "dist\$Architecture\openOfficetab.dll")).Hash
 $installedHash=(Get-FileHash -LiteralPath $dllPath).Hash
 if($installedHash -ne $sourceHash){throw 'Installed DLL hash differs from delivered DLL.'}
 $results=@()

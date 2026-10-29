@@ -279,7 +279,7 @@ LRESULT CALLBACK Tabs::proc(HWND w,UINT m,WPARAM a,LPARAM b){
         if(m==WM_SETCURSOR&&LOWORD(b)==HTCLIENT){POINT p{};GetCursorPos(&p);ScreenToClient(w,&p);if(self->resizing||self->edgeAt(p)){SetCursor(LoadCursorW(nullptr,IDC_SIZEWE));return TRUE;}}
         if(m==WM_CAPTURECHANGED){self->finishResize(true);self->pressed=0;self->dragging=false;}
         if(m==WM_CANCELMODE){self->finishResize(true);self->pressed=0;self->dragging=false;if(GetCapture()==w)ReleaseCapture();return 0;}
-        if(m==WM_NOTIFY&&((NMHDR*)b)->code==TTN_GETDISPINFOW){auto info=(NMTTDISPINFOW*)b;POINT p;GetCursorPos(&p);ScreenToClient(w,&p);auto v=self->session?self->session->find(self->at(p)):nullptr;self->hint=v?(v->path.empty()?v->title:v->path):i18n::text(self->session?self->session->language():0,L"openOfficetab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作");info->lpszText=self->hint.data();return 0;}
+        if(m==WM_NOTIFY&&((NMHDR*)b)->code==TTN_GETDISPINFOW){auto info=(NMTTDISPINFOW*)b;POINT p;GetCursorPos(&p);ScreenToClient(w,&p);auto v=self->session?self->session->find(self->at(p)):nullptr;self->hint=v?(v->path.empty()?v->title:v->path):i18n::text(self->session?self->session->language():0,L"openOfficeTab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作");info->lpszText=self->hint.data();return 0;}
         if(m==WM_NCDESTROY){if(self->hwnd==w)self->hwnd=nullptr;if(self->oleHwnd==w)self->oleHwnd=nullptr;SetWindowLongPtrW(w,GWLP_USERDATA,0);}
     }catch(const ComError& e){if(self->session)self->session->report(e);}catch(...){log(L"control.exception",E_FAIL);}
     return DefWindowProcW(w,m,a,b);

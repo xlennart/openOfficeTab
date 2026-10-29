@@ -1,6 +1,9 @@
-﻿param([string]$ExpectedVersion='0.2.1')
+﻿param([string]$ExpectedVersion='0.2.2',[ValidateSet('auto','x86','x64')][string]$Architecture='auto')
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
+. (Join-Path $taskRoot 'scripts/office-architecture.ps1')
+$Language='auto'
+$Architecture=Resolve-OotInstallArchitecture $Architecture
 . (Join-Path $PSScriptRoot 'common.ps1')
 if(-not ('OotLanguageProbe' -as [type])){
 Add-Type -TypeDefinition @'
@@ -15,7 +18,7 @@ public static class OotLanguageNative {
 '@
 }
 $apis=@();$apps=@();$before=@();$reports=@()
-$expectedHash=(Get-FileHash -LiteralPath (Join-Path $taskRoot 'dist\x64\openOfficetab.dll')).Hash
+$expectedHash=(Get-FileHash -LiteralPath (Join-Path $taskRoot "dist\$Architecture\openOfficetab.dll")).Hash
 foreach($hostName in 'Word','Excel','PowerPoint'){
     $fileName=if($hostName -eq 'Word'){'word-demo.docx'}elseif($hostName -eq 'Excel'){'excel-demo.xlsx'}else{'powerpoint-demo.pptx'}
     $file=Join-Path $taskRoot ('tests\fixtures\'+$fileName)
@@ -24,8 +27,8 @@ foreach($hostName in 'Word','Excel','PowerPoint'){
     $api=$app.COMAddIns.Item('openOfficetab.Connect').Object;$state=$api.GetState()|ConvertFrom-Json
     if($state.version -ne $ExpectedVersion -or $state.views.Count -ne 1){throw 'Wrong loaded version or unexpected views'}
     [uint32]$officeProcess=0;[OotLanguageNative]::GetWindowThreadProcessId([IntPtr][long]$state.views[0].hwnd,[ref]$officeProcess)|Out-Null
-    $loaded=@((Get-Process -Id $officeProcess).Modules|Where-Object ModuleName -eq 'openOfficetab.dll')
-    if($loaded.Count -ne 1 -or (Get-FileHash -LiteralPath $loaded[0].FileName).Hash -ne $expectedHash){throw "Loaded payload mismatch: $hostName"}
+    $loaded=@([OpenOfficeTab.Desktop.Api]::ModulePaths($officeProcess)|Where-Object {[IO.Path]::GetFileName($_) -eq 'openOfficetab.dll'})
+    if($loaded.Count -ne 1 -or (Get-FileHash -LiteralPath $loaded[0]).Hash -ne $expectedHash){throw "Loaded payload mismatch: $hostName"}
     $apps+=,$app;$apis+=,$api;$before+=,$state
 }
 $original=[int]$before[0].diagnostics.languageSetting

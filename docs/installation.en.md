@@ -1,8 +1,10 @@
-# openOfficetab 0.2.1 · Windows x64
+# openOfficeTab · Windows x64
 
 [简体中文](installation.md)
 
 Native document tabs for Word, Excel, and PowerPoint. The native add-in supports English and Simplified Chinese. The installer and center share this language setting.
+
+Version 0.2.2 selects native 32-bit or 64-bit Office support automatically on **64-bit Windows**. Both payloads are in the same EXE and ZIP; the center remains x64. See the [architecture and test notes](office-x86.en.md).
 
 ## Install
 
@@ -11,7 +13,7 @@ Native document tabs for Word, Excel, and PowerPoint. The native add-in supports
 3. For the ZIP package, extract all files and run `Install.cmd`.
 4. Reopen an Office document. The tab bar appears below the ribbon.
 
-Installation is per user and needs no administrator rights. The installer does not close your documents or change Office security policy. Windows x64 with 64-bit Office is required; other Office versions and display setups have not all been verified. The installer is unsigned; compare the download with `SHA256SUMS.txt`.
+Installation is per user and needs no administrator rights. The installer does not close your documents or change Office security policy. Windows x64 with 32-bit or 64-bit Office is required. Tests cover host Office 16.0.20527.20088 x64 and VMware Office 16.0.20527.20112 x86; other builds and display setups have not all been verified. The installer is unsigned; compare the download with `SHA256SUMS.txt`.
 
 ## Interface language
 
@@ -39,8 +41,10 @@ If tabs are hidden, use **Recover tabs and windows** on the ribbon. If the add-i
 
 See the repository's validation record for the tested environment and limits.
 
-MIT License · https://github.com/xlennart/openOfficetab
+MIT License · https://github.com/xlennart/openOfficeTab
 
 ## Management center and logs
+
+Version 0.2.2 opens a separate window from **Check for updates**. It shows the new version and release notes, or **You're up to date**. Choose **Update now** to proceed. Save your work and exit Office; existing settings are kept. If Office is running, keep this window open to continue after Office exits.
 
 Use the ribbon management-center entry or Start menu shortcut. Export a JSON report from **Diagnostics & repair → Export diagnostics and logs** and attach it to the original issue with the steps and approximate time. Structured logs exclude document names, paths, content, cell values, accounts and tokens by default; nothing is uploaded automatically. Update checks select available routes automatically, verify signed metadata and installer hashes, and preserve settings. Automatic download/install are opt-in; installation waits until Office exits.
