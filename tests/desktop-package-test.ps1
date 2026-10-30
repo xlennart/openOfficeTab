@@ -1,4 +1,4 @@
-param([string]$Version='0.2.2',[string]$DeliveryDirectory)
+param([string]$Version='0.2.3-beta.1',[string]$DeliveryDirectory)
 $ErrorActionPreference='Stop'
 $ootRoot=Split-Path $PSScriptRoot -Parent
 $ootDelivery=if($DeliveryDirectory){[IO.Path]::GetFullPath($DeliveryDirectory)}else{Join-Path $ootRoot 'delivery'}

@@ -48,3 +48,7 @@ MIT License · https://github.com/xlennart/openOfficeTab
 Version 0.2.2 opens a separate window from **Check for updates**. It shows the new version and release notes, or **You're up to date**. Choose **Update now** to proceed. Save your work and exit Office; existing settings are kept. If Office is running, keep this window open to continue after Office exits.
 
 Use the ribbon management-center entry or Start menu shortcut. Export a JSON report from **Diagnostics & repair → Export diagnostics and logs** and attach it to the original issue with the steps and approximate time. Structured logs exclude document names, paths, content, cell values, accounts and tokens by default; nothing is uploaded automatically. Update checks select available routes automatically, verify signed metadata and installer hashes, and preserve settings. Automatic download/install are opt-in; installation waits until Office exits.
+
+## Beta update channel
+
+From 0.2.3-beta.1, choose **About & updates → Update channel → Stable / Beta**. Stable is the default. Manual and automatic checks share this preference. Switching channels never downgrades. Beta numbers compare numerically; a matching stable version supersedes its Beta. Version 0.2.2 and older remain on stable updates; download the prerelease setup to try Beta initially.

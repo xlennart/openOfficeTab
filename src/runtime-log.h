@@ -6,6 +6,9 @@
 // Never pass document names, paths, Office text or exception descriptions here.
 namespace runtimelog {
 struct Number {const char* key;long long value;};
+struct TraceContext {long long id=0,parent=0;int origin=0;long long job=0;};
+alignas(8) inline volatile LONG64 traceCounter=0;
+inline thread_local TraceContext traceContext;
 inline std::pair<long,long> officeBuild(const std::wstring& text,long numeric=-1){
     std::vector<long> parts;std::wistringstream input(text);std::wstring part;
     while(std::getline(input,part,L'.')){
@@ -63,7 +66,8 @@ public:
         if(!TryAcquireSRWLockExclusive(&lock)){InterlockedIncrement(&dropped);return;}
         try{
             SYSTEMTIME time;GetSystemTime(&time);char stamp[40];sprintf_s(stamp,"%04u-%02u-%02uT%02u:%02u:%02u.%03uZ",time.wYear,time.wMonth,time.wDay,time.wHour,time.wMinute,time.wSecond,time.wMilliseconds);
-            std::string row="{\"schema\":1,\"version\":\"0.2.2\",\"utc\":\""+std::string(stamp)+"\",\"tick\":"+std::to_string(GetTickCount64())+",\"runId\":"+std::to_string(runId)+",\"seq\":"+std::to_string(++sequence)+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"tid\":"+std::to_string(GetCurrentThreadId())+" ,\"bits\":"+std::to_string(sizeof(void*)*8)+",\"host\":"+std::to_string(host)+",\"event\":\""+code(event)+"\",\"hr\":"+std::to_string((unsigned long)hr);
+            std::string row="{\"schema\":1,\"version\":\"0.2.3-beta.1\",\"utc\":\""+std::string(stamp)+"\",\"tick\":"+std::to_string(GetTickCount64())+",\"runId\":"+std::to_string(runId)+",\"seq\":"+std::to_string(++sequence)+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"tid\":"+std::to_string(GetCurrentThreadId())+" ,\"bits\":"+std::to_string(sizeof(void*)*8)+",\"host\":"+std::to_string(host)+",\"event\":\""+code(event)+"\",\"hr\":"+std::to_string((unsigned long)hr);
+            row+=",\"traceId\":"+std::to_string(traceContext.id)+",\"parentTrace\":"+std::to_string(traceContext.parent)+",\"origin\":"+std::to_string(traceContext.origin)+",\"jobId\":"+std::to_string(traceContext.job);
             for(auto& field:fields){bool valid=field.key&&*field.key;for(const char* p=field.key;p&&*p;p++)if(!((*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||(*p>='0'&&*p<='9')))valid=false;if(valid)row+=",\""+std::string(field.key)+"\":"+std::to_string(field.value);}
             row+="}\n";
             if(pending.size()+row.size()<=Buffer)pending+=row;else InterlockedIncrement(&dropped);

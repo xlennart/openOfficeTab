@@ -1,4 +1,4 @@
-﻿param([string]$ExpectedVersion='0.2.2',[ValidateSet('auto','x86','x64')][string]$Architecture='auto')
+﻿param([string]$ExpectedVersion='0.2.3-beta.1',[ValidateSet('auto','x86','x64')][string]$Architecture='auto')
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
 . (Join-Path $taskRoot 'scripts/office-architecture.ps1')

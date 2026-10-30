@@ -80,6 +80,8 @@ These user-provided screenshots show version 0.1.7. Choose either appearance und
 
 ## Features
 
+**Diagnostic Beta:** [0.2.3-beta.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.3-beta.1) adds causal logging and selectable update channels. Stable remains 0.2.2. In the Beta management center, choose **About & updates → Update channel → Stable / Beta**; Stable is the default. Channel changes do not downgrade. The intermittent issue #5 is not confirmed resolved. [Beta notes](docs/release-notes-v0.2.3-beta.1.md) · [Logging](docs/diagnostic-logging.en.md).
+
 | Feature | What it does |
 | :--- | :--- |
 | Document tabs | Click to switch, drag to reorder, and see `*` on unsaved documents. |

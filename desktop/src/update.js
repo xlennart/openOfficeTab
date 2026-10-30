@@ -3,7 +3,7 @@ import {createIcons,PackageCheck,X} from 'lucide';
 
 const root=document.getElementById('oot-design'),$=id=>document.getElementById(id);
 const frame=window.__TAURI__.window.getCurrentWindow();
-let phase='checking',release=null,currentVersion='',problem='',busy=false,closed=false,polling=false;
+let phase='checking',release=null,currentVersion='',problem='',busy=false,closed=false,polling=false,recheckPending=false;
 setLocale(new URLSearchParams(location.search).get('language'));
 const service=(action,request={})=>window.__TAURI__.core.invoke('service',{action,request:{...request,language:currentLocale()}});
 function render(){
@@ -30,7 +30,7 @@ function render(){
 async function check(){
  if(busy||closed)return;busy=true;phase='checking';problem='';render();
  try{const result=await service('check-update');if(closed)return;release=result;currentVersion=result.currentVersion||currentVersion;phase=result.available?'available':'latest';}
- catch(error){problem=String(error);phase='error';}finally{busy=false;if(!closed)render();}
+ catch(error){problem=String(error);phase='error';}finally{busy=false;if(!closed){render();if(recheckPending){recheckPending=false;void check();}}}
 }
 async function install(){
  phase='installing';render();
@@ -50,7 +50,7 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape')void close()
 createIcons({icons:{PackageCheck,X}});
 async function initialize(){
  render();
- try{const boot=await window.__TAURI__.core.invoke('boot');currentVersion=boot.version;await window.__TAURI__.event.listen('check-update',event=>{setLocale(event.payload);if(busy)render();else void check();});await window.__TAURI__.event.listen('update-language',event=>{setLocale(event.payload);render();});await check();}
+ try{const boot=await window.__TAURI__.core.invoke('boot');currentVersion=boot.version;await window.__TAURI__.event.listen('check-update',event=>{setLocale(event.payload);if(busy){recheckPending=true;render();}else void check();});await window.__TAURI__.event.listen('update-language',event=>{setLocale(event.payload);render();});await check();}
  catch(error){problem=String(error);phase='error';busy=false;render();}
 }
 void initialize();

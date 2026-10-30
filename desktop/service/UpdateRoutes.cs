@@ -100,7 +100,20 @@ namespace OpenOfficeTab.Desktop {
    var tasks=Enumerable.Range(0,SourceCount).Select(index=>Task.Run(()=>{
     try{return SignedReleaseMetadata.Parse(new UTF8Encoding(false,true).GetString(Read(Candidate(feed,index),65536)));}catch(Exception){return null;}
    })).ToArray();Task.WaitAll(tasks);
-   return tasks.Select(task=>task.Result).Where(release=>release!=null).OrderByDescending(release=>release.Version).FirstOrDefault();
+   var releases=tasks.Select(task=>task.Result).Where(release=>release!=null).ToList();
+   // Only the user's Beta channel preference opts into discovery. API data is untrusted: it
+   // can nominate tags, but every candidate still needs the existing RSA trust anchor.
+   if(new Services(root).AcceptsPrerelease)try{
+    var list=new JavaScriptSerializer().DeserializeObject(new UTF8Encoding(false,true).GetString(Read("https://api.github.com/repos/xlennart/openOfficeTab/releases?per_page=20",2*1024*1024))) as object[];
+    if(list!=null)foreach(var item in list.OfType<Dictionary<string,object>>().Where(item=>item.ContainsKey("draft")&&item["draft"] is bool&&!(bool)item["draft"]&&item.ContainsKey("prerelease")&&item["prerelease"] is bool&&(bool)item["prerelease"]).Take(6))try{
+     string tag=item["tag_name"] as string;var identity=ReleaseVersion.Parse(tag!=null&&tag.StartsWith("v",StringComparison.Ordinal)?tag.Substring(1):tag);if(!identity.Prerelease||identity.Channel=="alpha")continue;
+     string beta=DesktopProgram.Repo+"/releases/download/"+tag+"/openofficetab-update-beta.json";
+     var candidates=Enumerable.Range(0,SourceCount).Select(index=>Task.Run(()=>{try{return SignedReleaseMetadata.Parse(new UTF8Encoding(false,true).GetString(Read(Candidate(beta,index),65536)),true);}catch(Exception){return null;}})).ToArray();Task.WaitAll(candidates);
+     var candidate=candidates.Select(task=>task.Result).FirstOrDefault(value=>value!=null&&value.Tag==tag&&value.Label==identity.Text);if(candidate==null)continue;
+     if(candidate.Tag!=tag||candidate.Label!=identity.Text)throw new InvalidDataException("Prerelease nomination mismatch.");releases.Add(candidate);
+    }catch(Exception){}
+   }catch(Exception){}
+   return releases.OrderByDescending(release=>release.Identity??ReleaseVersion.Parse(release.Version.ToString())).FirstOrDefault();
   }
   internal static ReleaseInfo LegacyCurrent(){
    using(var response=Open(DesktopProgram.Repo+"/releases/latest","HEAD")){
@@ -121,7 +134,7 @@ namespace OpenOfficeTab.Desktop {
     if(locale=="zh-CN")release.NotesZh=text;else release.NotesEn=text;
    }
   }
-  internal static ReleaseInfo Parse(string envelope){
+  internal static ReleaseInfo Parse(string envelope,bool acceptsPrerelease=false){
    var serializer=new JavaScriptSerializer{MaxJsonLength=65536};var signed=serializer.Deserialize<Dictionary<string,string>>(envelope);
    byte[] payload=Convert.FromBase64String(signed["payload"]),signature=Convert.FromBase64String(signed["signature"]);
    string publicKey;using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("openOfficetab.UpdatePublicKey"))using(var reader=new StreamReader(stream))publicKey=reader.ReadToEnd();
@@ -129,8 +142,10 @@ namespace OpenOfficeTab.Desktop {
    var data=serializer.Deserialize<Dictionary<string,object>>(new UTF8Encoding(false,true).GetString(payload));
    if(Convert.ToInt32(data["schemaVersion"])!=1||(string)data["protocol"]!="openofficetab-desktop-v1"||(string)data["architecture"]!="x64")throw new InvalidDataException("Unsupported update protocol.");
    var asset=new Dictionary<string,object>{{"name",data["name"]},{"browser_download_url",data["url"]},{"size",data["size"]},{"digest","sha256:"+(string)data["sha256"]}};
-   var metadata=new Dictionary<string,object>{{"tag_name",data["tag"]},{"draft",false},{"prerelease",false},{"assets",new[]{asset}}};
-   var release=UpdateClient.Parse(serializer.Serialize(metadata));if(release.Version.ToString()!=(string)data["version"])throw new InvalidDataException("Inconsistent signed version.");ReadNotes(release,data);return release;
+   var identity=ReleaseVersion.Parse((string)data["version"]);
+   if((identity.Prerelease&&!data.ContainsKey("channel"))||(data.ContainsKey("channel")&&(string)data["channel"]!=identity.Channel))throw new InvalidDataException("Inconsistent signed release channel.");
+   var metadata=new Dictionary<string,object>{{"tag_name",data["tag"]},{"draft",false},{"prerelease",identity.Prerelease},{"assets",new[]{asset}}};
+   var release=UpdateClient.Parse(serializer.Serialize(metadata),acceptsPrerelease);if(release==null)return null;if(release.Label!=identity.Text)throw new InvalidDataException("Inconsistent signed version.");ReadNotes(release,data);return release;
   }
  }
 }

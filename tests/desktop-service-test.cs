@@ -44,6 +44,22 @@ namespace OpenOfficeTab.Desktop {
    byte[] content={77,90,1,2};string hash=Hash(content);int downloads=0;
    var client=new UpdateClient(new Services(root),(url,output,limit)=>{byte[] bytes;if(url.EndsWith("SHA256SUMS.txt"))bytes=Encoding.UTF8.GetBytes(hash+"  openOfficetab-99.0.0-setup-x64.exe\n");else {downloads++;bytes=content;}output.Write(bytes,0,bytes.Length);});
    var release=UpdateClient.Parse(metadata);Check(release.Version==new Version(99,0,0),"parse stable release");
+   Check(!new Services(root).AcceptsPrerelease,"stable is the default user channel");
+   store.Merge("desktop",new Dictionary<string,string>{{"updateChannel","beta"}});Check(new Services(root).AcceptsPrerelease,"beta channel preference is read from shared INI");
+   store.Merge("desktop",new Dictionary<string,string>{{"updateChannel","stable"}});Check(!new Services(root).AcceptsPrerelease,"channel returns to stable");
+   Check(ReleaseVersion.Upgrade("0.2.2","0.2.3-beta.1",true),"opt-in stable to next beta");
+   Check(!ReleaseVersion.Upgrade("0.2.2","0.2.3-beta.1",false),"stable channel rejects beta");
+   Check(ReleaseVersion.Upgrade("0.2.3-beta.1","0.2.3-beta.2",true),"beta number progression");
+   Check(ReleaseVersion.Upgrade("0.2.3-beta.9","0.2.3-beta.10",true),"beta numbers compare numerically");
+   Check(ReleaseVersion.Upgrade("0.2.3-beta.1","0.2.3",false),"same-core beta to stable");
+   Check(!ReleaseVersion.Upgrade("0.2.3","0.2.3-beta.99",true),"stable never regresses to same-core beta");
+   Check(!ReleaseVersion.Upgrade("0.2.3-beta.2","0.2.3-beta.1",true),"no older beta downgrade");
+   Check(!ReleaseVersion.Upgrade("0.2.3-beta.1","0.2.2",false),"channel switch does not downgrade");
+   Check(!ReleaseVersion.Upgrade("0.2.2","0.2.3-alpha.1",true),"beta channel excludes internal alpha");
+   string betaMetadata=metadata.Replace("99.0.0","99.0.0-beta.1").Replace("\"prerelease\":false","\"prerelease\":true");
+   Check(UpdateClient.Parse(betaMetadata)==null,"stable parser excludes beta metadata");
+   Check(UpdateClient.Parse(betaMetadata,true).Label=="99.0.0-beta.1","opt-in parser retains exact prerelease identity");
+   foreach(string invalid in new[]{"0.2.3-beta.0","0.2.3-beta.01","0.2.3.1","0.2.3-beta.1/path","00.2.3","0.2.3-unknown.1"}){bool rejected=false;try{ReleaseVersion.Parse(invalid);}catch(InvalidDataException){rejected=true;}Check(rejected,"malformed release identity rejected");}
    SignedReleaseMetadata.ReadNotes(release,new Dictionary<string,object>());Check(release.NotesZh==""&&release.NotesEn=="","legacy signed feed without notes remains compatible");
    SignedReleaseMetadata.ReadNotes(release,new Dictionary<string,object>{{"notes",new Dictionary<string,object>{{"zh-CN","更新说明"},{"en","Release notes <script>text only</script>"}}}});Check(release.NotesZh=="更新说明"&&release.NotesEn.Contains("<script>"),"localized signed notes are retained as plain text");
    foreach(object invalid in new object[]{"invalid",new Dictionary<string,object>{{"en",new string('x',6001)}},new Dictionary<string,object>{{"en",42}}}){bool rejected=false;try{SignedReleaseMetadata.ReadNotes(release,new Dictionary<string,object>{{"notes",invalid}});}catch(InvalidDataException){rejected=true;}Check(rejected,"invalid or excessive signed notes rejected");}
@@ -60,6 +76,8 @@ namespace OpenOfficeTab.Desktop {
    var logJson=Api.DiagnosticTimeline(root);Check(logJson.Contains("service.check-update.begin")&&logJson.Contains("elapsedMs"),"diagnostic timeline contains structured service operation");
    File.WriteAllText(Path.Combine(logRoot,"native-privacy.jsonl"),"{\"event\":\"view.discovered\",\"version\":\"0.2.0\",\"utc\":\"2026-10-28T00:00:00.000Z\",\"viewId\":12,\"documentPath\":\"PRIVATE_MARKER\",\"body\":\"PRIVATE_BODY\"}\ninvalid-json\n");
    logJson=Api.DiagnosticTimeline(root);Check(logJson.Contains("view.discovered")&&!logJson.Contains("PRIVATE_MARKER")&&!logJson.Contains("PRIVATE_BODY")&&!logJson.Contains("documentPath"),"timeline export strips unknown text fields and malformed records");
+   File.WriteAllText(Path.Combine(logRoot,"native-beta.jsonl"),"{\"event\":\"layout.run\",\"version\":\"0.2.3-beta.1\",\"utc\":\"2026-10-30T00:00:00.000Z\",\"traceId\":51,\"parentTrace\":50,\"jobId\":23,\"origin\":2,\"requestTrace\":49,\"selectedId\":2,\"hoverId\":1,\"activePainted\":1,\"documentPath\":\"PRIVATE_BETA_PATH\"}\n");
+   logJson=Api.DiagnosticTimeline(root);Check(logJson.Contains("0.2.3-beta.1")&&logJson.Contains("\"traceId\":51")&&logJson.Contains("\"jobId\":23")&&logJson.Contains("\"activePainted\":1")&&!logJson.Contains("PRIVATE_BETA_PATH"),"beta identity and causal/paint evidence survive redacted export");
    File.WriteAllText(Path.Combine(logRoot,"native-oversize.jsonl"),new string('x',1024*1024+1));logJson=Api.DiagnosticTimeline(root);Check(logJson.Length<4*1024*1024&&!logJson.Contains(new string('x',100)),"oversize log excluded from bounded export");
    Console.WriteLine("Desktop service checks passed: "+count);return 0;
   }catch(Exception error){Console.Error.WriteLine(error);return 1;}}

@@ -25,6 +25,8 @@ class Tabs final:public IDispatch,public IOleObject,public IOleInPlaceObject,
     HWND resizePreviousFocus=nullptr;
     int offset=0;
     unsigned long long lastSelected=0;
+    diagnostic::Gate paintDiagnosticGate;
+    unsigned long long diagnosticSelected=0,diagnosticGroup=0,diagnosticHover=0;
     HWND tooltip=nullptr;
     std::wstring hint;
     ULONG_PTR graphicsToken=0;

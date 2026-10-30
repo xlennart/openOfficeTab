@@ -81,3 +81,9 @@ html,body{overflow:hidden}
  #oot-design .o-bottom>.o-right-actions,#oot-design .o-bottom>.o-btn{grid-column:1;width:100%;justify-self:stretch}
  #oot-design .o-bottom>.o-link{justify-self:start}
 }
+#oot-design #oot-update-channel{max-width:180px;min-width:100px;border:1px solid var(--o-line);border-radius:6px;background:var(--o-paper);color:var(--o-text);font:inherit;padding:7px 8px}
+#oot-design #oot-page-updates{overflow:hidden;padding:0;gap:0}
+#oot-design #oot-page-updates>.o-page-scroll{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:22px;padding:30px 30px 22px;scrollbar-gutter:stable}
+#oot-design #oot-page-updates>.o-page-scroll>*{flex-shrink:0;min-width:0}
+#oot-design #oot-page-updates>.o-bottom{position:static;flex-shrink:0;margin:0;padding:12px 30px}
+@media(max-width:620px){#oot-design #oot-page-updates>.o-page-scroll{padding:20px 16px}#oot-design #oot-page-updates>.o-bottom{padding:12px 16px}}

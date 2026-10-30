@@ -1,5 +1,6 @@
 #pragma once
 #include "com.h"
+#include "diagnostic-trace.h"
 #include "storage.h"
 #include "localization.h"
 enum class Host {Word,Excel,PowerPoint};
@@ -74,6 +75,8 @@ public:
     HWND sizingRoot=nullptr,queuedLayoutRoot=nullptr;
     unsigned nativeFrameDepth=0;
     bool queuedLayoutCommand=false,queuedLayoutMinimize=false;
+    long long queuedLayoutId=0,queuedLayoutTrace=0;
+    diagnostic::Gate layoutDiagnosticGate,snapshotDiagnosticGate;
     std::map<HWND,std::shared_ptr<WindowMask>> windowMasks;
     HWND maskSource=nullptr;
     ULONGLONG maskActivity=0;
@@ -98,6 +101,8 @@ public:
     unsigned long long activeTabId(HWND root=nullptr)const;
     unsigned long long displayedTabId(HWND root)const;
     void setActiveView(unsigned long long id);
+    void diagnosticSnapshot(int reason);
+    void cancelLayoutDiagnostic(int reason);
     bool showTabs(HWND root)const;
     bool setIndependent(unsigned long long id,bool independent);
     bool moveToGroup(unsigned long long id,unsigned group);

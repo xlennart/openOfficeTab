@@ -18,6 +18,12 @@ $state=Invoke-OotDesktopAction appearance $request
 Assert ($state.appearance.tabWidth -eq 184 -and $state.appearance.themeMode -eq 2 -and $state.appearance.autoHide) 'Appearance writes shared INI values'
 $preferences=Invoke-OotDesktopAction preferences ('{"autoCheck":false,"autoDownload":false,"autoInstall":false}'|ConvertFrom-Json)
 Assert (-not $preferences.preferences.autoCheck) 'Update preference persistence'
+$preferences=Invoke-OotDesktopAction preferences ('{"autoCheck":false,"autoDownload":false,"autoInstall":false,"updateChannel":"beta"}'|ConvertFrom-Json)
+Assert ($preferences.preferences.updateChannel -eq 'beta') 'Beta channel preference persists'
+$preferences=Invoke-OotDesktopAction preferences ('{"autoCheck":false,"autoDownload":false,"autoInstall":false}'|ConvertFrom-Json)
+Assert ($preferences.preferences.updateChannel -eq 'beta') 'Old clients preserve the selected update channel'
+$channelRejected=$false;try{Invoke-OotDesktopAction preferences ('{"autoCheck":false,"autoDownload":false,"autoInstall":false,"updateChannel":"alpha"}'|ConvertFrom-Json)|Out-Null}catch{$channelRejected=$true}
+Assert $channelRejected 'Only stable and beta are user selectable'
 $before=[OpenOfficeTab.Desktop.Api]::Hash((Join-Path $script:DataRoot 'settings.ini'))
 foreach($json in @('{"changes":{"tabWidth":79}}','{"changes":{"themeMode":99}}','{"changes":{"futureKey":1}}','{"changes":{"autoHide":"false"}}')){
     $rejected=$false;try{[void](Invoke-OotDesktopAction appearance ($json|ConvertFrom-Json))}catch{$rejected=$true}

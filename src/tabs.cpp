@@ -195,6 +195,7 @@ void Tabs::paint(HDC target,RECT rc){
     int available=contentRight-contentLeft;
     if(session){
         auto views=session->tabViews(hostWindow);auto selectedId=session->displayedTabId(hostWindow);
+        int paintedActive=0,paintedHover=0;
         std::vector<int> widths;for(auto& v:views){SIZE textSize{};GetTextExtentPoint32W(d,v->title.c_str(),(int)v->title.size(),&textSize);int preferred=v->manualTabWidth?v->manualTabWidth:tablayout::preferred(session->settings.tabWidth,session->settings.widthMode,MulDiv(textSize.cx,96,scale),MulDiv(available,96,scale),(int)views.size());widths.push_back(MulDiv(preferred,scale,96));}
         offset=std::clamp(offset,0,std::max(0,(int)views.size()-1));
         if(lastSelected!=selectedId){lastSelected=selectedId;for(int i=0;i<(int)views.size();i++)if(views[i]->id==selectedId){if(i<offset)offset=i;int total=0;for(int j=offset;j<=i;j++)total+=widths[j];while(total>available&&offset<i)total-=widths[offset++];break;}}
@@ -203,6 +204,7 @@ void Tabs::paint(HDC target,RECT rc){
             int tabW=widths[i];if(contentRight-x<MulDiv(tablayout::minWidth,scale,96))break;
             auto& v=views[i];RECT r{x,MulDiv(3,scale,96),std::min(contentRight,x+tabW-MulDiv(3,scale,96)),tabH-MulDiv(3,scale,96)};
             bool active=v->id==selectedId;
+            if(active)++paintedActive;else if(v->id==hover)++paintedHover;
             if(blended&&active){if(towardTop)r.top=panel.top;else r.bottom=tabH;}
             COLORREF tabColor=active?selected:(v->id==hover?(dark?RGB(49,49,49):RGB(238,238,238)):bg);
             if(blended&&active)openTab(d,r,MulDiv(8,scale,96),tabColor,border,towardTop);
@@ -215,6 +217,14 @@ void Tabs::paint(HDC target,RECT rc){
             POINT cursor{};GetCursorPos(&cursor);ScreenToClient(hwnd,&cursor);
             if(v->id==resizing||(cursor.x>=r.right-MulDiv(4,scale,96)&&cursor.x<=r.right+MulDiv(4,scale,96)&&cursor.y>=r.top&&cursor.y<r.bottom)){RECT grip{r.right-std::max(1,MulDiv(1,scale,96)),r.top+pad,r.right+std::max(1,MulDiv(1,scale,96)),r.bottom-pad};fill(d,grip,accent);}
             hit.push_back({v->id,r});x=std::min(contentRight,x+tabW);
+        }
+        auto grouped=session->activeTabId(hostWindow);
+        bool selectionChanged=diagnosticSelected!=selectedId||diagnosticGroup!=grouped||diagnosticHover!=hover;
+        if((selectionChanged||session->windowFrameBusy()||paintedActive>1)&&paintDiagnosticGate.take(GetTickCount64(),250)){
+            diagnostic::Scope cause(diagnostic::Paint);
+            logEvent(L"tabs.paint.sample",{{"hwnd",diagnostic::window(hostWindow)},{"barHwnd",diagnostic::window(hwnd)},{"selectedId",(long long)selectedId},{"groupSelectedId",(long long)grouped},{"hoverId",(long long)hover},{"activePainted",paintedActive},{"hoverPainted",paintedHover},{"foregroundHwnd",diagnostic::window(GetForegroundWindow())},{"viewCount",(long long)views.size()},{"dpi",scale},{"width",width},{"height",rc.bottom-rc.top},{"suppressed",paintDiagnosticGate.drain()}});
+            diagnosticSelected=selectedId;diagnosticGroup=grouped;diagnosticHover=hover;
+            if(paintedActive>1||(diagnostic::window(GetForegroundWindow())==diagnostic::window(hostWindow)&&selectedId!=grouped))session->diagnosticSnapshot(3);
         }
         nextButton=x;
     }

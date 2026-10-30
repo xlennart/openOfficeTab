@@ -1,5 +1,6 @@
 #pragma once
 #include "com.h"
+#include "diagnostic-trace.h"
 
 namespace windowlayout {
 // WINDOWPLACEMENT keeps the pre-snap restore rectangle on some Windows builds.
@@ -20,12 +21,13 @@ inline bool matches(HWND window,const WINDOWPLACEMENT& placement,const RECT& bou
     return capture(window,now,rect)&&now.showCmd==placement.showCmd&&EqualRect(&now.rcNormalPosition,&placement.rcNormalPosition)&&EqualRect(&rect,&bounds);
 }
 inline bool apply(HWND window,const WINDOWPLACEMENT& placement,const RECT& bounds){
+    diagnostic::Scope cause(diagnostic::Align);
     PhysicalCoordinates context;
-    if(placement.showCmd==SW_SHOWMAXIMIZED){auto desired=placement;desired.flags=0;return SetWindowPlacement(window,&desired)!=FALSE;}
+    if(placement.showCmd==SW_SHOWMAXIMIZED){auto desired=placement;desired.flags=0;return diagnostic::perform(6,window,[&]{BOOL ok=SetWindowPlacement(window,&desired);if(!ok){auto error=GetLastError();logEvent(L"window.api.win32",{{"api",6},{"win32",error}});}return ok!=FALSE;});}
     if(minimized(placement)||bounds.right<=bounds.left||bounds.bottom<=bounds.top)return false;
     // SW_SHOWNOACTIVATE clears maximize/minimize without foreground activation.
-    if(IsZoomed(window)||IsIconic(window))ShowWindow(window,SW_SHOWNOACTIVATE);
-    return SetWindowPos(window,nullptr,bounds.left,bounds.top,bounds.right-bounds.left,bounds.bottom-bounds.top,SWP_NOZORDER|SWP_NOACTIVATE)!=FALSE;
+    if(IsZoomed(window)||IsIconic(window))diagnostic::show(window,SW_SHOWNOACTIVATE);
+    return diagnostic::position(window,nullptr,bounds.left,bounds.top,bounds.right-bounds.left,bounds.bottom-bounds.top,SWP_NOZORDER|SWP_NOACTIVATE);
 }
 inline bool sameSlot(HWND window,const WINDOWPLACEMENT& placement,const RECT& bounds){
     WINDOWPLACEMENT now{sizeof(now)};RECT rect{};

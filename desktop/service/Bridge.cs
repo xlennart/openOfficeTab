@@ -10,7 +10,9 @@ namespace OpenOfficeTab.Desktop {
  // Keep signed asset URL spelling compatible with existing clients after the display-name rename.
  internal static class DesktopProgram {internal const string Repo="https://github.com/xlennart/openOfficetab",Author="https://github.com/xlennart";}
  internal sealed class Services {
-  internal static readonly Version Version=new Version(0,2,2);
+  internal const string DisplayVersion="0.2.3-beta.1";
+  internal static readonly Version Version=ReleaseVersion.Parse(DisplayVersion).Core;
+  internal bool AcceptsPrerelease {get{var section=Store.Section("desktop");return section.ContainsKey("updateChannel")&&section["updateChannel"]=="beta";}}
   internal readonly StateStore Store;internal bool Preview=false;
   internal Services(string root){Store=new StateStore(root);}
   internal static bool OfficeRunning(){foreach(string name in new[]{"WINWORD","EXCEL","POWERPNT"}){var processes=Process.GetProcessesByName(name);bool found=processes.Length>0;foreach(var process in processes)process.Dispose();if(found)return true;}return false;}
@@ -44,10 +46,10 @@ namespace OpenOfficeTab.Desktop {
     result.Add(new {name=hosts[index],architecture=architecture,registered=hasKey,enabled=enabled,dllExists=File.Exists(registered),running=running,officeBuilds=builds.OrderBy(b=>b).ToArray(),loaded=loaded,moduleReadable=readable,matchesRegistration=loaded&&matches});
    }return Json.Serialize(result);
   }
-  public static string CheckUpdate(string root,bool force){var service=new Services(root);var client=new UpdateClient(service);var release=client.Check(force);return Json.Serialize(new {available=release!=null&&client.IsNewer(release),version=release==null?"":release.Version.ToString(),currentVersion=client.CurrentVersion().ToString(),size=release==null?0L:release.Size,notes=new Dictionary<string,string>{{"zh-CN",release==null?"":release.NotesZh},{"en",release==null?"":release.NotesEn}}});}
-  public static string DownloadUpdate(string root,string version){var service=new Services(root);var client=new UpdateClient(service);var release=client.Check(false);if(release==null||release.Version.ToString()!=version||!client.IsNewer(release))throw new InvalidDataException("Update metadata changed; check again.");return client.Download(release);}
-  public static void InstallUpdate(string root,string version){var service=new Services(root);var client=new UpdateClient(service);var release=client.Check(false);if(release==null||release.Version.ToString()!=version||!client.IsNewer(release))throw new InvalidDataException("Update metadata changed; check again.");client.Launch(release,client.Download(release),true);}
-  public static string ParseRelease(string metadata){var release=UpdateClient.Parse(metadata);return Json.Serialize(release==null?null:new {version=release.Version.ToString(),name=release.Name,hash=release.Hash,size=release.Size});}
+  public static string CheckUpdate(string root,bool force){var service=new Services(root);var client=new UpdateClient(service);var release=client.Check(force);return Json.Serialize(new {available=release!=null&&client.IsNewer(release),version=release==null?"":release.Label,currentVersion=client.CurrentIdentity().Text,size=release==null?0L:release.Size,notes=new Dictionary<string,string>{{"zh-CN",release==null?"":release.NotesZh},{"en",release==null?"":release.NotesEn}}});}
+  public static string DownloadUpdate(string root,string version){var service=new Services(root);var client=new UpdateClient(service);var release=client.Check(false);if(release==null||release.Label!=version||!client.IsNewer(release))throw new InvalidDataException("Update metadata changed; check again.");return client.Download(release);}
+  public static void InstallUpdate(string root,string version){var service=new Services(root);var client=new UpdateClient(service);var release=client.Check(false);if(release==null||release.Label!=version||!client.IsNewer(release))throw new InvalidDataException("Update metadata changed; check again.");client.Launch(release,client.Download(release),true);}
+  public static string ParseRelease(string metadata){var release=UpdateClient.Parse(metadata);return Json.Serialize(release==null?null:new {version=release.Label,name=release.Name,hash=release.Hash,size=release.Size});}
   public static bool AllowedDownload(string uri){return UpdateClient.AllowedDownload(new Uri(uri));}
   public static string ProbeRoutes(string root){return Json.Serialize(new UpdateRoutes(root).Probe());}
  }

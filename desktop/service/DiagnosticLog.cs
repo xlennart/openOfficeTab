@@ -12,7 +12,7 @@ namespace OpenOfficeTab.Desktop {
  internal static class DiagnosticLog {
   const int Limit=1024*1024,MaxEvents=4096;
   static JavaScriptSerializer Serializer(){return new JavaScriptSerializer{MaxJsonLength=4*1024*1024};}
-  static readonly HashSet<string> Numeric=new HashSet<string>(("schema tick seq targetId outcome runId pid tid host hr droppedRecords activation bits officeMajor officeBuild officeRevision dispid activeId previousId group hwnd viewId saved readOnly hasPath dpi comId nativeId agreement viewCount frameBusy executing refreshing command x y width height fromFrame saveAs independent visible grouped theme language elapsedMs success").Split(' '));
+  static readonly HashSet<string> Numeric=new HashSet<string>(("schema tick seq targetId outcome runId pid tid host hr droppedRecords activation bits officeMajor officeBuild officeRevision dispid activeId previousId group hwnd viewId saved readOnly hasPath dpi comId nativeId agreement viewCount frameBusy executing refreshing command x y width height fromFrame saveAs independent visible grouped theme language elapsedMs success traceId parentTrace origin jobId api targetHwnd afterHwnd foregroundHwnd activeHwnd flags win32 minimized layoutId requestTrace reason commanded suppressed truncated sizingHwnd operatingHwnd selectedId groupSelectedId hoverId activePainted hoverPainted barHwnd enabled masked").Split(' '));
   static bool Link(string path){return (File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0;}
   internal static object Snapshot(string root){
    var events=new Queue<Dictionary<string,object>>();int skipped=0,read=0;bool truncated=false;
@@ -27,7 +27,7 @@ namespace OpenOfficeTab.Desktop {
        try{
         if(line.Length>4096)throw new InvalidDataException();
         var raw=Serializer().Deserialize<Dictionary<string,object>>(line);object code,utc,version;
-        if(!raw.TryGetValue("event",out code)||!(code is string)||!Regex.IsMatch((string)code,@"\A[a-zA-Z0-9._-]{1,160}\z")||!raw.TryGetValue("utc",out utc)||!(utc is string)||!Regex.IsMatch((string)utc,@"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\z")||!raw.TryGetValue("version",out version)||!(version is string)||!Regex.IsMatch((string)version,@"\A\d{1,3}\.\d{1,3}\.\d{1,3}\z"))throw new InvalidDataException();
+        if(!raw.TryGetValue("event",out code)||!(code is string)||!Regex.IsMatch((string)code,@"\A[a-zA-Z0-9._-]{1,160}\z")||!raw.TryGetValue("utc",out utc)||!(utc is string)||!Regex.IsMatch((string)utc,@"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\z")||!raw.TryGetValue("version",out version)||!(version is string)||!Regex.IsMatch((string)version,@"\A\d{1,3}\.\d{1,3}\.\d{1,3}(?:-(?:alpha|beta|rc)\.[1-9][0-9]{0,5})?\z"))throw new InvalidDataException();
         var safe=new Dictionary<string,object>{{"event",code},{"utc",utc},{"version",version}};
         foreach(var pair in raw)if(Numeric.Contains(pair.Key)&&(pair.Value is int||pair.Value is long||pair.Value is decimal))safe[pair.Key]=pair.Value;
         events.Enqueue(safe);if(events.Count>MaxEvents){events.Dequeue();truncated=true;}
@@ -47,7 +47,7 @@ namespace OpenOfficeTab.Desktop {
      try{held=mutex.WaitOne(0);}catch(AbandonedMutexException){held=true;}if(!held)return;
      string file=Path.Combine(directory,"desktop-current.jsonl");if(File.Exists(file)&&Link(file))return;
      if(File.Exists(file)&&new FileInfo(file).Length>Limit-4096){for(int i=3;i>=1;i--){string old=i==1?file:file+"."+(i-1)+".jsonl",next=file+"."+i+".jsonl";if(File.Exists(next))File.Delete(next);if(File.Exists(old))File.Move(old,next);}}
-     var row=new {schema=1,version="0.2.2",utc=DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",CultureInfo.InvariantCulture),pid=System.Diagnostics.Process.GetCurrentProcess().Id,tid=Thread.CurrentThread.ManagedThreadId,host=3,bits=IntPtr.Size*8,hr=hr,elapsedMs=elapsed,@event="service."+action+"."+phase};
+     var row=new {schema=1,version=Services.DisplayVersion,utc=DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",CultureInfo.InvariantCulture),pid=System.Diagnostics.Process.GetCurrentProcess().Id,tid=Thread.CurrentThread.ManagedThreadId,host=3,bits=IntPtr.Size*8,hr=hr,elapsedMs=elapsed,@event="service."+action+"."+phase};
      using(var output=new FileStream(file,FileMode.Append,FileAccess.Write,FileShare.Read))using(var writer=new StreamWriter(output,new UTF8Encoding(false)))writer.WriteLine(Serializer().Serialize(row));
     }finally{if(held)mutex.ReleaseMutex();}}
    }catch(IOException){}catch(UnauthorizedAccessException){}

@@ -19,6 +19,7 @@ __pycache__/
 
 # Tauri frontend dependencies and generated bundle
 /desktop/node_modules/
+/tests/webview2/node_modules/
 /desktop/dist/
 /desktop/src-tauri/target/
 /desktop/src-tauri/gen/

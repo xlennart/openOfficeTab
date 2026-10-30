@@ -156,7 +156,16 @@ void Session::setActiveView(unsigned long long id){
     }
     // Layout can commit the selection before the next refresh reads it.
     // Invalidate here, rather than comparing that already-updated cache later.
-    if(changed){logEvent(L"selection.commit",{{"previousId",(long long)previous},{"activeId",(long long)id},{"group",view?view->groupId:0},{"hwnd",view?(long long)(UINT_PTR)view->hwnd:0}});redraw();}
+    if(changed){diagnostic::Scope cause(runtimelog::traceContext.origin?runtimelog::traceContext.origin:diagnostic::Refresh);logEvent(L"selection.commit",{{"previousId",(long long)previous},{"activeId",(long long)id},{"group",view?view->groupId:0},{"hwnd",view?(long long)(UINT_PTR)view->hwnd:0}});if(windowFrameBusy())diagnosticSnapshot(2);redraw();}
+}
+void Session::cancelLayoutDiagnostic(int reason){
+    if(queuedLayoutId)logEvent(L"layout.cancel",{{"layoutId",queuedLayoutId},{"reason",reason},{"requestTrace",queuedLayoutTrace},{"hwnd",diagnostic::window(queuedLayoutRoot)}});
+    queuedLayoutId=0;queuedLayoutTrace=0;
+}
+void Session::diagnosticSnapshot(int reason){
+    if(!snapshotDiagnosticGate.take(GetTickCount64(),1000))return;
+    logEvent(L"state.snapshot",{{"reason",reason},{"activeId",(long long)activeId},{"foregroundHwnd",diagnostic::window(GetForegroundWindow())},{"activeHwnd",diagnostic::window(GetActiveWindow())},{"viewCount",(long long)views.size()},{"layoutId",queuedLayoutId},{"sizingHwnd",diagnostic::window(sizingRoot)},{"operatingHwnd",diagnostic::window(operatingRoot)},{"frameBusy",windowFrameBusy()},{"suppressed",snapshotDiagnosticGate.drain()},{"truncated",views.size()>32}});
+    size_t count=0;for(auto& v:views){if(count++>=32)break;logEvent(L"state.view",{{"reason",reason},{"viewId",(long long)v->id},{"hwnd",diagnostic::window(v->hwnd)},{"group",v->groupId},{"selectedId",(long long)displayedTabId(v->hwnd)},{"groupSelectedId",(long long)activeTabId(v->hwnd)},{"visible",IsWindowVisible(v->hwnd)!=FALSE},{"enabled",IsWindowEnabled(v->hwnd)!=FALSE},{"minimized",IsIconic(v->hwnd)!=FALSE},{"masked",windowMasks.count(v->hwnd)!=0}});}
 }
 bool Session::showTabs(HWND root)const{
     for(auto& v:views)if(v->hwnd==root)return settings.visible&&!v->independent&&(!settings.autoHide||tabViews(root).size()>1);
@@ -266,6 +275,7 @@ bool Session::refresh(){
             }
         }
         lastActiveWindowQuerySucceeded=true;
+        if(activeWindowMatchesNative==0)diagnosticSnapshot(1);
         if(previousAgreement!=activeWindowMatchesNative||activeWindowMatchesNative==0)logEvent(L"selection.observed",{{"comId",(long long)comId},{"nativeId",(long long)found},{"agreement",activeWindowMatchesNative},{"viewCount",(long long)discovered.size()}});
         // Preserve the displayed order, independent of Office's changing collection indexes.
         std::vector<std::shared_ptr<View>> ordered;
@@ -333,7 +343,7 @@ void Session::syncPanes(){
                 if(it->requestedHeight!=desired){put(it->office.get(),L"Height",Var(desired));it->requestedHeight=desired;}
             }
             if(it->chrome)it->chrome->layout();
-            HWND display=it->control->NativeWindow();if(display&&((GetWindowLongPtrW(display,GWL_STYLE)&WS_VISIBLE)!=0)!=show)ShowWindow(display,show?SW_SHOWNOACTIVATE:SW_HIDE);
+            HWND display=it->control->NativeWindow();if(display&&((GetWindowLongPtrW(display,GWL_STYLE)&WS_VISIBLE)!=0)!=show)diagnostic::show(display,show?SW_SHOWNOACTIVATE:SW_HIDE);
         }catch(...){}
     }
 }
@@ -352,6 +362,7 @@ bool Session::excelEditing()const{
     return false;
 }
 void Session::activate(unsigned long long id,HWND owner){
+    diagnostic::Scope cause(diagnostic::Tab);
     logEvent(L"tab.activate.request",{{"viewId",(long long)id},{"activeId",(long long)activeId},{"frameBusy",windowFrameBusy()}});
     auto keep=shared_from_this();if(stopped||executing)return;auto target=find(id);if(!target)return;
     // Use the clicked bar's root, not the globally last active document: Windows
@@ -369,22 +380,22 @@ void Session::activate(unsigned long long id,HWND owner){
     // Window.Activate. That cannot be treated as a completed document switch.
     if(!valid(target->hwnd)||!IsWindowEnabled(target->hwnd)||(source&&valid(source->hwnd)&&!IsWindowEnabled(source->hwnd))){defer();return;}
     restoreWindowMasks();
-    try{Flag busy(executing);align(target,source);call(target->window.get(),L"Activate",DISPATCH_METHOD);align(target,source);
+    try{Flag busy(executing);align(target,source);diagnostic::perform(diagnostic::ComActivate,target->hwnd,[&]{call(target->window.get(),L"Activate",DISPATCH_METHOD);return true;});align(target,source);
         // PowerPoint can change ActiveWindow without raising its SDI root.
         // Never raise a disabled root behind an Office modal dialog.
         if(valid(target->hwnd)&&IsWindowEnabled(target->hwnd)){
             // In PowerPoint, DocumentWindow.Activate alone can leave its SDI
             // frame inactive when all frames already share identical bounds.
-            if(GetWindowThreadProcessId(target->hwnd,nullptr)==GetCurrentThreadId())SetActiveWindow(target->hwnd);
-            if(GetForegroundWindow()!=target->hwnd)SetForegroundWindow(target->hwnd);
+            if(GetWindowThreadProcessId(target->hwnd,nullptr)==GetCurrentThreadId())diagnostic::active(target->hwnd);
+            if(GetForegroundWindow()!=target->hwnd)diagnostic::foreground(target->hwnd);
             // A sibling's restore/activation callback may have raised it again.
             // Explicitly raise the requested SDI root, then recheck local focus.
-            SetWindowPos(target->hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
-            if(GetWindowThreadProcessId(target->hwnd,nullptr)==GetCurrentThreadId()&&GetActiveWindow()!=target->hwnd)SetActiveWindow(target->hwnd);
+            diagnostic::position(target->hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+            if(GetWindowThreadProcessId(target->hwnd,nullptr)==GetCurrentThreadId()&&GetActiveWindow()!=target->hwnd)diagnostic::active(target->hwnd);
         }
         // A deliberate tab selection supersedes an older, deferred restore
         // command from any group; an older group must not steal this selection.
-        if(queuedLayoutRoot){queuedLayoutRoot=nullptr;queuedLayoutCommand=false;queuedLayoutMinimize=false;if(timer)KillTimer(timer,4);}
+        if(queuedLayoutRoot){cancelLayoutDiagnostic(2);queuedLayoutRoot=nullptr;queuedLayoutCommand=false;queuedLayoutMinimize=false;if(timer)KillTimer(timer,4);}
     }catch(const ComError& e){report(e);}
     refresh();auto current=find(id);
     if(current){HWND previous=operatingRoot;operatingRoot=current->hwnd;try{rootLayoutChanged(current->hwnd);}catch(...){operatingRoot=previous;throw;}operatingRoot=previous;}
@@ -421,7 +432,7 @@ void Session::nativeClose(){
         // A caption close already identifies the native Word frame. Its
         // cached Window COM wrapper can reject Close/Activate while Word is
         // rebuilding Windows; let Office handle its own WM_CLOSE and save UI.
-        if(host!=Host::Word)call(target->window.get(),L"Activate",DISPATCH_METHOD);
+        if(host!=Host::Word)diagnostic::perform(diagnostic::ComActivate,target->hwnd,[&]{call(target->window.get(),L"Activate",DISPATCH_METHOD);return true;});
         auto started=GetTickCount64();log(L"close.native.begin");
         SendMessageW(target->hwnd,WM_CLOSE,0,0);
         log((L"close.native.return.ms="+std::to_wstring(GetTickCount64()-started)).c_str());
@@ -543,7 +554,7 @@ bool Session::recover(){
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.2.2\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    std::wstring r=L"{\"version\":\"0.2.3-beta.1\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
@@ -607,5 +618,5 @@ void Session::options(HWND owner,POINT pt){
     if(cmd>=30&&cmd<=33)setThemeMode((int)cmd-30);if(cmd>=40&&cmd<=42)setFrameCloseAction((int)cmd-40);
     if(cmd>=50&&cmd<=52)setLanguage((int)cmd-50);
     if(cmd==17)recentMenu(owner,pt);if(cmd==18)resetAllFilePreferences();
-    if(cmd==11)MessageBoxW(owner,tr(L"openOfficeTab 0.2.2\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficeTab"),MB_OK|MB_ICONINFORMATION);
+    if(cmd==11)MessageBoxW(owner,tr(L"openOfficeTab 0.2.3-beta.1\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficeTab"),MB_OK|MB_ICONINFORMATION);
 }

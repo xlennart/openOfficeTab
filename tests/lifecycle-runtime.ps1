@@ -1,4 +1,4 @@
-﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture,[string]$ExpectedVersion='0.2.2',[switch]$DeferProcessExitCheck)
+﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture,[string]$ExpectedVersion='0.2.3-beta.1',[switch]$DeferProcessExitCheck)
 $ErrorActionPreference='Stop'
 if($env:CODEX_WINDOWS_SANDBOX_PACKAGE_FAMILY){throw 'Run outside the development process context.'}
 $taskRoot=Split-Path $PSScriptRoot -Parent
@@ -28,6 +28,8 @@ public sealed class PowerPointCloseCancel : NativeCloseCancel,IPptCancel {public
 public static class TestWindows {
  [StructLayout(LayoutKind.Sequential)]public struct Point {public int X,Y;}
  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr w);
+ [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr w,int command);
+ [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr w);
  [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr w,IntPtr after,int x,int y,int width,int height,uint flags);
  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point p);
  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr w,uint flags);
@@ -148,9 +150,12 @@ try{
     }
     $api.CloseOther($newId)
     $batchCompleted=Wait-State {param($s)$s.views.Count -eq 2 -and -not $s.diagnostics.closePending}
+    # A command-driven drop requires visible roots. Restoration failure still
+    # fails the test; iconic frame coordinates cannot be used as a drop target.
+    foreach($testRoot in @($baseRoot,$newRoot)){if([TestWindows]::IsIconic([IntPtr][long]$testRoot)){[void][TestWindows]::ShowWindowAsync([IntPtr][long]$testRoot,9)}}
     $api.Activate($baseId)
     [TestWindows]::Front([long]$baseRoot)
-    $readyForDrop=Wait-State {param($s)$s.views.Count -eq 2 -and $s.activeId -eq $baseId}
+    $readyForDrop=Wait-State {param($s)$s.views.Count -eq 2 -and $s.activeId -eq $baseId -and -not [TestWindows]::IsIconic([IntPtr][long]$baseRoot) -and -not [TestWindows]::IsIconic([IntPtr][long]$newRoot)}
     $targetPane=$readyForDrop.paneMetrics|Where-Object viewId -eq $baseId
     $dropX=[int]($targetPane.displayLeft+$targetPane.width/2)
     $dropY=[int]($targetPane.displayTop+$targetPane.height/2)

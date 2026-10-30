@@ -31,7 +31,7 @@ function Install-OotDesktop {
     $center=Join-Path $directory 'openOfficetab.Center.exe'
     $key='HKCU:\Software\openOfficetab';New-Item -Path $key -Force | Out-Null
     Set-ItemProperty -LiteralPath $key -Name CenterPath -Value $center
-    Set-ItemProperty -LiteralPath $key -Name DesktopVersion -Value '0.2.2'
+    Set-ItemProperty -LiteralPath $key -Name DesktopVersion -Value '0.2.3-beta.1'
     $shell=New-Object -ComObject WScript.Shell
     try{
         $menu=Join-Path ([Environment]::GetFolderPath('Programs')) 'openOfficetab'
@@ -40,7 +40,7 @@ function Install-OotDesktop {
         if($DesktopShortcut){$link=$shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'openOfficetab.lnk'));$link.TargetPath=$center;$link.WorkingDirectory=$directory;$link.IconLocation=$center+',0';$link.Save()}
     }finally{[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell)}
     $uninstall='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\openOfficetab';New-Item -Path $uninstall -Force | Out-Null
-    foreach($pair in @{DisplayName='openOfficeTab';DisplayVersion='0.2.2';Publisher='xlennart';DisplayIcon=($center+',0');UninstallString=('"'+$center+'" --uninstall');URLInfoAbout='https://github.com/xlennart/openOfficetab';InstallLocation=$directory}.GetEnumerator()){Set-ItemProperty -LiteralPath $uninstall -Name $pair.Key -Value $pair.Value}
+    foreach($pair in @{DisplayName='openOfficeTab';DisplayVersion='0.2.3-beta.1';Publisher='xlennart';DisplayIcon=($center+',0');UninstallString=('"'+$center+'" --uninstall');URLInfoAbout='https://github.com/xlennart/openOfficetab';InstallLocation=$directory}.GetEnumerator()){Set-ItemProperty -LiteralPath $uninstall -Name $pair.Key -Value $pair.Value}
     Set-ItemProperty -LiteralPath $uninstall -Name NoModify -Value 1 -Type DWord
     Set-ItemProperty -LiteralPath $uninstall -Name NoRepair -Value 1 -Type DWord
     Add-Type -Path (Join-Path $directory 'service\openOfficetab.Service.dll')

@@ -90,6 +90,9 @@ openOfficeTab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 它能做什么
 
+**诊断测试版：**[0.2.3-beta.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.3-beta.1) 增强关联日志并允许选择更新通道，正式版仍为 0.2.2。在 Beta 管理中心的“关于与更新 → 更新通道”选择“正式版 / Beta 版”，默认正式版，切换不会降级。issue #5 尚未确认完全解决。[本版说明](docs/release-notes-v0.2.3-beta.1.md) · [日志机制](docs/diagnostic-logging.md)。
+
+
 | 功能 | 操作与行为 |
 | :--- | :--- |
 | 文档标签 | 点击切换；未保存状态显示 `*`；拖动调整顺序 |

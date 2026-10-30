@@ -12,7 +12,7 @@ $batch=@"
 call "$vcvars" $Architecture >nul
 if not "%errorlevel%"=="0" exit /b 1
 cd /d "$testBuild"
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\runtime-log-test.cpp" /Fe:"$testBuild\runtime-log-test.exe" /link ole32.lib shell32.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\runtime-log-test.cpp" /Fe:"$testBuild\runtime-log-test.exe" /link ole32.lib shell32.lib user32.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\runtime-log-test.exe"
 if not "%errorlevel%"=="0" exit /b 1

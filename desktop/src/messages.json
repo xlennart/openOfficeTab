@@ -1,4 +1,11 @@
 {
+  "更新通道": "Update channel",
+  "正式版": "Stable",
+  "Beta 版": "Beta",
+  "更新通道说明": "About update channels",
+  "Beta 版用于测试，稳定性仍待验证。切换通道不会自动降级。": "Beta builds are for testing and stability is still being verified. Switching channels does not downgrade the installed version.",
+  "管理中心打开时检查所选通道的更新。": "Check the selected update channel when the management center opens.",
+  "更新通道无效。": "Invalid update channel.",
   "openOfficeTab 管理中心": "openOfficeTab Management center",
   "openOfficeTab 安装器": "openOfficeTab Setup",
   "openOfficeTab 安装与管理界面设计": "openOfficeTab installation and management",
@@ -292,5 +299,9 @@
   "查看更新": "View update",
   "确定": "OK",
   "关闭": "Close",
-  "重试": "Retry"
+  "重试": "Retry",
+  "管理中心版本": "Management center version",
+  "管理中心 {version}": "Management center {version}",
+  "管理中心 {version} · 更新检查暂不可用": "Management center {version} · Update check unavailable",
+  "所选通道版本：{version}。": "Selected channel release: {version}."
 }

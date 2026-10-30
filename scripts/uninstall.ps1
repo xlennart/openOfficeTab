@@ -19,11 +19,11 @@ foreach($architecture in 'x64','x86'){
     # Installations use hash-versioned directories so a loaded DLL is never
     # overwritten. Unregister one installed binary for each architecture.
     $dll=[OpenOfficeTab.Desktop.Api]::RegisteredDll($architecture)
-    if($dll -and (-not $dll.StartsWith($bin+'\',[StringComparison]::OrdinalIgnoreCase) -or $dll.Substring($bin.Length+1) -notmatch ('^\d+\.\d+\.\d+(-[0-9a-f]{12})?\\'+$architecture+'\\openOfficetab\.dll$'))){throw (Get-OotText '插件注册路径不属于本安装目录，卸载已停止。' 'The registered add-in is outside this installation. Uninstallation stopped.')}
+    if($dll -and (-not $dll.StartsWith($bin+'\',[StringComparison]::OrdinalIgnoreCase) -or $dll.Substring($bin.Length+1) -notmatch ('^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.[1-9][0-9]{0,5})?(-[0-9a-f]{12})?\\'+$architecture+'\\openOfficetab\.dll$'))){throw (Get-OotText '插件注册路径不属于本安装目录，卸载已停止。' 'The registered add-in is outside this installation. Uninstallation stopped.')}
     if($dll -and -not(Test-Path -LiteralPath $dll)){$dll=$null}
     if(-not $dll -and (Test-Path -LiteralPath $bin)){
         $dll=Get-ChildItem -LiteralPath $bin -Filter 'openOfficetab.dll' -File -Recurse |
-            Where-Object { $_.FullName.Substring($bin.Length+1) -match ('^\d+\.\d+\.\d+(-[0-9a-f]{12})?\\'+$architecture+'\\openOfficetab\.dll$') } |
+            Where-Object { $_.FullName.Substring($bin.Length+1) -match ('^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.[1-9][0-9]{0,5})?(-[0-9a-f]{12})?\\'+$architecture+'\\openOfficetab\.dll$') } |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
     }
     if($dll){

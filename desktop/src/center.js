@@ -9,7 +9,7 @@ const defaults={theme:'auto',style:'open',width:120,widthMode:'shrink',autoHide:
 const state={route:'installer',host:'Word',active:1,...defaults};
 const files={Word:['项目计划.docx','会议纪要.docx','调研笔记.docx'],Excel:['年度预算.xlsx','采购清单.xlsx','项目统计.xlsx'],PowerPoint:['项目汇报.pptx','研究展示.pptx','团队介绍.pptx']};
 const colors={Word:'#235bb4',Excel:'#107c41',PowerPoint:'#c43b1c'};
-let snapshot=null,savedNative=null,savedAppearance={...defaults},busy=false,release=null,waitingUpdate=false;
+let snapshot=null,savedNative=null,savedAppearance={...defaults},busy=false,release=null,waitingUpdate=false,updateGeneration=0;
 let languageOverride=null,toastState=null,updatePhase='checked',automaticCheckFailed=false,installedHosts=null;
 const translateStatic=bindStaticTranslations(root);
 let lastDiagnostics=null;
@@ -33,13 +33,14 @@ function applySnapshotLanguage(value){
  $('oot-language').value=String(mode);return changed;
 }
 function renderUpdateResult(){
- $('oot-update-description').textContent=automaticCheckFailed?t('管理中心 0.2.2 · 更新检查暂不可用'):t('管理中心 0.2.2');
+ const version=snapshot?.version||'…';
+ $('oot-update-description').textContent=automaticCheckFailed?t('管理中心 {version} · 更新检查暂不可用',{version}):t('管理中心 {version}',{version});
  if(!release)return;
  $('oot-update-result').hidden=false;
  const titles={waiting:'更新已下载，等待 Office 退出',installed:'更新安装完成'};
  $('oot-update-result-title').textContent=titles[updatePhase]?t(titles[updatePhase]):release.available?t('发现新版本 {version}',{version:release.version}):t('当前无需更新');
  const notes={downloaded:'更新已下载，安装前会重新校验。',waiting:'你的文档不会被关闭。保持管理中心打开后将继续；已开启自动安装时也会在后台继续。',installed:'关闭并重新打开管理中心即可使用新版。'};
- $('oot-update-result-note').textContent=notes[updatePhase]?t(notes[updatePhase]):release.available?t('更新清单已验签；下载后核对 SHA-256，安装前检查 Office。'):t('公开稳定版：{version}。',{version:release.version||t('暂无可用版本')});
+ $('oot-update-result-note').textContent=notes[updatePhase]?t(notes[updatePhase]):release.available?t('更新清单已验签；下载后核对 SHA-256，安装前检查 Office。'):t('所选通道版本：{version}。',{version:release.version||t('暂无可用版本')});
  $('oot-install-update').hidden=!release.available||updatePhase==='installed';
 }
 root.querySelectorAll('[data-brand]').forEach(image=>image.src='./assets/brand.png');
@@ -91,6 +92,7 @@ function setSnapshot(value,loadAppearance=false){
  copy.textContent=!value.installed?t('尚未安装加载组件'):!value.centerInstalled?t('加载项已注册，管理中心尚未安装'):value.officeRunning?t('正在核对 Office 运行状态'):t('组件已安装，等待下次启动 Office');
  line.dataset.status=value.installed?'ready':'warning';
  for(const [key,id] of [['autoCheck','oot-auto-check'],['autoDownload','oot-auto-download'],['autoInstall','oot-auto-install']])$(id).checked=Boolean(value.preferences[key]);
+ $('oot-update-channel').value=value.preferences.updateChannel==='beta'?'beta':'stable';
  if(loadAppearance){savedNative={...value.appearance};savedAppearance=appearanceFromNative(value.appearance);Object.assign(state,savedAppearance);renderPreview();}
  renderEnvironment();if(localeChanged){renderPreview();renderUpdateResult();renderToast();if(lastDiagnostics)renderDiagnostics(lastDiagnostics);}
  if(installedHosts){$('oot-installed-list').textContent=t('{hosts} 组件已安装',{hosts:installedHosts.join(', ')});$('oot-finish-install').textContent=$('oot-open-center').checked?t('完成并打开管理中心'):t('完成');}
@@ -141,19 +143,22 @@ $('oot-run-diagnostics').addEventListener('click',diagnostics);
 $('oot-export-preview').addEventListener('click',async()=>{if(busy)return;setBusy(true);try{if(await invoke('export_diagnostics'))toast(t('已导出诊断与脱敏操作时间线，可作为 issue 附件。'));}catch(error){toast(String(error),true);}finally{setBusy(false);}});
 $('oot-repair').addEventListener('click',async()=>{const result=await operation('repair',{},t('正在修复组件与管理中心…'));if(result){setSnapshot(result);toast(t('修复结果已校验，请重新打开 Office。'));}});
 async function savePreferences(changed){
+ if(changed==='updateChannel')updateGeneration++;
  if(changed==='autoCheck'&&!$('oot-auto-check').checked){$('oot-auto-download').checked=false;$('oot-auto-install').checked=false;}
  if(changed==='autoDownload'){if($('oot-auto-download').checked)$('oot-auto-check').checked=true;else $('oot-auto-install').checked=false;}
  if(changed==='autoInstall'&&$('oot-auto-install').checked){$('oot-auto-check').checked=true;$('oot-auto-download').checked=true;}
- const request={autoCheck:$('oot-auto-check').checked,autoDownload:$('oot-auto-download').checked,autoInstall:$('oot-auto-install').checked};
- const result=await operation('preferences',request,t('正在保存更新偏好…'));if(result){setSnapshot(result);toast(t('更新偏好已保存。'));}else if(snapshot)setSnapshot(snapshot);
+ const request={autoCheck:$('oot-auto-check').checked,autoDownload:$('oot-auto-download').checked,autoInstall:$('oot-auto-install').checked,updateChannel:$('oot-update-channel').value};
+ const result=await operation('preferences',request,t('正在保存更新偏好…'));if(result){setSnapshot(result);if(changed==='updateChannel'){release=null;await window.__TAURI__.event.emit('check-update',currentLocale());}toast(t('更新偏好已保存。'));}else if(snapshot)setSnapshot(snapshot);
 }
 for(const [key,id] of [['autoCheck','oot-auto-check'],['autoDownload','oot-auto-download'],['autoInstall','oot-auto-install']])$(id).addEventListener('change',()=>savePreferences(key));
+ $('oot-update-channel').addEventListener('change',()=>savePreferences('updateChannel'));
 async function checkUpdate(automatic=false){
+ const generation=updateGeneration;
  if(!automatic){try{await invoke('open_update_window',{language:currentLocale()});}catch(error){toast(String(error),true);}return;}
  let result;
  if(automatic){try{result=await invoke('service',{action:'check-update',request:{}});}catch(error){automaticCheckFailed=true;renderUpdateResult();return;}}
  else result=await operation('check-update',{},t('正在检查更新…'));
- if(!result)return;
+ if(!result||generation!==updateGeneration)return;
  release=result;automaticCheckFailed=false;updatePhase='checked';renderUpdateResult();toast('');
  if(automatic&&result.available&&snapshot?.preferences.autoDownload){const downloaded=await operation('download-update',{version:result.version},t('正在下载并校验更新…'));if(downloaded){updatePhase='downloaded';renderUpdateResult();if(snapshot.preferences.autoInstall)await installUpdate();}}
 }

@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.2.3-beta.1 · 2026-10-30
+
+- 增强操作链、窗口调用、布局任务与限频绘制/状态日志，保持脱敏与有界缓冲。
+- Adds correlated window/layout traces and rate-limited paint/state samples, preserving redaction and bounded buffers.
+- 正式版/Beta 更新通道持久化，支持 Beta 序号及同版本转正式版，切换不降级；正式 latest 保持 0.2.2。
+- Adds persisted Stable/Beta channels and prerelease ordering; the matching stable version supersedes Beta. Channel changes never downgrade; stable latest remains 0.2.2.
+- 诊断增强候选版本，issue #5 待现场反馈验证，不宣称彻底修复。
+- Diagnostic candidate awaiting reporter verification; issue #5 is not confirmed fully resolved.
+
 ## 0.2.2 · 2026-10-30
 
 - 统一 Windows x64 安装器同时携带 x86、x64 DLL，按实际 Office 程序位数选择；补齐安装、修复、诊断及 COM 注册视图处理。

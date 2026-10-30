@@ -1,8 +1,17 @@
 #include "../src/com.h"
+#include "../src/diagnostic-trace.h"
 #include <filesystem>
 #include <cassert>
 #include <iostream>
 int main(){
+    diagnostic::Gate gate;assert(gate.take(0,250));assert(!gate.take(100,250));assert(gate.take(250,250));assert(gate.drain()==1);
+    long long parent=0;
+    {diagnostic::Scope outer(diagnostic::Tab);parent=runtimelog::traceContext.id;
+     {diagnostic::Scope child(diagnostic::Layout,parent,true,42);assert(runtimelog::traceContext.parent==parent);assert(runtimelog::traceContext.job==42);}
+     assert(runtimelog::traceContext.id==parent);assert(runtimelog::traceContext.job==0);
+    }assert(runtimelog::traceContext.id==0);
+    bool propagated=false;try{diagnostic::Scope outer(diagnostic::Tab);diagnostic::perform(diagnostic::ComActivate,nullptr,[]()->bool{throw ComError(E_ACCESSDENIED,L"PRIVATE_TEXT");});}catch(const ComError& error){propagated=error.hr==E_ACCESSDENIED;}assert(propagated);assert(runtimelog::traceContext.id==0);
+    auto trace=runtimelog::recorder().snapshot();assert(trace.find(L"window.api.error")!=std::wstring::npos);assert(trace.find(L"PRIVATE_TEXT")==std::wstring::npos);
     assert((runtimelog::officeBuild(L"16.0.20527")==std::make_pair(20527L,-1L)));
     assert((runtimelog::officeBuild(L"16.0.20527.20088")==std::make_pair(20527L,20088L)));
     assert((runtimelog::officeBuild(L"20527")==std::make_pair(20527L,-1L)));

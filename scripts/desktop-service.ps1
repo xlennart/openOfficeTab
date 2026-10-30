@@ -15,7 +15,7 @@ Add-Type -Path $serviceAssembly
 . (Join-Path $PSScriptRoot 'desktop-install.ps1')
 function Get-OotPreferences {
     $data=[OpenOfficeTab.Desktop.Api]::Read($script:DataRoot) | ConvertFrom-Json
-    return [ordered]@{autoCheck=$data.desktop.autoCheck -ne '0';autoDownload=$data.desktop.autoDownload -eq '1';autoInstall=$data.desktop.autoInstall -eq '1'}
+    return [ordered]@{autoCheck=$data.desktop.autoCheck -ne '0';autoDownload=$data.desktop.autoDownload -eq '1';autoInstall=$data.desktop.autoInstall -eq '1';updateChannel=$(if($data.desktop.updateChannel -eq 'beta'){'beta'}else{'stable'})}
 }
 function Get-OotState {
     $data=[OpenOfficeTab.Desktop.Api]::Read($script:DataRoot) | ConvertFrom-Json
@@ -25,7 +25,7 @@ function Get-OotState {
     $architecture=if($TestRoot){'unknown'}else{[OpenOfficeTab.Desktop.Api]::OfficeArchitecture()}
     $center=if($TestRoot){$null}else{(Get-ItemProperty 'HKCU:\Software\openOfficetab' -ErrorAction SilentlyContinue).CenterPath}
     return [ordered]@{
-        version='0.2.2';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
+        version='0.2.3-beta.1';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
         centerInstalled=[bool]($center -and (Test-Path -LiteralPath $center -PathType Leaf))
         architecture=$architecture;compatible=[Environment]::Is64BitOperatingSystem -and $architecture -in @('x64','x86');officeRunning=if($TestRoot){$false}else{[OpenOfficeTab.Desktop.Api]::OfficeRunning()};hosts=$hosts
         appearance=[ordered]@{themeMode=(Number 'themeMode' 0);barStyle=(Number 'barStyle' 1);tabWidth=(Number 'tabWidth' 120);widthMode=(Number 'widthMode' 2);autoHide=$native.autoHide -eq '1';doubleClose=$native.doubleClose -eq '1'}
@@ -96,6 +96,8 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
             if($preferences.autoCheck -eq '0'){$preferences.autoDownload='0';$preferences.autoInstall='0'}
             if($preferences.autoInstall -eq '1'){$preferences.autoCheck='1';$preferences.autoDownload='1'}
             $old=Get-OotPreferences
+            if($null -ne $Request.updateChannel -and $Request.updateChannel -notin @('stable','beta')){throw '更新通道无效。'}
+            $preferences.updateChannel=if($null -eq $Request.updateChannel){$old.updateChannel}else{[string]$Request.updateChannel}
             try{
                 if(-not $TestRoot){Set-OotUpdateTask ($preferences.autoCheck -eq '1' -and $preferences.autoDownload -eq '1')}
                 [OpenOfficeTab.Desktop.Api]::Merge($script:DataRoot,'desktop',($preferences|ConvertTo-Json -Compress))

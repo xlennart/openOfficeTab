@@ -12,7 +12,7 @@ INT_PTR CALLBACK closeDialog(HWND dialog,UINT message,WPARAM wp,LPARAM lp){
         data=(CloseDialog*)lp;SetWindowLongPtrW(dialog,DWLP_USER,lp);SetWindowTextW(dialog,i18n::text(data->language,L"关闭文档窗口"));
         int scale=dpi(dialog);auto px=[&](int n){return MulDiv(n,scale,96);};RECT r{0,0,px(450),px(196)};
         AdjustWindowRectEx(&r,(DWORD)GetWindowLongPtrW(dialog,GWL_STYLE),FALSE,(DWORD)GetWindowLongPtrW(dialog,GWL_EXSTYLE));
-        SetWindowPos(dialog,nullptr,0,0,r.right-r.left,r.bottom-r.top,SWP_NOMOVE|SWP_NOZORDER);
+        diagnostic::position(dialog,nullptr,0,0,r.right-r.left,r.bottom-r.top,SWP_NOMOVE|SWP_NOZORDER);
         auto control=[&](const wchar_t* cls,const wchar_t* text,DWORD style,int id,int x,int y,int w,int h){auto child=CreateWindowExW(0,cls,text,WS_CHILD|WS_VISIBLE|style,px(x),px(y),px(w),px(h),dialog,(HMENU)(INT_PTR)id,module,nullptr);SendMessageW(child,WM_SETFONT,(WPARAM)GetStockObject(DEFAULT_GUI_FONT),TRUE);};
         auto text=i18n::closeSummary(data->language,data->count);
         control(L"STATIC",text.c_str(),0,0,18,18,414,24);
@@ -74,8 +74,9 @@ public:
 class RootObserver:public std::enable_shared_from_this<RootObserver> {
     Session* session;HWND window=nullptr;
     static LRESULT CALLBACK proc(HWND w,UINT m,WPARAM a,LPARAM b,UINT_PTR,DWORD_PTR ref){
+        diagnostic::Scope cause(diagnostic::WindowMessage,0,false);
         auto self=((RootObserver*)ref)->shared_from_this();auto s=self->session;auto keep=s->shared_from_this();
-        if(m==WM_NCDESTROY){RemoveWindowSubclass(w,proc,112);self->window=nullptr;if(s->maskSource==w)s->restoreWindowMasks();if(s->sizingRoot==w)s->sizingRoot=nullptr;if(s->queuedLayoutRoot==w){s->queuedLayoutRoot=nullptr;s->queuedLayoutCommand=false;}return DefSubclassProc(w,m,a,b);}
+        if(m==WM_NCDESTROY){RemoveWindowSubclass(w,proc,112);self->window=nullptr;if(s->maskSource==w)s->restoreWindowMasks();if(s->sizingRoot==w)s->sizingRoot=nullptr;if(s->queuedLayoutRoot==w){s->cancelLayoutDiagnostic(4);s->queuedLayoutRoot=nullptr;s->queuedLayoutCommand=false;}return DefSubclassProc(w,m,a,b);}
         if((m==WM_CLOSE||(m==WM_SYSCOMMAND&&(a&0xfff0)==SC_CLOSE))&&s->queueFrameClose(w))return 0;
         auto command=a&0xfff0;
         bool frameOperation=m==WM_SYSCOMMAND&&(command==SC_MOVE||command==SC_SIZE||command==SC_MINIMIZE||command==SC_MAXIMIZE||command==SC_RESTORE);
@@ -127,7 +128,7 @@ void Session::beginWindowTransition(HWND root){
         auto mask=std::make_shared<WindowMask>();if(mask->conceal(view->hwnd))windowMasks.emplace(view->hwnd,std::move(mask));else log(L"window.mask.unavailable");
     }
 }
-void Session::detachWindowObservers(){restoreWindowMasks();if(timer)KillTimer(timer,4);rootObservers.clear();groupSlots.clear();pendingFrameClose=nullptr;operatingRoot=nullptr;sizingRoot=nullptr;queuedLayoutRoot=nullptr;queuedLayoutCommand=false;}
+void Session::detachWindowObservers(){cancelLayoutDiagnostic(3);restoreWindowMasks();if(timer)KillTimer(timer,4);rootObservers.clear();groupSlots.clear();pendingFrameClose=nullptr;operatingRoot=nullptr;sizingRoot=nullptr;queuedLayoutRoot=nullptr;queuedLayoutCommand=false;}
 void Session::syncWindowObservers(){
     if(stopped)return;
     std::set<HWND> live;for(auto& v:views)if(owned(v->hwnd))live.insert(v->hwnd);
@@ -157,26 +158,30 @@ void Session::requestWindowLayout(HWND root,bool commanded,bool minimize){
     if(!commanded&&!IsIconic(root)&&GetAncestor(GetForegroundWindow(),GA_ROOT)!=root&&activeTabId(root)!=source->id)return;
     if(queuedLayoutRoot&&queuedLayoutRoot!=root&&queuedLayoutCommand&&!commanded)return;
     bool keepMinimize=queuedLayoutRoot==root&&queuedLayoutMinimize&&!commanded;
+    if(queuedLayoutId&&queuedLayoutRoot==root&&((commanded&&!queuedLayoutCommand)||(minimize&&!queuedLayoutMinimize)))logEvent(L"layout.update",{{"layoutId",queuedLayoutId},{"requestTrace",runtimelog::traceContext.id},{"commanded",commanded},{"minimized",minimize}});
+    if(!queuedLayoutId||queuedLayoutRoot!=root){cancelLayoutDiagnostic(1);queuedLayoutId=InterlockedIncrement64(&runtimelog::traceCounter);queuedLayoutTrace=runtimelog::traceContext.id;logEvent(L"layout.queue",{{"layoutId",queuedLayoutId},{"requestTrace",queuedLayoutTrace},{"hwnd",diagnostic::window(root)},{"commanded",commanded},{"minimized",minimize},{"activeId",(long long)activeId}});}
     queuedLayoutCommand=commanded||(queuedLayoutRoot==root&&queuedLayoutCommand);queuedLayoutRoot=root;queuedLayoutMinimize=minimize||keepMinimize||IsIconic(root)!=FALSE;
     if(timer)SetTimer(timer,4,40,nullptr);
 }
 void Session::processWindowLayout(){
     if(timer)KillTimer(timer,4);
     if(stopped){restoreWindowMasks();return;}
-    if(excelEditing()){if(queuedLayoutRoot&&timer)SetTimer(timer,4,150,nullptr);return;}
+    if(excelEditing()){if(queuedLayoutRoot&&timer)SetTimer(timer,4,150,nullptr);if(queuedLayoutRoot&&layoutDiagnosticGate.take(GetTickCount64(),500))logEvent(L"layout.defer",{{"layoutId",queuedLayoutId},{"reason",1},{"suppressed",layoutDiagnosticGate.drain()}});return;}
     // Recover an interrupted move/size transaction whose exit notification was
     // lost. A real ongoing native drag retains its frame call/capture.
     if(sizingRoot&&!nativeFrameDepth&&!GetCapture()&&maskActivity&&GetTickCount64()-maskActivity>3000)sizingRoot=nullptr;
     if(!queuedLayoutRoot){if(!windowFrameBusy())restoreWindowMasks();return;}
-    if(windowFrameBusy()||refreshing||executing||coordinatingWindows){if(timer)SetTimer(timer,4,40,nullptr);return;}
+    if(windowFrameBusy()||refreshing||executing||coordinatingWindows){if(timer)SetTimer(timer,4,40,nullptr);if(layoutDiagnosticGate.take(GetTickCount64(),500))logEvent(L"layout.defer",{{"layoutId",queuedLayoutId},{"reason",2},{"frameBusy",windowFrameBusy()},{"refreshing",refreshing},{"executing",executing},{"suppressed",layoutDiagnosticGate.drain()}});return;}
+    diagnostic::Scope cause(diagnostic::Layout,queuedLayoutTrace,true,queuedLayoutId);
+    logEvent(L"layout.run",{{"layoutId",queuedLayoutId},{"hwnd",diagnostic::window(queuedLayoutRoot)},{"commanded",queuedLayoutCommand},{"minimized",queuedLayoutMinimize}});queuedLayoutId=0;queuedLayoutTrace=0;
     HWND root=queuedLayoutRoot,previous=operatingRoot;bool commanded=queuedLayoutCommand,minimize=queuedLayoutMinimize;
     queuedLayoutRoot=nullptr;queuedLayoutCommand=false;queuedLayoutMinimize=false;
     if(commanded)operatingRoot=root;
     try{
-        if(minimize&&owned(root)&&!IsIconic(root)){Guard guard(coordinatingWindows);ShowWindow(root,SW_SHOWMINNOACTIVE);}
+        if(minimize&&owned(root)&&!IsIconic(root)){Guard guard(coordinatingWindows);diagnostic::show(root,SW_SHOWMINNOACTIVE);}
         rootLayoutChanged(root);
         // Restore only after alignment, while siblings are behind the source.
-        if(maskSource==root){Guard guard(coordinatingWindows);for(auto& entry:windowMasks)if(owned(entry.first)&&owned(root)&&!IsIconic(root))SetWindowPos(entry.first,root,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);restoreWindowMasks();}
+        if(maskSource==root){Guard guard(coordinatingWindows);for(auto& entry:windowMasks)if(owned(entry.first)&&owned(root)&&!IsIconic(root))diagnostic::position(entry.first,root,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);restoreWindowMasks();}
         else if(maskSource)restoreWindowMasks();
     }catch(...){restoreWindowMasks();operatingRoot=previous;throw;}
     operatingRoot=previous;
@@ -201,7 +206,7 @@ void Session::rootLayoutChanged(HWND root){
     Guard guard(coordinatingWindows);bool foreground=GetAncestor(GetForegroundWindow(),GA_ROOT)==root;
     groupSlots[source->groupId]=next;
     for(auto& target:views)if(target!=source&&!target->independent&&target->groupId==source->groupId&&owned(target->hwnd)&&IsWindowEnabled(target->hwnd)){
-        if(next.minimized){if(!IsIconic(target->hwnd))ShowWindow(target->hwnd,SW_SHOWMINNOACTIVE);}
+        if(next.minimized){if(!IsIconic(target->hwnd))diagnostic::show(target->hwnd,SW_SHOWMINNOACTIVE);}
         else if(!windowlayout::sameSlot(target->hwnd,next.placement,next.bounds)){
             if(!target->moved)windowlayout::capture(target->hwnd,target->original,target->originalBounds);
             if(windowlayout::apply(target->hwnd,next.placement,next.bounds)){target->moved=true;windowlayout::capture(target->hwnd,target->applied,target->appliedBounds);}
@@ -211,8 +216,8 @@ void Session::rootLayoutChanged(HWND root){
         // Excel may change its active SDI frame while an inactive sibling is
         // restored. Keep the initiating frame active within this UI thread,
         // without taking foreground focus from another application.
-        SetActiveWindow(root);
-        if(foreground){SetWindowPos(root,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);SetForegroundWindow(root);}
+        diagnostic::active(root);
+        if(foreground){diagnostic::position(root,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);diagnostic::foreground(root);}
     }
     // Background groups still receive geometry updates, but cannot change the
     // native/COM selection and redirect a later SaveAll to another document.
@@ -220,12 +225,12 @@ void Session::rootLayoutChanged(HWND root){
 }
 void Session::reconcileWindowSelection(const std::shared_ptr<View>& source,bool minimized){
     if(!minimized){
-        SetActiveWindow(source->hwnd);
+        diagnostic::active(source->hwnd);
         // Word needs the same native/COM agreement as PowerPoint. Run only
         // at idle and after Ribbon transfer, including an unchanged restore slot.
         if((host==Host::Word||host==Host::PowerPoint)&&source->window&&!windowlayout::ribbonInitializing(source->hwnd)){
             auto selected=prop(app.get(),L"ActiveWindow").disp();
-            if((selected||host==Host::PowerPoint)&&selected.as<IUnknown>().get()!=source->window.as<IUnknown>().get())call(source->window.get(),L"Activate",DISPATCH_METHOD);
+            if((selected||host==Host::PowerPoint)&&selected.as<IUnknown>().get()!=source->window.as<IUnknown>().get())diagnostic::perform(diagnostic::ComActivate,source->hwnd,[&]{call(source->window.get(),L"Activate",DISPATCH_METHOD);return true;});
         }
     }
     setActiveView(source->id);defer();

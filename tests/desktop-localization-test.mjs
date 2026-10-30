@@ -33,4 +33,8 @@ for(const name of ['center.js','index.html','update.js','update.html']){
  const strings=name.endsWith('.js')?[...source.matchAll(/'([^'\n]*[\p{Script=Han}][^'\n]*)'/gu)].map(m=>m[1]):[...source.matchAll(/>([^<>]*[\p{Script=Han}][^<>]*)</gu)].map(m=>m[1].trim()).concat([...source.matchAll(/(?:alt|title|aria-label)="([^"]*[\p{Script=Han}][^"]*)"/gu)].map(m=>m[1]));
  for(const text of strings)assert(Object.hasOwn(messages,text),`Missing desktop translation: ${text}`);
 }
+const centerSource=await readFile(new URL('../desktop/src/center.js',import.meta.url),'utf8');
+assert(!/t\('管理中心 \d/.test(centerSource),'Management center version must come from runtime state, not a stale translated literal');
+setLocale('en');
+assert.equal(t('管理中心 {version}',{version:'0.2.3-beta.1'}),'Management center 0.2.3-beta.1');
 console.log('Desktop localization: language resolution, templates, errors, sample content and static/dynamic translation coverage passed.');
