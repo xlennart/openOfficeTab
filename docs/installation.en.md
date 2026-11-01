@@ -51,4 +51,6 @@ Use the ribbon management-center entry or Start menu shortcut. Export a JSON rep
 
 ## Beta update channel
 
+0.2.3-beta.2 contains a candidate fix for background-pane OLE focus stealing and retains diagnostic logging. Reporter validation is still needed. A beta.1 client on the Beta channel can upgrade to beta.2; stable-channel clients are not upgraded to a prerelease.
+
 From 0.2.3-beta.1, choose **About & updates → Update channel → Stable / Beta**. Stable is the default. Manual and automatic checks share this preference. Switching channels never downgrades. Beta numbers compare numerically; a matching stable version supersedes its Beta. Version 0.2.2 and older remain on stable updates; download the prerelease setup to try Beta initially.

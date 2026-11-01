@@ -73,4 +73,6 @@ powershell -NoProfile -File scripts/uninstall.ps1 -RemoveSettings
 
 ## Beta 更新通道
 
+0.2.3-beta.2 是后台窗格 OLE 抢焦点问题的候选修复；保留诊断日志，仍需现场反馈验证。已选择 Beta 通道的 beta.1 客户端可升级至 beta.2，正式通道不会被预发布版本升级。
+
 从 0.2.3-beta.1 起，在“关于与更新 → 更新通道”选择“正式版”或“Beta 版”，默认正式版。手动、自动检查共用此设置；切换不会自动降级。Beta 序号按数值比较，同版本号正式版优先于 Beta。0.2.2 及更早客户端保持正式版通道，首次试用 Beta 请下载其预发布安装器。

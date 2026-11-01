@@ -1,6 +1,8 @@
 # 验证记录
 
-0.2.3-beta.1 的诊断增强、双架构回归与更新通道见 [本版验证记录](validation-v0.2.3-beta.1.md)。 / See the [0.2.3-beta.1 validation record](validation-v0.2.3-beta.1.md) for diagnostic logging, dual-architecture regression and update channels.
+0.2.3-beta.2 的候选焦点修复与最终双架构验证见 [本版验证记录](validation-v0.2.3-beta.2.md)；32 位复用入口见 [虚拟机流程](office-x86-runtime.md)。 / See the [0.2.3-beta.2 validation record](validation-v0.2.3-beta.2.md) for the candidate focus fix and final dual-architecture evidence, and the [VM workflow](office-x86-runtime.md) for repeatable x86 tests.
+
+0.2.3-beta.1 的诊断增强与更新通道历史见 [此前记录](validation-v0.2.3-beta.1.md)。 / The previous logging/channel baseline remains in the [beta.1 record](validation-v0.2.3-beta.1.md).
 
 0.2.2 的双架构离线、宿主机 x64 与 VMware x86 实测及覆盖边界见 [验证记录](validation-v0.2.2.md)。 / See the [0.2.2 validation record](validation-v0.2.2.md) for offline checks, host x64 and VMware x86 runtime tests and remaining limits.
 

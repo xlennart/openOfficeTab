@@ -105,6 +105,14 @@ int main(){
     }
     DWORD status=0;assert(SUCCEEDED(tabs->GetMiscStatus(DVASPECT_CONTENT,&status))&&(status&OLEMISC_NOUIACTIVATE));
     tabs->Bind(nullptr,root);assert(tabs->Mount(strip));assert(!tabs->Mount(ribbon));
+    // A delayed OLE UI activation of an inactive pane must not activate its
+    // document root. Excel may issue this after a move has already completed.
+    HWND input=window(L"EDIT",other,0,0,100,30);assert(input);
+    SetActiveWindow(other);SetFocus(input);
+    assert(GetActiveWindow()==other&&GetFocus()==input);
+    assert(SUCCEEDED(tabs->DoVerb(OLEIVERB_UIACTIVATE,nullptr,site.get(),0,strip,&pos)));
+    assert(GetActiveWindow()==other&&GetFocus()==input);
+    DestroyWindow(input);
     tabs->Unmount();tabs->Close(0);tabs.reset();site.reset();
     Ptr<IDispatch> app(new Application(),false);auto session=std::make_shared<Session>(app.get());session->settings=Settings{};session->settings.group=false;
     // Activation notifications must not reenter Office to mount or size CTPs.

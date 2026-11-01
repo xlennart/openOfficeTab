@@ -1,5 +1,7 @@
 # 真实运行测试 / Runtime testing
 
+32 位虚拟机统一入口、凭据初始化、阻塞处理和收尾命令见 [可复用虚拟机流程](office-x86-runtime.md)。 / See the [reusable VM workflow](office-x86-runtime.md) for the x86 runner, protected credentials, blockers and cleanup commands.
+
 ## 简体中文
 
 按顺序执行：离线回归 → 候选安装与加载身份 → 三宿主生命周期及实际保存 → 管理中心通道、语言与窗口尺寸 → 修复、保留设置卸载与重装 → 汇总及清理。x64 使用宿主机 Office，x86 使用指定 VMware 客机的交互桌面。传输成功或会话 0 进程不代表桌面验收通过。

@@ -99,7 +99,15 @@ HRESULT Tabs::activate(HWND parent,LPCRECT supplied,bool focus){
     // The OLE window only reserves space. Requesting UI activation asks Office
     // to remove its document menus/tools, although this control has none to
     // replace them with. Keyboard focus belongs to our separate native child.
-    if(focus&&hwnd)SetFocus(hwnd);
+    // Office may deliver UIACTIVATE to an inactive pane after native layout
+    // has settled. SetFocus on that child also activates its SDI document,
+    // silently undoing the user's selection. An OLE callback is not a request
+    // to switch documents or interrupt a native move/formula input session.
+    if(focus&&hwnd){
+        HWND root=GetAncestor(hwnd,GA_ROOT);
+        if(root&&GetAncestor(GetActiveWindow(),GA_ROOT)==root&&GetAncestor(GetForegroundWindow(),GA_ROOT)==root&&
+            IsWindowVisible(hwnd)&&IsWindowEnabled(hwnd)&&(!session||(!session->windowFrameBusy()&&!session->excelEditing())))SetFocus(hwnd);
+    }
     // Office may activate the OLE window after Visible/Add has returned. Do not
     // leave the first layout waiting for the 750 ms recovery timer.
     if(session)session->defer();

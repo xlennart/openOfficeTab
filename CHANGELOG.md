@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.2.3-beta.2 · 2026-10-31
+
+- 修复后台标签窗格的 OLE UI 激活可能抢走活动文档焦点；拖动和 Excel 编辑期间不接受该焦点转移。
+- Prevent background-pane OLE UI activation from taking document focus; suppress this focus transfer during native moves and Excel editing.
+- 增加能在原代码上复现的焦点回归测试，并整理可复用的 32 位虚拟机串行测试流程。
+- Add a regression that reproduces the original focus defect and a reusable serial x86 VM validation workflow.
+- 仍为候选修复，issue #5 保持打开，需现场反馈验证；正式版仍为 0.2.2。
+- This remains a candidate fix awaiting reporter validation; issue #5 stays open and stable remains 0.2.2.
+
 ## 0.2.3-beta.1 · 2026-10-30
 
 - 增强操作链、窗口调用、布局任务与限频绘制/状态日志，保持脱敏与有界缓冲。
