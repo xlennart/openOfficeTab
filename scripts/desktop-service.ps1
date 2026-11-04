@@ -25,7 +25,7 @@ function Get-OotState {
     $architecture=if($TestRoot){'unknown'}else{[OpenOfficeTab.Desktop.Api]::OfficeArchitecture()}
     $center=if($TestRoot){$null}else{(Get-ItemProperty 'HKCU:\Software\openOfficetab' -ErrorAction SilentlyContinue).CenterPath}
     return [ordered]@{
-        version='0.2.3-beta.2';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
+        version='0.2.3-beta.3';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
         centerInstalled=[bool]($center -and (Test-Path -LiteralPath $center -PathType Leaf))
         architecture=$architecture;compatible=[Environment]::Is64BitOperatingSystem -and $architecture -in @('x64','x86');officeRunning=if($TestRoot){$false}else{[OpenOfficeTab.Desktop.Api]::OfficeRunning()};hosts=$hosts
         appearance=[ordered]@{themeMode=(Number 'themeMode' 0);barStyle=(Number 'barStyle' 1);tabWidth=(Number 'tabWidth' 120);widthMode=(Number 'widthMode' 2);autoHide=$native.autoHide -eq '1';doubleClose=$native.doubleClose -eq '1'}
@@ -89,7 +89,8 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
         'diagnostics' {
             $state=Get-OotState
             $match=[OpenOfficeTab.Desktop.Api]::MatchesPayload($script:PackageRoot,$state.architecture)
-            return [ordered]@{version=$state.version;architecture=$state.architecture;installed=$state.installed;matchesThisPackage=$match;hosts=$state.hosts;runtimeTimeline=([OpenOfficeTab.Desktop.Api]::DiagnosticTimeline($script:DataRoot)|ConvertFrom-Json);documentDataIncluded=$false;privacy='Event codes and numeric identities only; no document names, paths, content, accounts, URLs or legacy raw logs'}
+            $diagnosticHosts=if($TestRoot){@()}else{@(foreach($hostStatus in ([OpenOfficeTab.Desktop.Api]::InspectHostsWithFingerprints()|ConvertFrom-Json)){$hostStatus})}
+            return [ordered]@{version=$state.version;architecture=$state.architecture;installed=$state.installed;matchesThisPackage=$match;hosts=$diagnosticHosts;runtimeTimeline=([OpenOfficeTab.Desktop.Api]::DiagnosticTimeline($script:DataRoot)|ConvertFrom-Json);documentDataIncluded=$false;privacy='Event codes, numeric identities and binary hashes only; no document names, paths, content, accounts, URLs or legacy raw logs'}
         }
         'preferences' {
             $preferences=@{};foreach($key in @('autoCheck','autoDownload','autoInstall')){if($Request.$key -isnot [bool]){throw 'Invalid update preference.'};$preferences[$key]=[string][int]$Request.$key}

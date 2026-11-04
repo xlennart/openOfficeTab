@@ -62,7 +62,7 @@ try{
  $report.dpi=[NativeChannelWindow]::GetDpiForWindow($handle)
  $report.stage='version'
  $label=if($Language -eq 'en'){'Update channel'}else{'更新通道'}
- $version=if($Language -eq 'en'){'Management center 0.2.3-beta.2'}else{'管理中心 0.2.3-beta.2'}
+ $version=if($Language -eq 'en'){'Management center 0.2.3-beta.3'}else{'管理中心 0.2.3-beta.3'}
  [void](Await {Named $window $version})
  foreach($size in @($Size)){
   if($size -eq 'minimum'){if(-not [NativeChannelWindow]::Minimum($handle)){throw 'Client resize failed.'}}

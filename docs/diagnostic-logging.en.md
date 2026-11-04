@@ -1,5 +1,15 @@
 # Diagnostic logging
 
+[简体中文](diagnostic-logging.md)
+
+From 0.2.3-beta.3, input and activation observation is built into the add-in. Use the existing **Diagnostics & repair → Export diagnostics and logs** entry without a separate collector. `window.input` records the actual mouse recipient/root, hit code and position. Observation covers managed document windows on the current Office UI thread only: no movement tracking, keystrokes, other applications' input or automatic window activation.
+
+In `window.activation.request`, `mouseActivation` is the Windows CBT request's mouse flag; it proves neither completed activation nor user intent. `window.input.message` uses `phase=1/2` for before/after default window processing, including WM_MOUSEACTIVATE/WM_ACTIVATE and results. `window.input.view` records bounds, DPI, relative order, alpha and mask state for at most eight same-group roots. `zRank` counts scanned managed roots; `rankTruncated` exposes the scan limit. Repeated preview callbacks are not counted as separate clicks.
+
+`inputId` correlates a press/release and nearby records for up to three seconds after release; it remains available while pressed. Temporal proximity is not proof of causation. Hook setup and errors are logged; `inputTraceAvailable=false` in native snapshots means observation is incomplete. Hooks are removed when the session ends and original window-procedure results are preserved. Observation can still affect timing, and existing congestion, truncation and drop limits apply.
+
+Native `moduleSha256` and management-center `hosts[].loadedModules[]` identify files at actual loaded-module paths, with explicit readability. The center also binds PID, start time and module architecture. Hashing runs during export, is cached by the native module and never runs in input callbacks. Paths are excluded and unreadable identity remains unknown. These hashes identify files, not process memory or historical execution bytes.
+
 Use **Diagnostics & repair → Export diagnostics and logs** when reporting a problem. Include reproduction steps, Office version and architecture, file size, and a video when useful. Exports exclude document names, paths, contents, INI history and legacy raw logs. Inspect attachments before posting.
 
 Native JSONL records include UTC and monotonic times, process/thread/run IDs and sequence numbers. Host codes 0/1/2 mean Word/Excel/PowerPoint; 3 is the desktop service. `bits` describes the recording process, not proof of the loaded Office DLL.

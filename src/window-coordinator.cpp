@@ -1,5 +1,6 @@
 #include "model.h"
 #include "window-layout.h"
+#include <windowsx.h>
 
 namespace {
 constexpr UINT FRAME_CLOSE=WM_APP+112;
@@ -71,6 +72,84 @@ public:
     }
 };
 
+// Observe only this Office STA. No injected helper, global hook, COM calls or
+// activation APIs: mouse coordinates come only from a managed document input.
+class WindowInputObserver {
+    Session* session;HHOOK mouse=nullptr,cbt=nullptr;
+    long long inputId=0;ULONGLONG inputTick=0;bool held=false,recording=false;
+    inline static thread_local WindowInputObserver* current=nullptr;
+    HWND root(HWND w)const{
+        HWND r=w?GetAncestor(w,GA_ROOT):nullptr;
+        return r&&session->rootObservers.count(r)&&owned(r)?r:nullptr;
+    }
+    int windowClass(HWND w)const{
+        wchar_t name[80]{};GetClassNameW(w,name,80);
+        if(!_wcsicmp(name,L"NetUIHWND"))return 1;if(!_wcsicmp(name,L"openOfficetab.Tabs"))return 2;
+        if(!_wcsicmp(name,L"openOfficetab.Seam"))return 3;return 0;
+    }
+    void windows(HWND source,int phase,UINT message){
+        size_t count=0;unsigned group=session->groupForWindow(source);
+        windowlayout::PhysicalCoordinates coordinates;
+        for(auto& view:session->views){
+            if(view->groupId!=group||!root(view->hwnd))continue;
+            if(count++>=8)break;
+            RECT bounds{};GetWindowRect(view->hwnd,&bounds);COLORREF color=0;BYTE alpha=255;DWORD alphaFlags=0;
+            bool alphaReadable=GetLayeredWindowAttributes(view->hwnd,&color,&alpha,&alphaFlags)!=FALSE;
+            // Relative rank among managed roots; outside HWNDs are never emitted.
+            int rank=0;HWND above=GetWindow(view->hwnd,GW_HWNDPREV);unsigned scanned=0;
+            for(;above&&scanned<512;above=GetWindow(above,GW_HWNDPREV),++scanned)if(root(above))++rank;
+            logEvent(L"window.input.view",{{"inputId",recent()},{"phase",phase},{"message",message},{"sourceHwnd",diagnostic::window(source)},{"hwnd",diagnostic::window(view->hwnd)},{"viewId",(long long)view->id},{"x",bounds.left},{"y",bounds.top},{"width",bounds.right-bounds.left},{"height",bounds.bottom-bounds.top},{"dpi",dpi(view->hwnd)},{"zRank",rank},{"rankTruncated",above!=nullptr},{"extendedStyle",(long long)(ULONG_PTR)GetWindowLongPtrW(view->hwnd,GWL_EXSTYLE)},{"masked",GetPropW(view->hwnd,L"openOfficetab.WindowMask")!=nullptr},{"alphaReadable",alphaReadable},{"alpha",alpha},{"alphaFlags",alphaFlags},{"truncated",session->views.size()>8}});
+        }
+    }
+    static LRESULT CALLBACK mouseProc(int code,WPARAM wp,LPARAM lp){
+        auto self=current;
+        if(code==HC_ACTION&&self&&!self->recording&&!self->session->stopped){
+            bool down=wp==WM_LBUTTONDOWN||wp==WM_NCLBUTTONDOWN||wp==WM_LBUTTONDBLCLK||wp==WM_NCLBUTTONDBLCLK;
+            bool up=wp==WM_LBUTTONUP||wp==WM_NCLBUTTONUP;
+            if(down||up){
+                auto data=(MOUSEHOOKSTRUCT*)lp;HWND r=self->root(data->hwnd);
+                if(r){
+                    Guard guard(self->recording);diagnostic::Scope cause(diagnostic::WindowMessage);
+                    if(down){self->inputId=runtimelog::traceContext.id;self->held=true;}
+                    self->inputTick=GetTickCount64();
+                    POINT point=data->pt;HWND hit=self->root(WindowFromPoint(point));
+                    logEvent(L"window.input",{{"inputId",self->recent()},{"message",(long long)wp},{"receiverHwnd",diagnostic::window(data->hwnd)},{"hwnd",diagnostic::window(r)},{"hitHwnd",diagnostic::window(hit)},{"hitCode",(long long)(int)data->wHitTestCode},{"receiverClass",self->windowClass(data->hwnd)},{"x",point.x},{"y",point.y},{"foregroundHwnd",diagnostic::window(self->root(GetForegroundWindow()))},{"activeHwnd",diagnostic::window(self->root(GetActiveWindow()))}});
+                    self->windows(r,0,(UINT)wp);if(up)self->held=false;
+                }else{self->held=false;self->inputId=0;}
+            }
+        }
+        return CallNextHookEx(nullptr,code,wp,lp);
+    }
+    static LRESULT CALLBACK cbtProc(int code,WPARAM wp,LPARAM lp){
+        auto self=current;
+        if(code==HCBT_ACTIVATE&&self&&!self->recording&&!self->session->stopped){
+            HWND r=self->root((HWND)wp);if(r){Guard guard(self->recording);diagnostic::Scope cause(diagnostic::WindowMessage);
+                auto data=(CBTACTIVATESTRUCT*)lp;
+                logEvent(L"window.activation.request",{{"inputId",self->recent()},{"hwnd",diagnostic::window(r)},{"mouseActivation",data->fMouse!=FALSE},{"previousHwnd",diagnostic::window(self->root(data->hWndActive))},{"foregroundHwnd",diagnostic::window(self->root(GetForegroundWindow()))},{"activeHwnd",diagnostic::window(self->root(GetActiveWindow()))}});
+                self->windows(r,1,WM_ACTIVATE);
+            }
+        }
+        return CallNextHookEx(nullptr,code,wp,lp);
+    }
+public:
+    explicit WindowInputObserver(Session* s):session(s){}
+    ~WindowInputObserver(){if(mouse)UnhookWindowsHookEx(mouse);if(cbt)UnhookWindowsHookEx(cbt);if(current==this)current=nullptr;}
+    void attach(){
+        if(current&&current!=this){logEvent(L"window.input.unavailable",{{"reason",1}});return;}
+        current=this;mouse=SetWindowsHookExW(WH_MOUSE,mouseProc,nullptr,GetCurrentThreadId());
+        DWORD mouseError=mouse?0:GetLastError();cbt=SetWindowsHookExW(WH_CBT,cbtProc,nullptr,GetCurrentThreadId());DWORD cbtError=cbt?0:GetLastError();
+        logEvent(L"window.input.observer",{{"mouseHook",mouse!=nullptr},{"activationHook",cbt!=nullptr},{"mouseError",mouseError},{"activationError",cbtError}});
+    }
+    bool available()const{return mouse&&cbt;}
+    long long recent()const{return inputId&&(held||GetTickCount64()-inputTick<=3000)?inputId:0;}
+    void message(HWND w,UINT m,WPARAM wp,LPARAM lp,int phase,LRESULT result=0){
+        if(recording||session->stopped||!root(w))return;Guard guard(recording);
+        logEvent(L"window.input.message",{{"inputId",recent()},{"hwnd",diagnostic::window(w)},{"phase",phase},{"message",m},{"activation",m==WM_ACTIVATE?LOWORD(wp):0},{"hitCode",m==WM_MOUSEACTIVATE?(short)LOWORD(lp):0},{"mouseMessage",m==WM_MOUSEACTIVATE?HIWORD(lp):0},{"result",phase==2?(long long)result:0},{"foregroundHwnd",diagnostic::window(root(GetForegroundWindow()))},{"activeHwnd",diagnostic::window(root(GetActiveWindow()))},{"activeId",(long long)session->activeId}});
+        if(m==WM_ACTIVATE||m==WM_MOUSEACTIVATE)windows(w,phase,m);
+    }
+};
+bool Session::inputTraceAvailable()const{return inputObserver&&inputObserver->available();}
+
 class RootObserver:public std::enable_shared_from_this<RootObserver> {
     Session* session;HWND window=nullptr;
     static LRESULT CALLBACK proc(HWND w,UINT m,WPARAM a,LPARAM b,UINT_PTR,DWORD_PTR ref){
@@ -78,6 +157,9 @@ class RootObserver:public std::enable_shared_from_this<RootObserver> {
         auto self=((RootObserver*)ref)->shared_from_this();auto s=self->session;auto keep=s->shared_from_this();
         if(m==WM_NCDESTROY){RemoveWindowSubclass(w,proc,112);self->window=nullptr;if(s->maskSource==w)s->restoreWindowMasks();if(s->sizingRoot==w)s->sizingRoot=nullptr;if(s->queuedLayoutRoot==w){s->cancelLayoutDiagnostic(4);s->queuedLayoutRoot=nullptr;s->queuedLayoutCommand=false;}return DefSubclassProc(w,m,a,b);}
         if((m==WM_CLOSE||(m==WM_SYSCOMMAND&&(a&0xfff0)==SC_CLOSE))&&s->queueFrameClose(w))return 0;
+        auto input=s->inputObserver;
+        bool inputMessage=m==WM_ACTIVATE||m==WM_MOUSEACTIVATE||m==WM_NCLBUTTONDOWN||m==WM_NCLBUTTONUP||m==WM_NCLBUTTONDBLCLK;
+        if(input&&inputMessage)input->message(w,m,a,b,1);
         auto command=a&0xfff0;
         bool frameOperation=m==WM_SYSCOMMAND&&(command==SC_MOVE||command==SC_SIZE||command==SC_MINIMIZE||command==SC_MAXIMIZE||command==SC_RESTORE);
         bool geometryChanging=m==WM_WINDOWPOSCHANGING&&b&&(((WINDOWPOS*)b)->flags&(SWP_NOMOVE|SWP_NOSIZE))!=(SWP_NOMOVE|SWP_NOSIZE);
@@ -92,6 +174,7 @@ class RootObserver:public std::enable_shared_from_this<RootObserver> {
         if(m==WM_ENTERSIZEMOVE){s->sizingRoot=w;RECT bounds{};GetWindowRect(w,&bounds);logEvent(L"window.drag.begin",{{"hwnd",(long long)(UINT_PTR)w},{"viewId",(long long)s->displayedTabId(w)},{"activeId",(long long)s->activeId},{"x",bounds.left},{"y",bounds.top},{"width",bounds.right-bounds.left},{"height",bounds.bottom-bounds.top}});}
         if(frameOperation){logEvent(L"window.command",{{"hwnd",(long long)(UINT_PTR)w},{"command",(long long)command},{"activeId",(long long)s->activeId}});++s->nativeFrameDepth;}
         auto result=DefSubclassProc(w,m,a,b);
+        if(input&&inputMessage)input->message(w,m,a,b,2,result);
         if(frameOperation)--s->nativeFrameDepth;
         if(m==WM_EXITSIZEMOVE){RECT bounds{};GetWindowRect(w,&bounds);logEvent(L"window.drag.end",{{"hwnd",(long long)(UINT_PTR)w},{"viewId",(long long)s->displayedTabId(w)},{"activeId",(long long)s->activeId},{"x",bounds.left},{"y",bounds.top},{"width",bounds.right-bounds.left},{"height",bounds.bottom-bounds.top}});if(s->sizingRoot==w)s->sizingRoot=nullptr;}
         // Never resize siblings or call the Office/shell COM interfaces from
@@ -128,7 +211,7 @@ void Session::beginWindowTransition(HWND root){
         auto mask=std::make_shared<WindowMask>();if(mask->conceal(view->hwnd))windowMasks.emplace(view->hwnd,std::move(mask));else log(L"window.mask.unavailable");
     }
 }
-void Session::detachWindowObservers(){cancelLayoutDiagnostic(3);restoreWindowMasks();if(timer)KillTimer(timer,4);rootObservers.clear();groupSlots.clear();pendingFrameClose=nullptr;operatingRoot=nullptr;sizingRoot=nullptr;queuedLayoutRoot=nullptr;queuedLayoutCommand=false;}
+void Session::detachWindowObservers(){inputObserver.reset();cancelLayoutDiagnostic(3);restoreWindowMasks();if(timer)KillTimer(timer,4);rootObservers.clear();groupSlots.clear();pendingFrameClose=nullptr;operatingRoot=nullptr;sizingRoot=nullptr;queuedLayoutRoot=nullptr;queuedLayoutCommand=false;}
 void Session::syncWindowObservers(){
     if(stopped)return;
     std::set<HWND> live;for(auto& v:views)if(owned(v->hwnd))live.insert(v->hwnd);
@@ -150,6 +233,7 @@ void Session::syncWindowObservers(){
     }
     if(!settings.group)groupSlots.clear();
     else for(auto it=groupSlots.begin();it!=groupSlots.end();)if(std::none_of(views.begin(),views.end(),[&](auto& v){return !v->independent&&v->groupId==it->first;}))it=groupSlots.erase(it);else ++it;
+    if(!rootObservers.empty()&&!inputObserver){inputObserver=std::make_shared<WindowInputObserver>(this);inputObserver->attach();}
 }
 void Session::requestWindowLayout(HWND root,bool commanded,bool minimize){
     if(stopped||coordinatingWindows||refreshing||executing||!settings.group||!owned(root))return;

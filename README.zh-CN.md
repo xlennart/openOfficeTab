@@ -90,7 +90,7 @@ openOfficeTab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 它能做什么
 
-**候选修复测试版：**[0.2.3-beta.2](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.3-beta.2) 限制后台窗格的 OLE 激活抢走文档焦点，正式版仍为 0.2.2。在 Beta 管理中心的“关于与更新 → 更新通道”选择“正式版 / Beta 版”，默认正式版，切换不会降级。issue #5 仍需现场反馈验证。[本版说明](docs/release-notes-v0.2.3-beta.2.md) · [日志机制](docs/diagnostic-logging.md)。
+**诊断增强测试版：**[0.2.3-beta.3](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.3-beta.3) 将点击/激活观察和实际加载模块指纹集成进原有诊断导出，issue #5 根因仍未确认。正式版仍为 0.2.2。在 Beta 管理中心的“关于与更新 → 更新通道”选择“正式版 / Beta 版”，默认正式版，切换不会降级。issue #5 仍需现场反馈验证。[本版说明](docs/release-notes-v0.2.3-beta.3.md) · [日志机制](docs/diagnostic-logging.md)。
 
 
 | 功能 | 操作与行为 |

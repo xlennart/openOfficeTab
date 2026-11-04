@@ -1,5 +1,14 @@
 # 更新记录
 
+## 0.2.3-beta.3 · 2026-11-04
+
+- 将文档窗口点击命中、激活请求及默认处理前后状态取证集成到插件，沿用管理中心诊断导出，不需单独运行采集器。
+- Integrate mouse-hit and activation-request observation plus before/after window state into the add-in's existing diagnostic export.
+- 增加实际加载模块文件的 SHA-256、可读状态及进程身份；保持数值事件白名单、线程范围及有界缓冲，不记录文档内容或键盘输入。
+- Add loaded-module file hashes, readability and process identity while preserving numeric event filtering, thread scope and bounded buffers; no document content or keyboard input is recorded.
+- 本版用于继续定位 issue #5，尚未确认唯一根因或彻底修复；正式版保持 0.2.2。
+- This diagnostic candidate continues issue #5 investigation; a unique cause or complete fix is not established. Stable remains 0.2.2.
+
 ## 0.2.3-beta.2 · 2026-10-31
 
 - 修复后台标签窗格的 OLE UI 激活可能抢走活动文档焦点；拖动和 Excel 编辑期间不接受该焦点转移。

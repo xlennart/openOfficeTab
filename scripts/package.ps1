@@ -1,7 +1,7 @@
-﻿param([string]$Version='0.2.3-beta.2',[switch]$SkipBuild,[string]$OutputDirectory)
+﻿param([string]$Version='0.2.3-beta.3',[switch]$SkipBuild,[string]$OutputDirectory)
 $ErrorActionPreference='Stop'
 $ootRoot=Split-Path $PSScriptRoot -Parent
-if($Version -ne '0.2.3-beta.2'){throw 'Update the native, service and Tauri versions together before packaging a different version.'}
+if($Version -ne '0.2.3-beta.3'){throw 'Update the native, service and Tauri versions together before packaging a different version.'}
 if(-not $SkipBuild){& (Join-Path $PSScriptRoot 'build-desktop.ps1')}
 $ootCenter=Join-Path $ootRoot 'dist\desktop\openOfficetab.Center.exe'
 $ootDll=Join-Path $ootRoot 'dist\x64\openOfficetab.dll'

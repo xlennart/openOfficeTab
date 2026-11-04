@@ -10,7 +10,7 @@ namespace OpenOfficeTab.Desktop {
  // Keep signed asset URL spelling compatible with existing clients after the display-name rename.
  internal static class DesktopProgram {internal const string Repo="https://github.com/xlennart/openOfficetab",Author="https://github.com/xlennart";}
  internal sealed class Services {
-  internal const string DisplayVersion="0.2.3-beta.2";
+  internal const string DisplayVersion="0.2.3-beta.3";
   internal static readonly Version Version=ReleaseVersion.Parse(DisplayVersion).Core;
   internal bool AcceptsPrerelease {get{var section=Store.Section("desktop");return section.ContainsKey("updateChannel")&&section["updateChannel"]=="beta";}}
   internal readonly StateStore Store;internal bool Preview=false;
@@ -36,14 +36,21 @@ namespace OpenOfficeTab.Desktop {
   public static string RegisteredDll(string architecture){return OfficeInstallation.RegisteredDll(architecture);}
   public static string[] ModulePaths(int processId){return ProcessModules.Paths(processId);}
   public static bool MatchesPayload(string root,string architecture){return OfficeInstallation.MatchesPayload(root,architecture);}
-  public static string InspectHosts(){
+  public static string InspectHosts(){return InspectHosts(false);}
+  public static string InspectHostsWithFingerprints(){return InspectHosts(true);}
+  internal static object ModuleFingerprint(string path,int pid,DateTime startedUtc){
+   string hash="",architecture="unknown";bool readable=false;
+   try{var file=new FileInfo(path);if(file.Length>0&&file.Length<=32*1024*1024){hash=StateStore.Sha256(path);readable=true;}architecture=OfficeInstallation.ExecutableArchitecture(path);}catch(IOException){}catch(UnauthorizedAccessException){}catch(ArgumentException){}
+   return new {pid=pid,startedUtc=startedUtc.ToUniversalTime().ToString("o"),architecture=architecture,moduleSha256=hash,moduleHashReadable=readable};
+  }
+  static string InspectHosts(bool fingerprints){
    var result=new List<object>();string architecture=OfficeArchitecture(),registered=RegisteredDll(architecture);
    string[] hosts={"Word","Excel","PowerPoint"},names={"WINWORD","EXCEL","POWERPNT"};
    for(int index=0;index<hosts.Length;index++){
-    bool hasKey=false,enabled=false,loaded=false,readable=true,matches=true;int running=0;var builds=new HashSet<string>();
+    bool hasKey=false,enabled=false,loaded=false,readable=true,matches=true;int running=0;var builds=new HashSet<string>();var modules=new List<object>();
     using(var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Office\"+hosts[index]+@"\Addins\openOfficetab.Connect")){hasKey=key!=null;enabled=hasKey&&Convert.ToInt32(key.GetValue("LoadBehavior",0))==3;}
-    foreach(var process in Process.GetProcessesByName(names[index]))using(process){running++;try{string build=process.MainModule.FileVersionInfo.FileVersion;if(System.Text.RegularExpressions.Regex.IsMatch(build??"",@"\A[0-9.]{3,40}\z"))builds.Add(build);foreach(string module in ModulePaths(process.Id))if(string.Equals(Path.GetFileName(module),"openOfficetab.dll",StringComparison.OrdinalIgnoreCase)){loaded=true;matches&=string.Equals(Path.GetFullPath(module),Path.GetFullPath(registered),StringComparison.OrdinalIgnoreCase);}}catch(System.ComponentModel.Win32Exception){readable=false;}catch(InvalidOperationException){readable=false;}catch(ArgumentException){readable=false;}}
-    result.Add(new {name=hosts[index],architecture=architecture,registered=hasKey,enabled=enabled,dllExists=File.Exists(registered),running=running,officeBuilds=builds.OrderBy(b=>b).ToArray(),loaded=loaded,moduleReadable=readable,matchesRegistration=loaded&&matches});
+    foreach(var process in Process.GetProcessesByName(names[index]))using(process){running++;try{string build=process.MainModule.FileVersionInfo.FileVersion;if(System.Text.RegularExpressions.Regex.IsMatch(build??"",@"\A[0-9.]{3,40}\z"))builds.Add(build);foreach(string module in ModulePaths(process.Id))if(string.Equals(Path.GetFileName(module),"openOfficetab.dll",StringComparison.OrdinalIgnoreCase)){loaded=true;matches&=string.Equals(Path.GetFullPath(module),Path.GetFullPath(registered),StringComparison.OrdinalIgnoreCase);if(fingerprints)modules.Add(ModuleFingerprint(module,process.Id,process.StartTime));}}catch(System.ComponentModel.Win32Exception){readable=false;}catch(InvalidOperationException){readable=false;}catch(ArgumentException){readable=false;}}
+    result.Add(new {name=hosts[index],architecture=architecture,registered=hasKey,enabled=enabled,dllExists=File.Exists(registered),running=running,officeBuilds=builds.OrderBy(b=>b).ToArray(),loaded=loaded,moduleReadable=readable,matchesRegistration=loaded&&matches,loadedModules=modules.ToArray()});
    }return Json.Serialize(result);
   }
   public static string CheckUpdate(string root,bool force){var service=new Services(root);var client=new UpdateClient(service);var release=client.Check(force);return Json.Serialize(new {available=release!=null&&client.IsNewer(release),version=release==null?"":release.Label,currentVersion=client.CurrentIdentity().Text,size=release==null?0L:release.Size,notes=new Dictionary<string,string>{{"zh-CN",release==null?"":release.NotesZh},{"en",release==null?"":release.NotesEn}}});}

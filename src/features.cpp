@@ -1,4 +1,25 @@
 #include "model.h"
+#include <wincrypt.h>
+
+namespace {
+// File identity at the module's loaded path, cached outside input callbacks.
+// Only hex leaves this helper; paths and filesystem errors are not exported.
+const std::wstring& moduleSha256(){
+    static const std::wstring value=[]()->std::wstring{
+        if(!module)return L"";std::vector<wchar_t> path(32768);DWORD length=GetModuleFileNameW(module,path.data(),(DWORD)path.size());
+        if(!length||length>=path.size())return L"";
+        HANDLE file=CreateFileW(path.data(),GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+        if(file==INVALID_HANDLE_VALUE)return L"";
+        HCRYPTPROV provider=0;HCRYPTHASH hash=0;LARGE_INTEGER size{};std::wstring result;
+        bool ok=GetFileSizeEx(file,&size)&&size.QuadPart>0&&size.QuadPart<=32*1024*1024&&CryptAcquireContextW(&provider,nullptr,nullptr,PROV_RSA_AES,CRYPT_VERIFYCONTEXT)&&CryptCreateHash(provider,CALG_SHA_256,0,0,&hash);
+        BYTE bytes[32768];DWORD read=0;
+        while(ok){if(!ReadFile(file,bytes,sizeof(bytes),&read,nullptr)){ok=false;break;}if(!read)break;if(!CryptHashData(hash,bytes,read,0)){ok=false;break;}}
+        BYTE digest[32];DWORD digestSize=sizeof(digest);
+        if(ok&&CryptGetHashParam(hash,HP_HASHVAL,digest,&digestSize,0)&&digestSize==sizeof(digest)){const wchar_t* hex=L"0123456789ABCDEF";for(auto byte:digest){result+=hex[byte>>4];result+=hex[byte&15];}}
+        if(hash)CryptDestroyHash(hash);if(provider)CryptReleaseContext(provider,0);CloseHandle(file);return result;
+    }();return value;
+}
+}
 #include "layout.h"
 #include "tab-color.h"
 #include <commdlg.h>
@@ -154,10 +175,10 @@ std::wstring Session::diagnostics()const{
     size_t independent=0,mounted=0,visible=0;std::map<unsigned,int> groups;
     for(auto& v:views){if(v->independent)independent++;else groups[v->groupId]++;}
     for(auto& p:panes){HWND h=p.control?p.control->NativeWindow():nullptr;if(h&&IsWindow(h))mounted++;if(h&&IsWindowVisible(h))visible++;}
-    return L"{\"version\":\"0.2.3-beta.2\",\"host\":"+json(hostLabel(host))+L",\"officeVersion\":"+json(version)+L",\"architecture\":\""+(sizeof(void*)==8?std::wstring(L"x64"):std::wstring(L"x86"))+L"\",\"connected\":"+(stopped?L"false":L"true")+L",\"loadBehavior\":"+std::to_wstring(registration)+L",\"registrationReadable\":"+(status==ERROR_SUCCESS?L"true":L"false")+L",\"eventsConnected\":"+(cookie?L"true":L"false")+L",\"paneFactoryAvailable\":"+(factory?L"true":L"false")+L",\"viewCount\":"+std::to_wstring(views.size())+L",\"groupCount\":"+std::to_wstring(groups.size())+L",\"independentCount\":"+std::to_wstring(independent)+L",\"paneCount\":"+std::to_wstring(panes.size())+L",\"mountedCount\":"+std::to_wstring(mounted)+L",\"visiblePaneCount\":"+std::to_wstring(visible)+L",\"visibleSetting\":"+(settings.visible?L"true":L"false")+L",\"autoHide\":"+(settings.autoHide?L"true":L"false")+L",\"tabWidth\":"+std::to_wstring(settings.tabWidth)+L",\"widthMode\":"+std::to_wstring(settings.widthMode)+L",\"accentPosition\":"+std::to_wstring(settings.accentPosition)+L",\"barStyle\":"+std::to_wstring(settings.barStyle)+L",\"barColor\":"+json(tabcolor::format(settings.barColor))+L",\"customBarColor\":"+(settings.customBarColor?L"true":L"false")+L",\"singleTaskbarSetting\":"+(settings.group?L"true":L"false")+L",\"languageSetting\":"+std::to_wstring(settings.language)+L",\"language\":"+json(language()==1?L"zh-CN":L"en")+L",\"themeMode\":"+std::to_wstring(settings.themeMode)+L",\"frameCloseAction\":"+std::to_wstring(settings.frameCloseAction)+L",\"observedRootCount\":"+std::to_wstring(rootObservers.size())+L",\"windowCoordination\":true,\"dark\":"+(darkMode()?L"true":L"false")+L",\"barBackground\":"+json(tabcolor::format((darkMode()&&settings.barStyle==1?surroundColor():tabcolor::background(darkMode(),settings.barStyle==1,settings.barColor,settings.customBarColor))))+L",\"surroundBackground\":"+json(tabcolor::format(surroundColor()))+L",\"settingsLiveSync\":true,\"settingsWritePending\":"+(settings.savePending?L"true":L"false")+L",\"recentlyClosedCount\":"+std::to_wstring(recentlyClosed().size())+L",\"closePending\":"+(pendingCloseId?L"true":L"false")+L",\"refreshFailures\":"+std::to_wstring(failures)+L",\"lastOperation\":"+json(lastOperation)+L",\"lastError\":"+json(hex(lastError))+L",\"logSchema\":1,\"droppedLogRecords\":"+std::to_wstring(runtimelog::recorder().lost())+L",\"privacy\":\"No document names, paths, content, account names or legacy raw logs\"}";
+    return L"{\"version\":\"0.2.3-beta.3\",\"host\":"+json(hostLabel(host))+L",\"officeVersion\":"+json(version)+L",\"architecture\":\""+(sizeof(void*)==8?std::wstring(L"x64"):std::wstring(L"x86"))+L"\",\"connected\":"+(stopped?L"false":L"true")+L",\"loadBehavior\":"+std::to_wstring(registration)+L",\"registrationReadable\":"+(status==ERROR_SUCCESS?L"true":L"false")+L",\"eventsConnected\":"+(cookie?L"true":L"false")+L",\"paneFactoryAvailable\":"+(factory?L"true":L"false")+L",\"viewCount\":"+std::to_wstring(views.size())+L",\"groupCount\":"+std::to_wstring(groups.size())+L",\"independentCount\":"+std::to_wstring(independent)+L",\"paneCount\":"+std::to_wstring(panes.size())+L",\"mountedCount\":"+std::to_wstring(mounted)+L",\"visiblePaneCount\":"+std::to_wstring(visible)+L",\"visibleSetting\":"+(settings.visible?L"true":L"false")+L",\"autoHide\":"+(settings.autoHide?L"true":L"false")+L",\"tabWidth\":"+std::to_wstring(settings.tabWidth)+L",\"widthMode\":"+std::to_wstring(settings.widthMode)+L",\"accentPosition\":"+std::to_wstring(settings.accentPosition)+L",\"barStyle\":"+std::to_wstring(settings.barStyle)+L",\"barColor\":"+json(tabcolor::format(settings.barColor))+L",\"customBarColor\":"+(settings.customBarColor?L"true":L"false")+L",\"singleTaskbarSetting\":"+(settings.group?L"true":L"false")+L",\"languageSetting\":"+std::to_wstring(settings.language)+L",\"language\":"+json(language()==1?L"zh-CN":L"en")+L",\"themeMode\":"+std::to_wstring(settings.themeMode)+L",\"frameCloseAction\":"+std::to_wstring(settings.frameCloseAction)+L",\"observedRootCount\":"+std::to_wstring(rootObservers.size())+L",\"windowCoordination\":true,\"dark\":"+(darkMode()?L"true":L"false")+L",\"barBackground\":"+json(tabcolor::format((darkMode()&&settings.barStyle==1?surroundColor():tabcolor::background(darkMode(),settings.barStyle==1,settings.barColor,settings.customBarColor))))+L",\"surroundBackground\":"+json(tabcolor::format(surroundColor()))+L",\"settingsLiveSync\":true,\"settingsWritePending\":"+(settings.savePending?L"true":L"false")+L",\"recentlyClosedCount\":"+std::to_wstring(recentlyClosed().size())+L",\"closePending\":"+(pendingCloseId?L"true":L"false")+L",\"refreshFailures\":"+std::to_wstring(failures)+L",\"lastOperation\":"+json(lastOperation)+L",\"lastError\":"+json(hex(lastError))+L",\"inputTraceAvailable\":"+(inputTraceAvailable()?L"true":L"false")+L",\"moduleSha256\":"+json(moduleSha256())+L",\"moduleHashReadable\":"+(!moduleSha256().empty()?L"true":L"false")+L",\"logSchema\":1,\"droppedLogRecords\":"+std::to_wstring(runtimelog::recorder().lost())+L",\"privacy\":\"No document names, paths, content, account names or legacy raw logs\"}";
 }
 void Session::showDiagnostics(HWND owner){
-    auto keep=shared_from_this();std::wstring advice=L"openOfficeTab 0.2.3-beta.2\n\n";
+    auto keep=shared_from_this();std::wstring advice=L"openOfficeTab 0.2.3-beta.3\n\n";
     if(!factory)advice+=tr(L"Office 尚未提供标签窗格工厂。请保存后重开 Office，或在安装器中检查和修复注册。\n");
     if(!settings.visible)advice+=tr(L"标签栏当前被隐藏，可使用“恢复标签栏与窗口”。\n");
     if(settings.autoHide)advice+=tr(L"已启用单标签自动隐藏。\n");

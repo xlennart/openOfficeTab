@@ -1,5 +1,7 @@
 # 验证记录
 
+0.2.3-beta.3 诊断候选及仅宿主机 x64 实测见 [本版记录](validation-v0.2.3-beta.3.md)；x86 本轮仅编译。 / See the [beta.3 record](validation-v0.2.3-beta.3.md) for integrated diagnostics and host x64 tests; x86 was compile-only.
+
 0.2.3-beta.2 的候选焦点修复与最终双架构验证见 [本版验证记录](validation-v0.2.3-beta.2.md)；32 位复用入口见 [虚拟机流程](office-x86-runtime.md)。 / See the [0.2.3-beta.2 validation record](validation-v0.2.3-beta.2.md) for the candidate focus fix and final dual-architecture evidence, and the [VM workflow](office-x86-runtime.md) for repeatable x86 tests.
 
 0.2.3-beta.1 的诊断增强与更新通道历史见 [此前记录](validation-v0.2.3-beta.1.md)。 / The previous logging/channel baseline remains in the [beta.1 record](validation-v0.2.3-beta.1.md).

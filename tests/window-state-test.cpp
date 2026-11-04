@@ -159,6 +159,17 @@ int main(){
     session->settings.group=false;session->updateTaskbar();assert(taskbar->entries.size()==2&&!target->taskbarRemoved);
     session->settings.group=true;session->groupActives[1]=source->id;session->syncWindowObservers();
     assert(session->rootObservers.size()==2);
+    assert(session->inputTraceAvailable());
+    // Diagnostic observation must preserve the original default result and
+    // must not enumerate Office or manufacture a focus change.
+    auto beforeInputCalls=fake->automationCalls;HWND beforeInputActive=GetActiveWindow(),beforeInputFocus=GetFocus();
+    auto mouseActivation=SendMessageW(root,WM_MOUSEACTIVATE,(WPARAM)root,MAKELPARAM(HTCAPTION,WM_NCLBUTTONDOWN));
+    assert(mouseActivation==MA_ACTIVATE&&fake->automationCalls==beforeInputCalls);
+    assert(GetActiveWindow()==beforeInputActive&&GetFocus()==beforeInputFocus);
+    auto inputLog=runtimelog::recorder().snapshot();
+    assert(inputLog.find(L"window.input.message")!=std::wstring::npos&&inputLog.find(L"window.input.view")!=std::wstring::npos);
+    assert(inputLog.find(L"\"phase\":1")!=std::wstring::npos&&inputLog.find(L"\"phase\":2")!=std::wstring::npos);
+    assert(inputLog.find(L"\"hitCode\":2")!=std::wstring::npos);
     session->groupActives[1]=target->id;session->activeId=target->id;
     SendMessageW(root,WM_SYSCOMMAND,SC_RESTORE,0);session->processWindowLayout();assert(session->activeTabId(root)==source->id);
 
@@ -233,6 +244,7 @@ int main(){
     SetWindowPos(root,nullptr,260,270,610,420,SWP_NOACTIVATE|SWP_NOZORDER);session->processWindowLayout();GetWindowRect(other,&actual);assert(EqualRect(&oldRect,&actual));
     session->settings.group=true;SendMessageW(root,WM_ENTERSIZEMOVE,0,0);assert(session->windowMasks.size()==1);
     session->detachWindowObservers();assert(session->rootObservers.empty()&&session->windowMasks.empty()&&GetWindowLongPtrW(other,GWL_EXSTYLE)==peerStyle);
+    assert(!session->inputTraceAvailable());
     session.reset();app.reset();DestroyWindow(other);DestroyWindow(root);CoUninitialize();
     std::cout<<"Tab slot geometry, restoration, independent/group boundaries, pane guards and OLE UI ownership passed.\n";
 }

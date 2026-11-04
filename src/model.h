@@ -19,6 +19,7 @@ struct View {
 };
 class PaneChrome;
 class RootObserver;
+class WindowInputObserver;
 class WindowMask;
 struct GroupSlot {WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};RECT bounds{};bool minimized=false;};
 struct FrameCloseChoice {int action=0;bool remember=false;}; // 0 cancel, 1 current, 2 group
@@ -69,6 +70,7 @@ public:
     DWORD cookie=0;
     Ptr<ITaskbarList> taskbar;
     std::map<HWND,std::shared_ptr<RootObserver>> rootObservers;
+    std::shared_ptr<WindowInputObserver> inputObserver;
     std::map<unsigned,GroupSlot> groupSlots;
     bool coordinatingWindows=false,frameDialogActive=false,frameBatch=false;
     HWND pendingFrameClose=nullptr,operatingRoot=nullptr;
@@ -94,6 +96,7 @@ public:
     void bindFactory(IDispatch* f);
     void event(DISPID id,DISPPARAMS* params);
     void syncPanes();void redraw();
+    bool inputTraceAvailable()const;
     std::shared_ptr<View> find(unsigned long long id)const;
     unsigned groupForWindow(HWND root)const;
     unsigned currentGroup()const;
