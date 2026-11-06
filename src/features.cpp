@@ -23,10 +23,13 @@ const std::wstring& moduleSha256(){
 #include "layout.h"
 #include "tab-color.h"
 #include <commdlg.h>
+#include "rename-dialog.h"
 
 namespace {
 bool ownedWindow(HWND window){DWORD pid=0;GetWindowThreadProcessId(window,&pid);return window&&IsWindow(window)&&pid==GetCurrentProcessId();}
 std::wstring hostLabel(Host host){return host==Host::Word?L"Word":host==Host::Excel?L"Excel":L"PowerPoint";}
+using renameui::RenameChoice;
+using renameui::renameProc;
 struct WidthChoice {int width,mode,language;};
 struct ColorChoice {COLORREF color;bool custom;int language;};
 INT_PTR CALLBACK colorProc(HWND dialog,UINT message,WPARAM wp,LPARAM lp){
@@ -127,6 +130,14 @@ void Session::colorDialog(HWND owner){
 bool Session::setViewWidth(unsigned long long id,int width){
     auto v=find(id);if(!v||stopped||width<0||(width!=0&&!tablayout::validWidth(width,0)))return false;
     v->manualTabWidth=width;persistView(*v);redraw();return true;
+}
+void Session::renameDialog(HWND owner,unsigned long long id){
+    auto keep=shared_from_this();auto v=find(id);
+    if(stopped||executing||refreshing||!v||v->readOnly||!storage::localFile(v->path))return;
+    RenameChoice choice{this,id,v->path,language()};
+    struct Template {DLGTEMPLATE dialog;WORD menu,cls,title;} data{};
+    data.dialog.style=WS_POPUP|WS_CAPTION|WS_SYSMENU|WS_CLIPCHILDREN|DS_MODALFRAME;data.dialog.cx=290;data.dialog.cy=125;
+    DialogBoxIndirectParamW(module,&data.dialog,owner,renameProc,(LPARAM)&choice);
 }
 void Session::widthDialog(HWND owner){
     auto keep=shared_from_this();WidthChoice choice{settings.tabWidth,settings.widthMode,language()};

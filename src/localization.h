@@ -12,6 +12,16 @@ inline int resolve(int mode,LANGID system=GetUserDefaultUILanguage()){
 }
 struct Entry {const wchar_t* zh;const wchar_t* en;};
 inline constexpr Entry entries[]={
+    {L"重命名文件…",L"Rename file…"},
+    {L"重命名文件",L"Rename file"},
+    {L"新文件名",L"New file name"},
+    {L"重命名",L"Rename"},
+    {L"新文件名（不含扩展名）：",L"New file name (without extension):"},
+    {L"保留原目录和扩展名；当前编辑会一并保存。",L"Keeps the folder and extension. Current edits will be saved."},
+    {L"文件名无效。请勿使用保留名称、路径字符或末尾的空格和句点。",L"Invalid file name. Avoid reserved names, path characters, and trailing spaces or periods."},
+    {L"文档路径已改变，请关闭对话框后重试。",L"The document path has changed. Close this dialog and try again."},
+    {L"未完成重命名，原文件未被删除。请检查同名文件、只读状态或 Office 提示；仅修改大小写暂不支持。",L"Rename was not completed; the original was not deleted. Check for an existing file, read-only status, or Office prompts. Case-only renames are not supported."},
+    {L"文档已保存为新名称，但旧文件无法安全删除，已保留两份文件。请检查旧文件后手动处理。",L"Saved under the new name, but the original could not be safely deleted. Both files were kept. Check the old file before removing it manually."},
     {L"永久免费原生文档标签 · Word / Excel / PowerPoint",L"Free native document tabs · Word / Excel / PowerPoint"},
     {L"标签栏颜色",L"Tab bar color"},
     {L"输入颜色（#RRGGBB），或使用调色板。",L"Enter #RRGGBB or choose a palette color."},

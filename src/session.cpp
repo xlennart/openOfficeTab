@@ -484,6 +484,59 @@ bool Session::save(unsigned long long id,bool saveAs){
     }catch(const ComError& e){report(e);return false;}
     if(!refresh())return false;auto actual=find(id);return actual&&actual->saved;
 }
+documentrename::Result Session::renameFile(unsigned long long id,const std::wstring& name){
+    using documentrename::Result;
+    auto keep=shared_from_this();auto v=find(id);
+    if(stopped||executing||refreshing||pendingCloseId||windowFrameBusy()||!v||v->readOnly||!storage::localFile(v->path)||excelEditing())return Result::failed;
+    const auto oldPath=v->path;
+    if(!documentrename::validStem(name,documentrename::extension(oldPath)))return Result::failed;
+    const auto newPath=documentrename::target(oldPath,name);
+    if(newPath==oldPath)return Result::renamed; // No save, prompt, or disk mutation.
+    // Case-only names resolve to the existing file on normal Windows volumes.
+    // Do not risk Save As followed by deleting the same file.
+    if(storage::normalize(newPath)==storage::normalize(oldPath))return Result::failed;
+    DWORD attributes=GetFileAttributesW(newPath.c_str());
+    if(attributes!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)return Result::failed;
+    HANDLE original=CreateFileW(oldPath.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+    if(original==INVALID_HANDLE_VALUE)return Result::failed;
+    struct File {HANDLE value;~File(){CloseHandle(value);}} originalFile{original};
+    BY_HANDLE_FILE_INFORMATION identity{};
+    if(!GetFileInformationByHandle(original,&identity)||(identity.dwFileAttributes&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_READONLY)))return Result::failed;
+    Result result=Result::failed;
+    try{
+        Flag busy(executing);
+        // Recheck live COM state; a modal prompt may have outlived a refresh.
+        if(call(v->document.get(),L"FullName").str()!=oldPath||call(v->document.get(),L"ReadOnly").boolean())return Result::failed;
+        auto format=call(v->document.get(),host==Host::Word?L"SaveFormat":L"FileFormat");
+        result=documentrename::perform([&]{
+            call(v->window.get(),L"Activate",DISPATCH_METHOD);
+            // Keep the original format (including macros); never close/reopen the document.
+            call(v->document.get(),host==Host::Word?L"SaveAs2":L"SaveAs",DISPATCH_METHOD,{Var(newPath),format});
+            return true;
+        },[&]{
+            DWORD actual=GetFileAttributesW(newPath.c_str());
+            return storage::normalize(call(v->document.get(),L"FullName").str())==storage::normalize(newPath)&&
+                call(v->document.get(),L"Saved").boolean()&&actual!=INVALID_FILE_ATTRIBUTES&&!(actual&FILE_ATTRIBUTE_DIRECTORY);
+        },[&]{
+            // Delete by handle, not by path: never remove an unrelated file that
+            // replaced the original during Office's Save As / event processing.
+            HANDLE stale=CreateFileW(oldPath.c_str(),DELETE|FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+            if(stale==INVALID_HANDLE_VALUE)return false;
+            File staleFile{stale};BY_HANDLE_FILE_INFORMATION current{};
+            if(!GetFileInformationByHandle(stale,&current)||identity.dwVolumeSerialNumber!=current.dwVolumeSerialNumber||
+                identity.nFileIndexHigh!=current.nFileIndexHigh||identity.nFileIndexLow!=current.nFileIndexLow||
+                identity.nFileSizeHigh!=current.nFileSizeHigh||identity.nFileSizeLow!=current.nFileSizeLow||
+                CompareFileTime(&identity.ftLastWriteTime,&current.ftLastWriteTime)!=0)return false;
+            FILE_DISPOSITION_INFO disposition{TRUE};
+            return SetFileInformationByHandle(stale,FileDispositionInfo,&disposition,sizeof(disposition))!=FALSE;
+        });
+    }catch(const ComError& e){report(e);}
+    // Refresh all windows of the same document and let existing Save As
+    // persistence inherit widths / independent-window preferences at the new path.
+    refresh();defer();
+    logEvent(L"document.rename.result",{{"viewId",(long long)id},{"result",(int)result}});
+    return result;
+}
 void Session::create(bool independent,HWND owner){
     logEvent(L"document.new.request",{{"independent",independent},{"activeId",(long long)activeId}});
     if(stopped||executing||queuedNewDocument||!timer)return;
@@ -569,7 +622,7 @@ std::wstring Session::state()const{
 void Session::menu(HWND owner,unsigned long long id,POINT pt){
     auto keep=shared_from_this();auto v=find(id);if(!v)return;
     HMENU m=CreatePopupMenu();auto add=[&](UINT n,const wchar_t* t,bool enabled=true,bool checked=false){AppendMenuW(m,MF_STRING|(enabled?0:MF_GRAYED)|(checked?MF_CHECKED:0),n,tr(t));};
-    add(1,L"切换到此文档");add(12,L"在独立窗口中显示");add(13,L"移到新标签组窗口");add(14,L"移动到标签组…");add(15,L"新建为独立窗口");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(2,L"保存",!v->readOnly);add(3,L"另存为…",!v->readOnly);add(4,L"保存本组全部标签");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
+    add(1,L"切换到此文档");add(12,L"在独立窗口中显示");add(13,L"移到新标签组窗口");add(14,L"移动到标签组…");add(15,L"新建为独立窗口");AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(2,L"保存",!v->readOnly);add(3,L"另存为…",!v->readOnly);add(20,L"重命名文件…",!v->readOnly&&storage::localFile(v->path));add(4,L"保存本组全部标签");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
     add(5,L"关闭",!v->locked);add(6,L"关闭其他标签");add(7,L"关闭左侧标签");add(8,L"关闭右侧标签");add(9,L"关闭全部标签");AppendMenuW(m,MF_SEPARATOR,0,nullptr);
     add(10,L"锁定标签（防止从标签栏关闭）",true,v->locked);add(11,L"打开所在文件夹",!v->path.empty()&&v->path.find(L"://")==std::wstring::npos);
     AppendMenuW(m,MF_SEPARATOR,0,nullptr);add(17,L"最近关闭…");add(18,L"重置此文件的标签设置",storage::localFile(v->path));add(19,L"管理中心");
@@ -579,6 +632,7 @@ void Session::menu(HWND owner,unsigned long long id,POINT pt){
     if(command==10){v->locked=!v->locked;redraw();}
     if(command==11){std::wstring parent=v->path.substr(0,v->path.find_last_of(L"\\/"));ShellExecuteW(owner,L"open",parent.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
     if(command==13)newTabGroup(id);if(command==14)chooseGroup(owner,id);if(command==15)create(true,owner);
+    if(command==20)renameDialog(GetAncestor(owner,GA_ROOT),id);
     if(command==17)recentMenu(owner,pt);if(command==18)resetFilePreferences(id);if(command==19)openManagement(owner);
 }
 void Session::options(HWND owner,POINT pt){
