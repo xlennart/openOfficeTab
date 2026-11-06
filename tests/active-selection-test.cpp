@@ -72,7 +72,7 @@ void test(Host host){
     wa->activate=[&]{app->properties[L"ActiveWindow"]=Var(wa.get());};wb->activate=[&]{app->properties[L"ActiveWindow"]=Var(wb.get());};
     wchar_t cwd[32768];GetCurrentDirectoryW(32768,cwd);
     auto s=std::make_shared<Session>(app.get(),std::wstring(cwd)+L"\\selection-state-"+std::to_wstring(GetCurrentProcessId()));
-    s->settings=Settings{};s->settings.themeMode=1;s->settings.widthMode=0;s->views={view(1,a,wa.get(),da.get()),view(2,b,wb.get(),db.get())};s->nextId=3;
+    s->settings=Settings{};s->settings.root=s->storageRoot;s->settings.themeMode=1;s->settings.widthMode=0;s->views={view(1,a,wa.get(),da.get()),view(2,b,wb.get(),db.get())};s->nextId=3;
     SetActiveWindow(a);assert(s->refresh());
     Pane pane;pane.viewId=1;pane.control=Ptr<ITabBinding>(new Binding(bar),false);s->panes.push_back(std::move(pane));
     // An internally selected B must not be drawn over native A's content.
