@@ -1,5 +1,6 @@
 #include "model.h"
 #include "layout.h"
+#include "tab-menu.h"
 
 namespace {
 std::wstring name(Host host){return host==Host::Word?L"Word":host==Host::Excel?L"Excel":L"PowerPoint";}
@@ -82,11 +83,14 @@ bool Session::reopenPath(const std::wstring& file){
 }
 bool Session::reopenClosed(unsigned index){auto files=recentlyClosed();return index<files.size()&&reopenPath(files[index]);}
 void Session::recentMenu(HWND owner,POINT point){
-    auto keep=shared_from_this();auto files=recentlyClosed();HMENU menu=CreatePopupMenu();
-    for(size_t i=0;i<files.size();i++){auto slash=files[i].find_last_of(L"\\/");std::wstring label=slash==std::wstring::npos?files[i]:files[i].substr(slash+1)+L"  —  "+files[i].substr(0,slash);if(label.size()>220)label=label.substr(0,217)+L"…";
-        std::wstring escaped;for(auto c:label){escaped+=c;if(c==L'&')escaped+=c;}AppendMenuW(menu,MF_STRING,(UINT)i+1,escaped.c_str());}
-    if(files.empty())AppendMenuW(menu,MF_STRING|MF_GRAYED,0,tr(L"暂无最近关闭的文件"));
-    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING|(files.empty()?MF_GRAYED:0),100,tr(L"清空最近关闭记录"));
-    UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,point.x,point.y,0,owner,nullptr);DestroyMenu(menu);
-    if(cmd&&cmd<=files.size())reopenPath(files[cmd-1]);else if(cmd==100)clearRecentlyClosed();
+    auto keep = shared_from_this();
+    auto files = recentlyClosed();
+    UINT command = 0;
+    {
+        tabmenu::Menu menu(owner, host, darkMode(), language());
+        tabmenu::populateRecent(menu, files, language());
+        command = menu.track(point);
+    }
+    if (command && command <= files.size()) reopenPath(files[command - 1]);
+    else if (command == tabmenu::clearRecentId) clearRecentlyClosed();
 }

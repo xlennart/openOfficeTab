@@ -5,6 +5,10 @@
 #include <gdiplus.h>
 #include <cassert>
 #include <iostream>
+void saveBitmap(HBITMAP bitmap, const wchar_t* path) {
+    Gdiplus::Bitmap image(bitmap,nullptr);CLSID png{0x557cf406,0x1a04,0x11d3,{0x9a,0x73,0x00,0x00,0xf8,0x1e,0xf3,0x2e}};
+    assert(image.Save(path,&png,nullptr)==Gdiplus::Ok);
+}
 void capture(HWND window,const wchar_t* path){
     RECT r{};GetClientRect(window,&r);HDC screen=GetDC(nullptr),dc=CreateCompatibleDC(screen);
     HBITMAP bitmap=CreateCompatibleBitmap(screen,r.right,r.bottom);auto old=SelectObject(dc,bitmap);
@@ -15,8 +19,7 @@ void capture(HWND window,const wchar_t* path){
         IntersectClipRect(dc,0,0,bounds.right-bounds.left,bounds.bottom-bounds.top);
         SendMessageW(child,WM_PRINT,(WPARAM)dc,PRF_CLIENT|PRF_ERASEBKGND);RestoreDC(dc,saved);
     }
-    Gdiplus::Bitmap image(bitmap,nullptr);CLSID png{0x557cf406,0x1a04,0x11d3,{0x9a,0x73,0x00,0x00,0xf8,0x1e,0xf3,0x2e}};
-    assert(image.Save(path,&png,nullptr)==Gdiplus::Ok);
+    saveBitmap(bitmap, path);
     SelectObject(dc,old);DeleteObject(bitmap);DeleteDC(dc);ReleaseDC(nullptr,screen);
 }
 void showOffscreen(HWND dialog) {
@@ -136,6 +139,157 @@ void checkTabMenu() {
     }
     DestroyWindow(owner);
 }
+void captureMenu(HWND owner, HMENU popup, const dialogui::Theme& theme, UINT selected, const wchar_t* path) {
+    struct Row { MENUITEMINFOW info; UINT height; };
+    std::vector<Row> rows;
+    UINT width = 0, height = 0;
+    for (int index = 0; index < GetMenuItemCount(popup); ++index) {
+        MENUITEMINFOW info{sizeof(info)};
+        info.fMask = MIIM_ID | MIIM_FTYPE | MIIM_DATA | MIIM_STATE | MIIM_SUBMENU;
+        assert(GetMenuItemInfoW(popup, index, TRUE, &info));
+        UINT rowHeight = theme.px(9);
+        if (!(info.fType & MFT_SEPARATOR)) {
+            if (!(info.fType & MFT_OWNERDRAW)) return;
+            MEASUREITEMSTRUCT measure{ODT_MENU, 0, info.wID, 0, 0, info.dwItemData};
+            assert(SendMessageW(owner, WM_MEASUREITEM, 0, (LPARAM)&measure));
+            width = std::max(width, measure.itemWidth);
+            rowHeight = measure.itemHeight;
+        }
+        rows.push_back({info, rowHeight});
+        height += rowHeight;
+    }
+    assert(width && height);
+    HDC screen = GetDC(owner), dc = CreateCompatibleDC(screen);
+    HBITMAP bitmap = CreateCompatibleBitmap(screen, width, height);
+    auto old = SelectObject(dc, bitmap);
+    LONG top = 0;
+    for (const auto& row : rows) {
+        RECT bounds{0, top, (LONG)width, top + (LONG)row.height};
+        const auto& info = row.info;
+        if (info.fType & MFT_SEPARATOR) {
+            dialogui::fill(dc, bounds, theme.background);
+            RECT line{theme.px(4), top + (LONG)row.height / 2, (LONG)width - theme.px(4),
+                top + (LONG)row.height / 2 + 1};
+            dialogui::fill(dc, line, theme.border);
+        } else {
+            UINT state = (info.fState & MFS_CHECKED ? ODS_CHECKED : 0U) |
+                (info.fState & MFS_DISABLED ? ODS_DISABLED : 0U) | (info.wID == selected ? ODS_SELECTED : 0U);
+            DRAWITEMSTRUCT draw{ODT_MENU, 0, info.wID, ODA_DRAWENTIRE, state,
+                (HWND)popup, dc, bounds, info.dwItemData};
+            assert(SendMessageW(owner, WM_DRAWITEM, 0, (LPARAM)&draw));
+            // The popup window supplies its submenu arrows after WM_DRAWITEM.
+            if (info.hSubMenu) {
+                int x = (int)width - theme.px(14), y = top + (int)row.height / 2;
+                auto pen = CreatePen(PS_SOLID, theme.px(1), info.wID == selected ? theme.accent : theme.muted);
+                auto previous = SelectObject(dc, pen);
+                MoveToEx(dc, x, y - theme.px(3), nullptr);
+                LineTo(dc, x + theme.px(3), y);
+                LineTo(dc, x, y + theme.px(3));
+                SelectObject(dc, previous);
+                DeleteObject(pen);
+            }
+        }
+        top = bounds.bottom;
+    }
+    saveBitmap(bitmap, path);
+    SelectObject(dc, old);
+    DeleteObject(bitmap);
+    DeleteDC(dc);
+    ReleaseDC(owner, screen);
+}
+
+void previewRecentMenu(HWND owner, bool dark, const wchar_t* path) {
+    {
+        tabmenu::Menu empty(owner, Host::Word, dark, 1);
+        tabmenu::populateRecent(empty, {}, 1);
+        assert(GetMenuItemCount(empty.handle()) == 3);
+        assert(GetMenuState(empty.handle(), tabmenu::clearRecentId, MF_BYCOMMAND) & MF_DISABLED);
+    }
+    tabmenu::Menu menu(owner, Host::Word, dark, 1);
+    const std::vector<std::wstring> files{L"D:\\项目资料\\本周\\项目进度报告.docx",
+        L"D:\\项目资料\\上周\\项目进度报告.docx", L"C:\\工作资料\\R&D\\会议纪要.docx",
+        L"C:\\方案归档\\项目资料\\已提交的版本\\季度汇报\\会议用材料\\年度计划.docx"};
+    tabmenu::populateRecent(menu, files, 1);
+    HMENU root = menu.handle();
+    assert(GetMenuItemCount(root) == (int)files.size() + 2);
+    assert(!(GetMenuState(root, tabmenu::clearRecentId, MF_BYCOMMAND) & MF_DISABLED));
+
+    dialogui::Theme theme;
+    theme.initialize(owner, Host::Word, dark, 1);
+    for (int index = 0; index < GetMenuItemCount(root); ++index) {
+        wchar_t label[512]{};
+        MENUITEMINFOW info{sizeof(info)};
+        info.fMask = MIIM_ID | MIIM_FTYPE | MIIM_DATA | MIIM_STRING;
+        info.dwTypeData = label;
+        info.cch = (UINT)std::size(label);
+        assert(GetMenuItemInfoW(root, index, TRUE, &info));
+        if (index == (int)files.size()) {
+            assert(info.fType & MFT_SEPARATOR);
+            continue;
+        }
+        assert(info.wID == (index < (int)files.size() ? (UINT)index + 1 : tabmenu::clearRecentId));
+        if (index == 2) assert(std::wstring(label).find(L"R&&D") != std::wstring::npos);
+        if (info.fType & MFT_OWNERDRAW) {
+            MEASUREITEMSTRUCT measure{ODT_MENU, 0, info.wID, 0, 0, info.dwItemData};
+            assert(SendMessageW(owner, WM_MEASUREITEM, 0, (LPARAM)&measure));
+            assert(measure.itemHeight == (UINT)theme.px(index < (int)files.size() ? 48 : 33));
+            assert(measure.itemWidth <= (UINT)theme.px(420));
+        }
+    }
+    captureMenu(owner, root, theme, 2, path);
+}
+
+void previewOptionsMenu(HWND owner, bool dark, const wchar_t* path) {
+    Settings settings;
+    settings.language = 1;
+    settings.themeMode = dark ? 2 : 1;
+    settings.frameCloseAction = 2;
+    settings.autoHide = true;
+    settings.position = 3;
+    tabmenu::Menu menu(owner, Host::Word, dark, settings.language, tabmenu::optionsRowHeight);
+    tabmenu::populateOptions(menu, settings, settings.language);
+
+    HMENU root = menu.handle();
+    const UINT order[] = {60, 1, 2, 4, 100, 101, 102, 5, 0, 6, 7, 8, 12, 17, 18, 0, 13, 14, 15, 16, 9, 10, 11};
+    assert(GetMenuItemCount(root) == (int)std::size(order));
+    for (int index = 0; index < GetMenuItemCount(root); ++index) {
+        MENUITEMINFOW item{sizeof(item)};
+        item.fMask = MIIM_ID | MIIM_FTYPE;
+        assert(GetMenuItemInfoW(root, index, TRUE, &item));
+        if (order[index]) assert(item.wID == order[index]);
+        else assert(item.fType & MFT_SEPARATOR);
+    }
+    for (UINT id : {1U, 2U, 4U, 7U}) assert(GetMenuState(root, id, MF_BYCOMMAND) & MF_CHECKED);
+    for (UINT id : {5U, 6U}) assert(!(GetMenuState(root, id, MF_BYCOMMAND) & MF_CHECKED));
+
+    HMENU closing = GetSubMenu(root, 4), appearance = GetSubMenu(root, 5), languages = GetSubMenu(root, 6);
+    assert(closing && appearance && languages);
+    assert(GetMenuItemCount(closing) == 3 && GetMenuItemCount(appearance) == 11 && GetMenuItemCount(languages) == 3);
+    HMENU themeMenu = GetSubMenu(appearance, 10);
+    assert(themeMenu && GetMenuItemCount(themeMenu) == 4);
+    assert(GetMenuItemID(themeMenu, 0) == 30 && GetMenuItemID(themeMenu, 3) == 33);
+    assert(GetMenuState(closing, 42, MF_BYCOMMAND) & MF_CHECKED);
+    assert(GetMenuState(appearance, 23, MF_BYCOMMAND) & MF_CHECKED);
+    assert(GetMenuState(appearance, 21, MF_BYCOMMAND) & MF_CHECKED);
+    assert(GetMenuState(languages, 51, MF_BYCOMMAND) & MF_CHECKED);
+    assert(GetMenuState(themeMenu, 30 + settings.themeMode, MF_BYCOMMAND) & MF_CHECKED);
+
+    dialogui::Theme theme;
+    theme.initialize(owner, Host::Word, dark, settings.language);
+    captureMenu(owner, root, theme, 101, path);
+    if (dark) captureMenu(owner, appearance, theme, 103, L"artifacts/options-appearance-menu-dark.png");
+}
+
+void previewMenus() {
+    HWND owner = CreateWindowExW(WS_EX_TOOLWINDOW, L"STATIC", L"", WS_POPUP, 0, 0, 1, 1,
+        nullptr, nullptr, module, nullptr);
+    assert(owner);
+    previewRecentMenu(owner, false, L"artifacts/recent-menu-light.png");
+    previewRecentMenu(owner, true, L"artifacts/recent-menu-dark.png");
+    previewOptionsMenu(owner, false, L"artifacts/options-menu-light.png");
+    previewOptionsMenu(owner, true, L"artifacts/options-menu-dark.png");
+    DestroyWindow(owner);
+}
 int wmain(){
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);module=GetModuleHandleW(nullptr);
@@ -152,9 +306,12 @@ int wmain(){
         previewColor(Host::Excel, true, 1, L"artifacts/tab-color-dialog-dark.png");
         previewColor(Host::PowerPoint, false, 2, L"artifacts/tab-color-dialog-en.png");
         checkTabMenu();
+        previewMenus();
     }
     Gdiplus::GdiplusShutdown(token);CoUninitialize();
     std::cout<<"Frame close renders: light/dark, Chinese/English, bounds, cancel default and checkbox passed.\n";
     std::cout<<"Appearance dialogs render in light/dark and Chinese/English. Width/mode submission and color reset passed.\n";
     std::cout<<"Tab menu labels, submenu command IDs, disabled/checked states and native draw messages passed.\n";
+    std::cout<<"Recently closed menu: file command IDs, ampersands, bounded two-line rows and empty history passed.\n";
+    std::cout<<"Options menu: original command order, nested submenus, checked preferences and native drawing passed.\n";
 }
