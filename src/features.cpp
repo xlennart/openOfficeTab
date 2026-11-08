@@ -20,65 +20,11 @@ const std::wstring& moduleSha256(){
     }();return value;
 }
 }
-#include "layout.h"
-#include "tab-color.h"
-#include <commdlg.h>
+#include "appearance-dialog.h"
 
 namespace {
 bool ownedWindow(HWND window){DWORD pid=0;GetWindowThreadProcessId(window,&pid);return window&&IsWindow(window)&&pid==GetCurrentProcessId();}
 std::wstring hostLabel(Host host){return host==Host::Word?L"Word":host==Host::Excel?L"Excel":L"PowerPoint";}
-struct WidthChoice {int width,mode,language;};
-struct ColorChoice {COLORREF color;bool custom;int language;};
-INT_PTR CALLBACK colorProc(HWND dialog,UINT message,WPARAM wp,LPARAM lp){
-    auto choice=(ColorChoice*)GetWindowLongPtrW(dialog,DWLP_USER);
-    if(message==WM_INITDIALOG){
-        choice=(ColorChoice*)lp;bool originalCustom=choice->custom;SetWindowLongPtrW(dialog,DWLP_USER,lp);SetWindowTextW(dialog,i18n::text(choice->language,L"标签栏颜色"));
-        int scale=dpi(dialog);auto px=[&](int value){return MulDiv(value,scale,96);};RECT r{0,0,px(380),px(205)};
-        AdjustWindowRectEx(&r,(DWORD)GetWindowLongPtrW(dialog,GWL_STYLE),FALSE,(DWORD)GetWindowLongPtrW(dialog,GWL_EXSTYLE));SetWindowPos(dialog,nullptr,0,0,r.right-r.left,r.bottom-r.top,SWP_NOMOVE|SWP_NOZORDER);
-        auto control=[&](const wchar_t* cls,const wchar_t* text,DWORD style,int id,int x,int y,int width,int height){auto child=CreateWindowExW(0,cls,text,WS_CHILD|WS_VISIBLE|style,px(x),px(y),px(width),px(height),dialog,(HMENU)(INT_PTR)id,module,nullptr);SendMessageW(child,WM_SETFONT,(WPARAM)GetStockObject(DEFAULT_GUI_FONT),TRUE);return child;};
-        control(L"STATIC",i18n::text(choice->language,L"输入颜色（#RRGGBB），或使用调色板。"),0,0,16,16,348,22);
-        control(L"EDIT",tabcolor::format(choice->color).c_str(),WS_BORDER|WS_TABSTOP|ES_AUTOHSCROLL,101,16,48,160,26);SendDlgItemMessageW(dialog,101,EM_SETLIMITTEXT,7,0);
-        control(L"BUTTON",i18n::text(choice->language,L"调色板…"),WS_TABSTOP,102,188,48,92,28);control(L"BUTTON",i18n::text(choice->language,L"恢复默认"),WS_TABSTOP,103,16,90,100,28);
-        control(L"STATIC",i18n::text(choice->language,L"深色模式和系统高对比度优先于自定义颜色。"),0,0,16,120,348,38);
-        control(L"BUTTON",i18n::text(choice->language,L"确定"),WS_TABSTOP|BS_DEFPUSHBUTTON,IDOK,188,171,82,28);control(L"BUTTON",i18n::text(choice->language,L"取消"),WS_TABSTOP,IDCANCEL,282,171,82,28);
-        SetFocus(GetDlgItem(dialog,101));SendDlgItemMessageW(dialog,101,EM_SETSEL,0,-1);choice->custom=originalCustom;return FALSE;
-    }
-    if(message==WM_COMMAND&&choice){
-        if(LOWORD(wp)==101&&HIWORD(wp)==EN_CHANGE)choice->custom=true;
-        if(LOWORD(wp)==102){wchar_t text[32]{};GetDlgItemTextW(dialog,101,text,32);COLORREF color=choice->color;tabcolor::parse(text,color);
-            COLORREF colors[16]{};CHOOSECOLORW picker{sizeof(picker)};picker.hwndOwner=dialog;picker.rgbResult=color;picker.lpCustColors=colors;picker.Flags=CC_FULLOPEN|CC_RGBINIT;
-            if(ChooseColorW(&picker))SetDlgItemTextW(dialog,101,tabcolor::format(picker.rgbResult).c_str());return TRUE;}
-        if(LOWORD(wp)==103){SetDlgItemTextW(dialog,101,L"#F0F0F0");choice->custom=false;return TRUE;}
-        if(LOWORD(wp)==IDOK){wchar_t text[32]{};GetDlgItemTextW(dialog,101,text,32);COLORREF color;
-            if(!tabcolor::parse(text,color)){MessageBoxW(dialog,i18n::text(choice->language,L"请输入 6 位十六进制颜色，例如 #F0F0F0。"),i18n::text(choice->language,L"标签栏颜色"),MB_OK|MB_ICONINFORMATION);return TRUE;}
-            choice->color=color;EndDialog(dialog,IDOK);return TRUE;}
-    }
-    if(message==WM_CLOSE||(message==WM_COMMAND&&LOWORD(wp)==IDCANCEL)){EndDialog(dialog,IDCANCEL);return TRUE;}return FALSE;
-}
-INT_PTR CALLBACK widthProc(HWND dialog,UINT message,WPARAM wp,LPARAM lp){
-    auto choice=(WidthChoice*)GetWindowLongPtrW(dialog,DWLP_USER);
-    if(message==WM_INITDIALOG){
-        choice=(WidthChoice*)lp;SetWindowTextW(dialog,i18n::text(choice->language,L"标签宽度"));
-        SetWindowLongPtrW(dialog,DWLP_USER,lp);
-        int scale=dpi(dialog);auto px=[&](int value){return MulDiv(value,scale,96);};
-        RECT r{0,0,px(360),px(180)};AdjustWindowRectEx(&r,(DWORD)GetWindowLongPtrW(dialog,GWL_STYLE),FALSE,(DWORD)GetWindowLongPtrW(dialog,GWL_EXSTYLE));
-        SetWindowPos(dialog,nullptr,0,0,r.right-r.left,r.bottom-r.top,SWP_NOMOVE|SWP_NOZORDER);
-        auto control=[&](const wchar_t* cls,const wchar_t* text,DWORD style,int id,int x,int y,int w,int h){auto child=CreateWindowExW(0,cls,text,WS_CHILD|WS_VISIBLE|style,px(x),px(y),px(w),px(h),dialog,(HMENU)(INT_PTR)id,module,nullptr);SendMessageW(child,WM_SETFONT,(WPARAM)GetStockObject(DEFAULT_GUI_FONT),TRUE);return child;};
-        control(L"STATIC",i18n::text(choice->language,L"标签宽度（80–360，按缩放自动适配）"),0,0,16,14,328,22);
-        control(L"EDIT",std::to_wstring(choice->width).c_str(),WS_BORDER|WS_TABSTOP|ES_NUMBER|ES_AUTOHSCROLL,101,16,42,100,25);
-        auto combo=control(L"COMBOBOX",L"",WS_TABSTOP|CBS_DROPDOWNLIST,102,16,84,328,100);
-        for(auto text:{i18n::text(choice->language,L"固定宽度"),i18n::text(choice->language,L"按标题长度（上述宽度为上限）"),i18n::text(choice->language,L"空间不足时压缩（上述宽度为上限）")})SendMessageW(combo,CB_ADDSTRING,0,(LPARAM)text);
-        SendMessageW(combo,CB_SETCURSEL,choice->mode,0);
-        control(L"BUTTON",i18n::text(choice->language,L"确定"),WS_TABSTOP|BS_DEFPUSHBUTTON,IDOK,174,138,78,28);
-        control(L"BUTTON",i18n::text(choice->language,L"取消"),WS_TABSTOP,IDCANCEL,266,138,78,28);
-        SetFocus(GetDlgItem(dialog,101));SendDlgItemMessageW(dialog,101,EM_SETSEL,0,-1);return FALSE;
-    }
-    if(message==WM_COMMAND&&LOWORD(wp)==IDOK){BOOL valid=FALSE;int width=(int)GetDlgItemInt(dialog,101,&valid,FALSE);int mode=(int)SendDlgItemMessageW(dialog,102,CB_GETCURSEL,0,0);
-        if(!valid||!tablayout::validWidth(width,mode)){MessageBoxW(dialog,i18n::text(choice->language,L"请输入 80 到 360 之间的整数。"),i18n::text(choice->language,L"标签宽度"),MB_OK|MB_ICONINFORMATION);return TRUE;}
-        choice->width=width;choice->mode=mode;EndDialog(dialog,IDOK);return TRUE;
-    }
-    if(message==WM_CLOSE||(message==WM_COMMAND&&LOWORD(wp)==IDCANCEL)){EndDialog(dialog,IDCANCEL);return TRUE;}return FALSE;
-}
 std::wstring hex(HRESULT hr){wchar_t text[16];swprintf_s(text,L"0x%08X",(unsigned)hr);return text;}
 }
 bool Session::openManagement(HWND owner,const wchar_t* page){
@@ -120,21 +66,24 @@ bool Session::setBarColor(const std::wstring& value){
     settings.barColor=color;settings.customBarColor=!value.empty();settings.save();redraw();return true;
 }
 void Session::colorDialog(HWND owner){
-    auto keep=shared_from_this();ColorChoice choice{settings.barColor,settings.customBarColor,language()};
-    struct Template {DLGTEMPLATE dialog;WORD menu,cls,title;} data{};data.dialog.style=WS_POPUP|WS_CAPTION|WS_SYSMENU|DS_MODALFRAME;data.dialog.cx=240;data.dialog.cy=125;
-    if(DialogBoxIndirectParamW(module,&data.dialog,owner,colorProc,(LPARAM)&choice)==IDOK)setBarColor(choice.custom?tabcolor::format(choice.color):L"");
+    auto keep = shared_from_this();
+    appearanceui::ColorChoice choice{settings.barColor, settings.customBarColor, {language(), host, darkMode()}};
+    appearanceui::Template data;
+    if (DialogBoxIndirectParamW(module, &data.dialog, owner, appearanceui::colorProc, (LPARAM)&choice) == IDOK) {
+        setBarColor(choice.custom ? tabcolor::format(choice.color) : L"");
+    }
 }
 bool Session::setViewWidth(unsigned long long id,int width){
     auto v=find(id);if(!v||stopped||width<0||(width!=0&&!tablayout::validWidth(width,0)))return false;
     v->manualTabWidth=width;persistView(*v);redraw();return true;
 }
 void Session::widthDialog(HWND owner){
-    auto keep=shared_from_this();WidthChoice choice{settings.tabWidth,settings.widthMode,language()};
-    // DWORD-aligned DLGTEMPLATE with no resource-dependent controls.
-    struct Template {DLGTEMPLATE dialog;WORD menu,cls,title;} data{};
-    data.dialog.style=WS_POPUP|WS_CAPTION|WS_SYSMENU|DS_MODALFRAME;data.dialog.cx=220;data.dialog.cy=120;
-    auto result=DialogBoxIndirectParamW(module,&data.dialog,owner,widthProc,(LPARAM)&choice);
-    if(result==IDOK)setTabWidth(choice.width,choice.mode);
+    auto keep = shared_from_this();
+    appearanceui::WidthChoice choice{settings.tabWidth, settings.widthMode, {language(), host, darkMode()}};
+    appearanceui::Template data;
+    if (DialogBoxIndirectParamW(module, &data.dialog, owner, appearanceui::widthProc, (LPARAM)&choice) == IDOK) {
+        setTabWidth(choice.width, choice.mode);
+    }
 }
 bool Session::newTabGroup(unsigned long long id,const POINT* position){
     logEvent(L"group.new.request",{{"viewId",(long long)id}});
