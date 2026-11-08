@@ -4,8 +4,8 @@ body{padding:14px 20px 20px}
 #oot-design .o-toolbar{padding-right:0;-webkit-user-select:none;user-select:none}
 #oot-design .o-toolbar>span{font-size:11px}
 #oot-design .o-bar{-webkit-user-select:none;user-select:none;padding-right:0}
-#oot-design .o-window-tools{display:flex;align-items:center;align-self:stretch;letter-spacing:normal}
-#oot-design .o-window-tools button{width:46px;border:0;border-radius:0;color:var(--o-sub);background:transparent;display:grid;place-items:center}
+#oot-design .o-window-tools{display:flex;align-items:stretch;align-self:stretch;letter-spacing:normal}
+#oot-design .o-window-tools button{width:46px;padding:0;border:0;border-radius:0;color:var(--o-sub);background:transparent;display:grid;place-items:center}
 #oot-design .o-window-tools button:hover{background:var(--o-line)}
 #oot-design .o-window-tools button:last-child:hover{background:#c42b1c;color:white}
 #oot-design .o-window-tools svg{width:15px;height:15px;stroke-width:1.5}
@@ -13,6 +13,7 @@ body{padding:14px 20px 20px}
 #oot-design .o-signature:hover{color:var(--o-blue);text-decoration:underline}
 #oot-design .o-footer-links .o-signature{margin-top:0;margin-left:auto}
 #oot-design .o-route:focus-visible,#oot-design button:focus-visible,#oot-design a:focus-visible{outline:2px solid var(--o-blue);outline-offset:3px}
+#oot-design .o-window-tools button:focus-visible{outline-offset:-3px}
 @media(max-width:760px){body{padding:10px}#oot-design .o-toolbar>span{flex-basis:100%}}
 @media(max-width:490px){#oot-design .o-window-tools{display:flex}#oot-design .o-window-tools button{width:32px}}
 /* Production window: preserve the approved product layout, remove review aids. */
