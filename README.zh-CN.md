@@ -289,7 +289,11 @@ pwsh -File .\scripts\package.ps1
 
 原生构建产生 `dist/x64/openOfficetab.dll` 与 `dist/x86/openOfficetab.dll`；`scripts/build-desktop.ps1` 使用 Node.js、Rust/MSVC 构建 Tauri 管理中心及 Windows .NET Framework 本地服务。管理中心使用 WebView2，Office 内的标签栏仍为原生 C++。打包产生 EXE、ZIP、校验文件和签名更新元数据。GitHub Actions 会编译并校验安装包；Office 的实际运行测试需要本机安装桌面 Office。
 
-源码、测试与发布流程见 [开发说明](docs/development.md)；与 Office Tab 的差别及建议见 [功能对比与开发优先级](docs/comparison.md)。欢迎通过 Issues 提交可复现的问题或功能建议；请注明 Windows、Office 版本、位数及缩放比例。
+提交 PR 前请阅读[贡献指南](CONTRIBUTING.zh-CN.md)。源码、测试与发布流程见[开发说明](docs/development.md)，与 Office Tab 的差别见[功能对比与开发优先级](docs/comparison.md)。欢迎通过 [Issues](https://github.com/xlennart/openOfficeTab/issues) 提交可复现的问题或功能建议，并注明 Windows、Office 版本、位数及缩放比例。
+
+## 支持项目
+
+[在爱发电支持 openOfficeTab](https://afdian.com/a/xlennart?utm_source=copylink&utm_medium=link)。
 
 ## 许可证
 

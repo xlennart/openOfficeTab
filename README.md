@@ -289,7 +289,11 @@ pwsh -File .\scripts\package.ps1
 
 The builds produce `dist/x64/openOfficetab.dll` and `dist/x86/openOfficetab.dll`; packaging produces an EXE, a ZIP, and checksums. The desktop build uses Node.js, Rust/MSVC and Windows .NET Framework. Its Tauri/WebView2 management center runs separately; the Office tab bar remains native C++. Packaging also emits signed update metadata. GitHub Actions builds the add-in and verifies tests and installer payloads; actual Office runtime tests require a local desktop Office installation.
 
-See the [development guide](docs/development.md) for source, testing, and release workflows, and the [feature comparison](docs/comparison.md) for differences from Office Tab and possible next steps. Reproducible bug reports and suggestions are welcome through [Issues](https://github.com/xlennart/openOfficeTab/issues). Include Windows and Office versions, Office bitness, and display scale.
+See the [contribution guide](CONTRIBUTING.md) before opening a pull request. The [development guide](docs/development.md) covers source, testing, and release workflows, and the [feature comparison](docs/comparison.md) compares openOfficeTab with Office Tab. Reproducible bug reports and suggestions are welcome through [Issues](https://github.com/xlennart/openOfficeTab/issues). Include Windows and Office versions, Office bitness, and display scale.
+
+## Support the project
+
+[Support openOfficeTab on Afdian](https://afdian.com/a/xlennart?utm_source=copylink&utm_medium=link).
 
 ## License
 
