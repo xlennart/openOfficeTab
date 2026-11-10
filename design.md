@@ -22,9 +22,9 @@
 
 ### 界面验收
 
-- PR 附受影响界面的前后对照，标注应用、语言、主题、窗口尺寸和显示缩放。原生菜单和弹窗放回实际 Office 窗口检查，覆盖相关宿主和键盘操作。
+- PR 作者须亲自在实际程序中验证受影响界面并附前后对照及通过证据，标注测试提交、程序及载荷哈希、应用、语言、主题、窗口尺寸和显示缩放。原生菜单和弹窗放回实际 Office 窗口检查，覆盖相关宿主和键盘操作。
 - 以当前配置的默认和最小尺寸验收管理中心与更新窗口。当前管理中心为 920 × 700 和 420 × 480，更新窗口为 560 × 530 和 360 × 400，均为逻辑像素。检查换行、边界、窗口按钮与底部操作区。
-- 分开记录离线检查、预览和实机证据。按[贡献指南](CONTRIBUTING.zh-CN.md)说明未覆盖项。
+- 分开记录离线检查、预览和实机证据。AI 生成的说明、模拟测试和离屏预览不能替代实际程序的通过证据。必要场景缺少证据或尚未通过时保持草稿。验收要求见[贡献指南](CONTRIBUTING.zh-CN.md)。
 
 ## English
 
@@ -46,6 +46,6 @@
 
 ### UI acceptance
 
-- Include before/after evidence for affected surfaces and record the app, language, theme, window size, and display scale. Check native menus and dialogs inside Office, covering the relevant hosts and keyboard interaction.
+- The PR author must personally verify affected surfaces in the actual application and attach before/after captures and passing evidence. Record the tested commit, program and payload hashes, app, language, theme, window size, and display scale. Check native menus and dialogs inside Office, covering the relevant hosts and keyboard interaction.
 - Check the management center and update window at the configured default and minimum sizes. The current management center uses 920 × 700 and 420 × 480, and the update window uses 560 × 530 and 360 × 400, all in logical pixels. Check wrapping, control bounds, window buttons, and the bottom action area.
-- Report offline checks, previews, and real runtime evidence separately. Record coverage gaps using the [contribution guide](CONTRIBUTING.md).
+- Report offline checks, previews, and real runtime evidence separately. AI-generated descriptions, mocks, and off-screen previews cannot replace passing evidence from the actual application. Keep the PR in draft while required scenarios lack evidence or have not passed. See the [contribution guide](CONTRIBUTING.md) for acceptance requirements.
