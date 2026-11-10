@@ -293,7 +293,7 @@ See the [contribution guide](CONTRIBUTING.md) before opening a pull request. The
 
 ## Support the project
 
-[Support openOfficeTab on Afdian](https://afdian.com/a/xlennart?utm_source=copylink&utm_medium=link).
+<a href="https://afdian.com/a/xlennart?utm_source=copylink&amp;utm_medium=link"><img width="200" src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="Support openOfficeTab on Afdian"></a>
 
 ## License
 

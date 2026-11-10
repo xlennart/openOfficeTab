@@ -293,7 +293,7 @@ pwsh -File .\scripts\package.ps1
 
 ## 支持项目
 
-[在爱发电支持 openOfficeTab](https://afdian.com/a/xlennart?utm_source=copylink&utm_medium=link)。
+<a href="https://afdian.com/a/xlennart?utm_source=copylink&amp;utm_medium=link"><img width="200" src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="在爱发电支持 openOfficeTab"></a>
 
 ## 许可证
 
