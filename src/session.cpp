@@ -495,8 +495,10 @@ documentrename::Result Session::renameFile(unsigned long long id,const std::wstr
     // Case-only names resolve to the existing file on normal Windows volumes.
     // Do not risk Save As followed by deleting the same file.
     if(storage::normalize(newPath)==storage::normalize(oldPath))return Result::failed;
-    DWORD attributes=GetFileAttributesW(newPath.c_str());
-    if(attributes!=INVALID_FILE_ATTRIBUTES||GetLastError()!=ERROR_FILE_NOT_FOUND)return Result::failed;
+    const auto targetIsAbsent=[&]{
+        return GetFileAttributesW(newPath.c_str())==INVALID_FILE_ATTRIBUTES&&GetLastError()==ERROR_FILE_NOT_FOUND;
+    };
+    if(!targetIsAbsent())return Result::failed;
     HANDLE original=CreateFileW(oldPath.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(original==INVALID_HANDLE_VALUE)return Result::failed;
     struct File {HANDLE value;~File(){CloseHandle(value);}} originalFile{original};
@@ -507,10 +509,19 @@ documentrename::Result Session::renameFile(unsigned long long id,const std::wstr
         Flag busy(executing);
         // Recheck live COM state; a modal prompt may have outlived a refresh.
         if(call(v->document.get(),L"FullName").str()!=oldPath||call(v->document.get(),L"ReadOnly").boolean())return Result::failed;
-        auto format=call(v->document.get(),host==Host::Word?L"SaveFormat":L"FileFormat");
+        Var format;
+        if(host==Host::PowerPoint){
+            // Presentation has no FileFormat property. Supply PpSaveAsFileType explicitly.
+            const auto pptFormat=documentrename::powerPointSaveFormat(oldPath);
+            if(!pptFormat)return Result::failed;
+            format=Var(pptFormat);
+        }else{
+            format=call(v->document.get(),host==Host::Word?L"SaveFormat":L"FileFormat");
+        }
         result=documentrename::perform([&]{
             call(v->window.get(),L"Activate",DISPATCH_METHOD);
-            // Keep the original format (including macros); never close/reopen the document.
+            // Activation can run Office event handlers that create the destination.
+            if(!targetIsAbsent())return false;
             call(v->document.get(),host==Host::Word?L"SaveAs2":L"SaveAs",DISPATCH_METHOD,{Var(newPath),format});
             return true;
         },[&]{

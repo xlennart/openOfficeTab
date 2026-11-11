@@ -9,6 +9,18 @@ inline std::wstring extension(const std::wstring& path){
     auto name=leaf(path);auto dot=name.find_last_of(L'.');
     return dot==std::wstring::npos||dot==0?L"":name.substr(dot);
 }
+// PpSaveAsFileType values for editable presentation, template, and show files.
+inline long powerPointSaveFormat(const std::wstring& path){
+    auto suffix=extension(path);
+    for(auto& c:suffix)if(c>=L'A'&&c<=L'Z')c+=L'a'-L'A';
+    constexpr struct {const wchar_t* extension;long format;} formats[]={
+        {L".ppt",1},{L".pot",5},{L".pps",7},
+        {L".pptx",24},{L".pptm",25},{L".potx",26},{L".potm",27},
+        {L".ppsx",28},{L".ppsm",29},{L".odp",35}
+    };
+    for(const auto& entry:formats)if(suffix==entry.extension)return entry.format;
+    return 0;
+}
 inline std::wstring stem(const std::wstring& path){auto name=leaf(path);return name.substr(0,name.size()-extension(path).size());}
 inline bool validStem(const std::wstring& name,const std::wstring& suffix){
     if(name.empty()||name==L"."||name==L".."||name.back()==L'.'||name.back()==L' ')return false;

@@ -1,6 +1,7 @@
 // No Office installation required: real Win32 files and mock Office IDispatch.
 #include "../src/model.h"
 #include <cassert>
+#include <cstring>
 #include <iostream>
 class Dispatch final:public IDispatch {
     ULONG refs=1;
@@ -22,18 +23,37 @@ public:
 };
 Ptr<Dispatch> dispatch(){return Ptr<Dispatch>(new Dispatch(),false);}
 bool exists(const std::wstring& path){return GetFileAttributesW(path.c_str())!=INVALID_FILE_ATTRIBUTES;}
-void write(const std::wstring& path){
+void write(const std::wstring& path,const char* contents="fixture"){
     HANDLE f=CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);assert(f!=INVALID_HANDLE_VALUE);
-    DWORD written=0;assert(WriteFile(f,"fixture",7,&written,nullptr)&&written==7);CloseHandle(f);
+    DWORD written=0,size=(DWORD)std::strlen(contents);
+    assert(WriteFile(f,contents,size,&written,nullptr)&&written==size);CloseHandle(f);
+}
+std::string read(const std::wstring& path){
+    HANDLE f=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+    assert(f!=INVALID_HANDLE_VALUE);
+    char contents[64]{};DWORD size=0;
+    assert(ReadFile(f,contents,(DWORD)sizeof(contents),&size,nullptr));CloseHandle(f);
+    return std::string(contents,size);
 }
 int main(){
     assert(SUCCEEDED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED)));
     wchar_t cwd[32768];GetCurrentDirectoryW(32768,cwd);
-    for(auto host:{Host::Word,Host::Excel,Host::PowerPoint}){
-        auto root=std::wstring(cwd)+L"\\rename-session-"+std::to_wstring(GetCurrentProcessId())+L"-"+std::to_wstring((int)host);assert(CreateDirectoryW(root.c_str(),nullptr));
-        auto suffix=host==Host::Word?L".docm":host==Host::Excel?L".xlsm":L".pptm";
+    constexpr struct {Host host;const wchar_t* suffix;long format;} fixtures[]={
+        {Host::Word,L".docm",13},{Host::Excel,L".xlsm",52},
+        {Host::PowerPoint,L".pptx",24},{Host::PowerPoint,L".PPTM",25},
+        {Host::PowerPoint,L".potx",26},{Host::PowerPoint,L".potm",27},
+        {Host::PowerPoint,L".ppsx",28},{Host::PowerPoint,L".ppsm",29}
+    };
+    for(const auto& fixture:fixtures){
+        const auto host=fixture.host;
+        const auto suffix=fixture.suffix;
+        const auto format=fixture.format;
+        auto root=std::wstring(cwd)+L"\\rename-session-"+std::to_wstring(GetCurrentProcessId())+suffix;
+        assert(CreateDirectoryW(root.c_str(),nullptr));
         auto original=root+L"\\original"+suffix;write(original);
-        std::wstring path=original;bool readOnly=false,saved=false,cancelSave=false,wrongPath=false;int saves=0;
+        std::wstring path=original;
+        const auto lateCollision=root+L"\\late-collision"+suffix;
+        bool readOnly=false,saved=false,cancelSave=false,wrongPath=false,createOnActivate=false;int saves=0;
         auto app=dispatch(),document=dispatch(),window=dispatch(),docs=dispatch(),windows=dispatch(),protectedViews=dispatch();
         HWND native=CreateWindowExW(0,L"STATIC",L"",WS_OVERLAPPEDWINDOW,0,0,800,500,nullptr,nullptr,module,nullptr);assert(native);
         app->add(L"Name",[&](DISPPARAMS*){return Var(std::wstring(host==Host::Word?L"Word":host==Host::Excel?L"Excel":L"PowerPoint"));});
@@ -47,16 +67,22 @@ int main(){
         protectedViews->add(L"Count",[](DISPPARAMS*){return Var(0L);});
         window->add(L"Hwnd",[&](DISPPARAMS*){return Var((long)(DWORD)(UINT_PTR)native);});
         window->add(host==Host::PowerPoint?L"Presentation":L"Document",[&](DISPPARAMS*){return Var(document.get());});
-        window->add(L"Visible",[](DISPPARAMS*){return Var(true);});window->add(L"Activate",[](DISPPARAMS*){return Var();});
+        window->add(L"Visible",[](DISPPARAMS*){return Var(true);});
+        window->add(L"Activate",[&](DISPPARAMS*){
+            if(createOnActivate)write(lateCollision,"other document");
+            return Var();
+        });
         document->add(L"Windows",[&](DISPPARAMS*){return Var(windows.get());});
         document->add(L"Name",[&](DISPPARAMS*){return Var(documentrename::leaf(path));});
         document->add(L"Path",[&](DISPPARAMS*){return Var(root);});document->add(L"FullName",[&](DISPPARAMS*){return Var(path);});
         document->add(L"Saved",[&](DISPPARAMS*){return Var(saved);});document->add(L"ReadOnly",[&](DISPPARAMS*){return Var(readOnly);});
-        document->add(host==Host::Word?L"SaveFormat":L"FileFormat",[](DISPPARAMS*){return Var(13L);});
+        if(host!=Host::PowerPoint){
+            document->add(host==Host::Word?L"SaveFormat":L"FileFormat",[&](DISPPARAMS*){return Var(format);});
+        }
         document->add(host==Host::Word?L"SaveAs2":L"SaveAs",[&](DISPPARAMS* args){
-            assert(args->cArgs==2&&args->rgvarg[0].vt==VT_I4&&args->rgvarg[0].lVal==13);
+            assert(args->cArgs==2&&args->rgvarg[0].vt==VT_I4&&args->rgvarg[0].lVal==format);
             ++saves;if(cancelSave)return Var();
-            auto destination=std::wstring(args->rgvarg[1].bstrVal);assert(CopyFileW(path.c_str(),destination.c_str(),TRUE));
+            auto destination=std::wstring(args->rgvarg[1].bstrVal);assert(CopyFileW(path.c_str(),destination.c_str(),FALSE));
             if(!wrongPath)path=destination;saved=true;return Var();
         });
         auto session=std::make_shared<Session>(app.get(),root);session->settings.group=false;
@@ -68,6 +94,10 @@ int main(){
         assert(session->renameFile(1,L"../escape")==Result::failed&&saves==0);
         auto collision=root+L"\\collision"+suffix;write(collision);
         assert(session->renameFile(1,L"collision")==Result::failed&&saves==0&&exists(collision));
+        createOnActivate=true;
+        assert(session->renameFile(1,L"late-collision")==Result::failed&&saves==0);
+        assert(read(lateCollision)=="other document"&&read(original)=="fixture"&&path==original);
+        createOnActivate=false;
         session->find(1)->readOnly=true;assert(session->renameFile(1,L"new")==Result::failed&&saves==0);session->find(1)->readOnly=false;
         readOnly=true;assert(session->renameFile(1,L"new")==Result::failed&&saves==0);readOnly=false;
         session->executing=true;assert(session->renameFile(1,L"new")==Result::failed);session->executing=false;
@@ -83,7 +113,7 @@ int main(){
         assert(session->renameFile(1,L"retained")==Result::originalRetained&&exists(previous)&&exists(path));CloseHandle(reader);
         assert(session->recentlyClosed().empty()); // Renaming is not closing.
         session.reset();DestroyWindow(native);
-        for(auto name:{L"collision",L"unverified",L"renamed",L"retained"})DeleteFileW((root+L"\\"+name+suffix).c_str());
+        for(auto name:{L"collision",L"late-collision",L"unverified",L"renamed",L"retained"})DeleteFileW((root+L"\\"+name+suffix).c_str());
         for(auto name:{L"settings.ini",L"documents.ini"})DeleteFileW((root+L"\\"+name).c_str());
         assert(RemoveDirectoryW(root.c_str()));
     }

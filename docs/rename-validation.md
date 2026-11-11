@@ -29,6 +29,10 @@
 
 ## 验证记录与边界
 
+检视修订补充了 PowerPoint 宏演示文稿、模板和放映的格式参数，以及窗口激活期间创建同名目标的回归用例。这些是模拟 COM 测试。PowerPoint 按扩展名选择保存格式，共用 .pptx 扩展名的普通与 Strict Open XML 演示文稿仍需区分。激活后的二次检查仍与 Office 实际写入分开，保存期间创建目标的情形仍待解决。
+
+本次修订缺少真实 32 位和 64 位 Word、Excel、PowerPoint 的验收结果。验收记录需要关联测试提交、程序版本、DLL/EXE SHA-256、Office 构建号和位数，并附实际操作及退出 Office 后核对文件内容的证据。下方是初版提交的历史记录。
+
 Windows x64 开发机使用 Visual Studio C++ Build Tools 编译 x64 / x86 原生 DLL。两种架构各 10 项原生测试均通过，双架构 DLL 的加载、五个导出与 COM ABI 验证通过；本地化和公开示例检查通过。`tests/rename-test.cpp` 和 `tests/rename-session-test.cpp` 在两种架构均通过；后者使用模拟 Office COM 和真实临时文件，不能替代三款 Office 的完整人工验收。
 
 本地安装后，使用者已实际验证重命名功能及新版弹窗可用；未记录具体宿主、Office 构建号和逐项验收结果，因此上方清单仍需按场景验证。宏格式、网络共享、跨文档链接、所有缩放比例及高对比度界面不作为已完成的实机覆盖。
