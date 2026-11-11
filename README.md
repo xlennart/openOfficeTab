@@ -149,7 +149,7 @@ Open **… → Language**. Select **Follow Windows (default)**, **Simplified Chi
 
 ### Rename a file
 
-Right-click a tab → **Rename file…** and enter a name without the extension. The folder, extension and format are preserved; current edits are saved. Available for saved, writable local files only. Existing targets and case-only changes are rejected. If the original cannot be safely deleted, both files are kept with a warning. See the [validation checklist](docs/rename-validation.md) for limitations.
+Right-click a tab → **Rename file…** and enter a name without the extension. Office saves current edits in the existing format, closes the document, and reopens it after Windows renames the file. The rename fails if the destination already exists. Available for saved, writable documents with one window. See the [validation checklist](docs/rename-validation.md) for limitations.
 
 
 ### Use an independent window

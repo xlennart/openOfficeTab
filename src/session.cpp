@@ -3,6 +3,11 @@
 #include "window-layout.h"
 #include "tab-color.h"
 #include "excel-input.h"
+#include <msopc.h>
+#include <xmllite.h>
+#include <cstring>
+
+#pragma comment(lib, "xmllite.lib")
 
 // Compact only the task pane reached through our own ActiveX ancestry. Office
 // draws the title inside its client area. A separate root child renders in the
@@ -484,68 +489,214 @@ bool Session::save(unsigned long long id,bool saveAs){
     }catch(const ComError& e){report(e);return false;}
     if(!refresh())return false;auto actual=find(id);return actual&&actual->saved;
 }
-documentrename::Result Session::renameFile(unsigned long long id,const std::wstring& name){
-    using documentrename::Result;
-    auto keep=shared_from_this();auto v=find(id);
-    if(stopped||executing||refreshing||pendingCloseId||windowFrameBusy()||!v||v->readOnly||!storage::localFile(v->path)||excelEditing())return Result::failed;
-    const auto oldPath=v->path;
-    if(!documentrename::validStem(name,documentrename::extension(oldPath)))return Result::failed;
-    const auto newPath=documentrename::target(oldPath,name);
-    if(newPath==oldPath)return Result::renamed; // No save, prompt, or disk mutation.
-    // Case-only names resolve to the existing file on normal Windows volumes.
-    // Do not risk Save As followed by deleting the same file.
-    if(storage::normalize(newPath)==storage::normalize(oldPath))return Result::failed;
-    const auto targetIsAbsent=[&]{
-        return GetFileAttributesW(newPath.c_str())==INVALID_FILE_ATTRIBUTES&&GetLastError()==ERROR_FILE_NOT_FOUND;
+namespace {
+enum class PresentationFormat { unknown, transitional, strict };
+
+PresentationFormat presentationFormat(const std::wstring& path) {
+    Ptr<IOpcFactory> factory;
+    Ptr<IStream> archive;
+    Ptr<IOpcPackage> package;
+    Ptr<IOpcRelationshipSet> relationships;
+    Ptr<IOpcPartSet> parts;
+    if (FAILED(CoCreateInstance(__uuidof(OpcFactory), nullptr, CLSCTX_INPROC_SERVER,
+            IID_PPV_ARGS(factory.out()))) ||
+        FAILED(factory->CreateStreamOnFile(path.c_str(), OPC_STREAM_IO_READ, nullptr,
+            FILE_ATTRIBUTE_NORMAL, archive.out())) ||
+        FAILED(factory->ReadPackageFromStream(archive.get(), OPC_CACHE_ON_ACCESS, package.out())) ||
+        FAILED(package->GetRelationshipSet(relationships.out())) ||
+        FAILED(package->GetPartSet(parts.out()))) return PresentationFormat::unknown;
+
+    constexpr struct { PresentationFormat format; const wchar_t* type; const wchar_t* xmlNamespace; } formats[] = {
+        {PresentationFormat::transitional,
+            L"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+            L"http://schemas.openxmlformats.org/presentationml/2006/main"},
+        {PresentationFormat::strict,
+            L"http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument",
+            L"http://purl.oclc.org/ooxml/presentationml/main"}
     };
-    if(!targetIsAbsent())return Result::failed;
-    HANDLE original=CreateFileW(oldPath.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
-    if(original==INVALID_HANDLE_VALUE)return Result::failed;
-    struct File {HANDLE value;~File(){CloseHandle(value);}} originalFile{original};
-    BY_HANDLE_FILE_INFORMATION identity{};
-    if(!GetFileInformationByHandle(original,&identity)||(identity.dwFileAttributes&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_READONLY)))return Result::failed;
-    Result result=Result::failed;
-    try{
+    auto found = PresentationFormat::unknown;
+    for (const auto& candidate : formats) {
+        Ptr<IOpcRelationshipEnumerator> entries;
+        BOOL present = FALSE;
+        if (FAILED(relationships->GetEnumeratorForType(candidate.type, entries.out())) ||
+            FAILED(entries->MoveNext(&present))) return PresentationFormat::unknown;
+        if (!present) continue;
+        if (found != PresentationFormat::unknown) return PresentationFormat::unknown;
+        Ptr<IOpcRelationship> relation;
+        OPC_URI_TARGET_MODE mode{};
+        Ptr<IOpcUri> source;
+        Ptr<IUri> target;
+        Ptr<IOpcPartUri> partUri;
+        Ptr<IOpcPart> part;
+        if (FAILED(entries->GetCurrent(relation.out())) ||
+            FAILED(entries->MoveNext(&present)) || present ||
+            FAILED(relation->GetTargetMode(&mode)) || mode != OPC_URI_TARGET_MODE_INTERNAL ||
+            FAILED(relation->GetSourceUri(source.out())) ||
+            FAILED(relation->GetTargetUri(target.out())) ||
+            FAILED(source->CombinePartUri(target.get(), partUri.out())) ||
+            FAILED(parts->GetPart(partUri.get(), part.out()))) return PresentationFormat::unknown;
+        LPWSTR contentType = nullptr;
+        if (FAILED(part->GetContentType(&contentType))) return PresentationFormat::unknown;
+        const bool isPresentation = contentType &&
+            wcscmp(contentType, L"application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml") == 0;
+        CoTaskMemFree(contentType);
+        if (!isPresentation) return PresentationFormat::unknown;
+
+        Ptr<IStream> xml;
+        Ptr<IXmlReader> reader;
+        if (FAILED(part->GetContentStream(xml.out())) ||
+            FAILED(CreateXmlReader(IID_PPV_ARGS(reader.out()), nullptr)) ||
+            FAILED(reader->SetProperty(XmlReaderProperty_DtdProcessing, DtdProcessing_Prohibit)) ||
+            FAILED(reader->SetInput(xml.get()))) return PresentationFormat::unknown;
+        XmlNodeType node{};
+        while (reader->Read(&node) == S_OK && node != XmlNodeType_Element) {}
+        const wchar_t* local = nullptr;
+        const wchar_t* xmlNamespace = nullptr;
+        if (node != XmlNodeType_Element || FAILED(reader->GetLocalName(&local, nullptr)) ||
+            FAILED(reader->GetNamespaceUri(&xmlNamespace, nullptr)) ||
+            !local || wcscmp(local, L"presentation") != 0 ||
+            !xmlNamespace || wcscmp(xmlNamespace, candidate.xmlNamespace) != 0) return PresentationFormat::unknown;
+        found = candidate.format;
+    }
+    return found;
+}
+
+struct RenameFileHandle {
+    HANDLE value;
+    ~RenameFileHandle() { if (value != INVALID_HANDLE_VALUE) CloseHandle(value); }
+};
+
+bool fileStamp(HANDLE file, BY_HANDLE_FILE_INFORMATION& stamp) {
+    return file != INVALID_HANDLE_VALUE && GetFileInformationByHandle(file, &stamp) &&
+        !(stamp.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_REPARSE_POINT));
+}
+
+bool sameSavedFile(HANDLE file, const BY_HANDLE_FILE_INFORMATION& expected) {
+    BY_HANDLE_FILE_INFORMATION actual{};
+    return fileStamp(file, actual) && expected.dwVolumeSerialNumber == actual.dwVolumeSerialNumber &&
+        expected.nFileIndexHigh == actual.nFileIndexHigh && expected.nFileIndexLow == actual.nFileIndexLow &&
+        expected.nFileSizeHigh == actual.nFileSizeHigh && expected.nFileSizeLow == actual.nFileSizeLow &&
+        CompareFileTime(&expected.ftLastWriteTime, &actual.ftLastWriteTime) == 0;
+}
+
+bool moveSavedFile(const std::wstring& oldPath, const std::wstring& newPath,
+        const BY_HANDLE_FILE_INFORMATION& expected) {
+    RenameFileHandle file{CreateFileW(oldPath.c_str(), DELETE | FILE_READ_ATTRIBUTES, FILE_SHARE_READ,
+        nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
+    if (!sameSavedFile(file.value, expected)) return false;
+    const auto nameBytes = newPath.size() * sizeof(wchar_t);
+    const auto bufferSize = offsetof(FILE_RENAME_INFO, FileName) + nameBytes + sizeof(wchar_t);
+    std::vector<BYTE> buffer(bufferSize);
+    auto rename = reinterpret_cast<FILE_RENAME_INFO*>(buffer.data());
+    rename->ReplaceIfExists = FALSE;
+    rename->FileNameLength = static_cast<DWORD>(nameBytes);
+    std::memcpy(rename->FileName, newPath.data(), nameBytes);
+    return SetFileInformationByHandle(file.value, FileRenameInfo, rename, static_cast<DWORD>(bufferSize)) != FALSE;
+}
+}
+
+documentrename::Result Session::renameFile(unsigned long long id, const std::wstring& name) {
+    using documentrename::Result;
+    auto keep = shared_from_this();
+    auto view = find(id);
+    if (stopped || executing || refreshing || pendingCloseId || windowFrameBusy() || !view ||
+        view->readOnly || !storage::localFile(view->path) || excelEditing()) return Result::failed;
+    const auto oldPath = view->path;
+    const auto extension = documentrename::extension(oldPath);
+    if (!documentrename::validStem(name, extension)) return Result::failed;
+    const auto newPath = documentrename::target(oldPath, name);
+    if (newPath == oldPath) return Result::renamed;
+    if (storage::normalize(newPath) == storage::normalize(oldPath)) return Result::failed;
+    if (GetFileAttributesW(newPath.c_str()) != INVALID_FILE_ATTRIBUTES ||
+        GetLastError() != ERROR_FILE_NOT_FOUND) return Result::failed;
+
+    const auto position = std::distance(views.begin(), std::find(views.begin(), views.end(), view));
+    std::wstring reopenedPath;
+    Result result = Result::failed;
+    try {
         Flag busy(executing);
-        // Recheck live COM state; a modal prompt may have outlived a refresh.
-        if(call(v->document.get(),L"FullName").str()!=oldPath||call(v->document.get(),L"ReadOnly").boolean())return Result::failed;
-        Var format;
-        if(host==Host::PowerPoint){
-            // Presentation has no FileFormat property. Supply PpSaveAsFileType explicitly.
-            const auto pptFormat=documentrename::powerPointSaveFormat(oldPath);
-            if(!pptFormat)return Result::failed;
-            format=Var(pptFormat);
-        }else{
-            format=call(v->document.get(),host==Host::Word?L"SaveFormat":L"FileFormat");
+        auto document = view->document;
+        if (call(document.get(), L"FullName").str() != oldPath ||
+            call(document.get(), L"ReadOnly").boolean()) return Result::failed;
+        auto windows = call(document.get(), L"Windows").disp();
+        if (call(windows.get(), L"Count").number() != 1) return Result::failed;
+        const bool pptx = host == Host::PowerPoint && _wcsicmp(extension.c_str(), L".pptx") == 0;
+        const auto format = pptx ? presentationFormat(oldPath) : PresentationFormat::unknown;
+        if (pptx && format == PresentationFormat::unknown) return Result::failed;
+
+        auto documents = call(app.get(), host == Host::Word ? L"Documents" :
+            host == Host::Excel ? L"Workbooks" : L"Presentations").disp();
+        call(view->window.get(), L"Activate", DISPATCH_METHOD);
+        if (call(document.get(), L"FullName").str() != oldPath ||
+            call(document.get(), L"ReadOnly").boolean() ||
+            call(windows.get(), L"Count").number() != 1) return Result::failed;
+        // Save the live document in its current format and directory. Office
+        // never receives the requested destination as a path to write.
+        if (!call(document.get(), L"Saved").boolean()) call(document.get(), L"Save", DISPATCH_METHOD);
+        if (call(document.get(), L"FullName").str() != oldPath ||
+            !call(document.get(), L"Saved").boolean() ||
+            call(windows.get(), L"Count").number() != 1) return Result::failed;
+
+        RenameFileHandle saved{CreateFileW(oldPath.c_str(), FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+            FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
+        BY_HANDLE_FILE_INFORMATION stamp{};
+        if (!fileStamp(saved.value, stamp) || (pptx && presentationFormat(oldPath) != format)) return Result::failed;
+
+        if (host == Host::Word) call(document.get(), L"Close", DISPATCH_METHOD, {Var(0L)});
+        else if (host == Host::Excel) call(document.get(), L"Close", DISPATCH_METHOD, {Var(false)});
+        else call(document.get(), L"Close", DISPATCH_METHOD);
+        const auto oldKey = storage::normalize(oldPath);
+        const auto count = call(documents.get(), L"Count").number();
+        for (long i = 1; i <= count; ++i) {
+            auto openDocument = item(documents.get(), i);
+            if (storage::normalize(call(openDocument.get(), L"FullName").str()) == oldKey)
+                return Result::failed; // A BeforeClose handler can cancel without a COM error.
         }
-        result=documentrename::perform([&]{
-            call(v->window.get(),L"Activate",DISPATCH_METHOD);
-            // Activation can run Office event handlers that create the destination.
-            if(!targetIsAbsent())return false;
-            call(v->document.get(),host==Host::Word?L"SaveAs2":L"SaveAs",DISPATCH_METHOD,{Var(newPath),format});
-            return true;
-        },[&]{
-            DWORD actual=GetFileAttributesW(newPath.c_str());
-            return storage::normalize(call(v->document.get(),L"FullName").str())==storage::normalize(newPath)&&
-                call(v->document.get(),L"Saved").boolean()&&actual!=INVALID_FILE_ATTRIBUTES&&!(actual&FILE_ATTRIBUTE_DIRECTORY);
-        },[&]{
-            // Delete by handle, not by path: never remove an unrelated file that
-            // replaced the original during Office's Save As / event processing.
-            HANDLE stale=CreateFileW(oldPath.c_str(),DELETE|FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
-            if(stale==INVALID_HANDLE_VALUE)return false;
-            File staleFile{stale};BY_HANDLE_FILE_INFORMATION current{};
-            if(!GetFileInformationByHandle(stale,&current)||identity.dwVolumeSerialNumber!=current.dwVolumeSerialNumber||
-                identity.nFileIndexHigh!=current.nFileIndexHigh||identity.nFileIndexLow!=current.nFileIndexLow||
-                identity.nFileSizeHigh!=current.nFileSizeHigh||identity.nFileSizeLow!=current.nFileSizeLow||
-                CompareFileTime(&identity.ftLastWriteTime,&current.ftLastWriteTime)!=0)return false;
-            FILE_DISPOSITION_INFO disposition{TRUE};
-            return SetFileInformationByHandle(stale,FileDispositionInfo,&disposition,sizeof(disposition))!=FALSE;
+
+        const bool moved = moveSavedFile(oldPath, newPath, stamp);
+        const auto& path = moved ? newPath : oldPath;
+        if (moved) {
+            result = Result::reopenFailed;
+            view->path = newPath;
+            persistView(*view);
+        }
+        // Reopen only the file we saved. A different file could have replaced
+        // the original while Office released its handles.
+        RenameFileHandle reopenFile{CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+            FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
+        if (sameSavedFile(reopenFile.value, stamp)) {
+            auto reopened = call(documents.get(), L"Open", DISPATCH_METHOD, {Var(path)}).disp();
+            if (reopened && storage::normalize(call(reopened.get(), L"FullName").str()) == storage::normalize(path)) {
+                reopenedPath = path;
+                if (moved) result = Result::renamed;
+            }
+        }
+    } catch (const ComError& error) {
+        report(error);
+    }
+    if (refresh() && !reopenedPath.empty()) {
+        const auto key = storage::normalize(reopenedPath);
+        auto reopened = std::find_if(views.begin(), views.end(), [&](const auto& item) {
+            return storage::normalize(item->path) == key;
         });
-    }catch(const ComError& e){report(e);}
-    // Refresh all windows of the same document and let existing Save As
-    // persistence inherit widths / independent-window preferences at the new path.
-    refresh();defer();
-    logEvent(L"document.rename.result",{{"viewId",(long long)id},{"result",(int)result}});
+        if (reopened != views.end()) {
+            auto replacement = *reopened;
+            replacement->locked = view->locked;
+            replacement->groupId = view->groupId;
+            replacement->lastGroupId = view->lastGroupId;
+            replacement->independent = view->independent;
+            replacement->manualTabWidth = view->manualTabWidth;
+            views.erase(reopened);
+            views.insert(views.begin() + std::min(position, static_cast<std::vector<std::shared_ptr<View>>::difference_type>(views.size())), replacement);
+            syncPanes();
+            updateTaskbar();
+            redraw();
+        }
+    }
+    defer();
+    logEvent(L"document.rename.result", {{"viewId", (long long)id}, {"result", (int)result}});
     return result;
 }
 void Session::create(bool independent,HWND owner){

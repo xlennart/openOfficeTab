@@ -137,7 +137,15 @@ void Session::renameDialog(HWND owner,unsigned long long id){
     RenameChoice choice{this,id,v->path,language()};
     struct Template {DLGTEMPLATE dialog;WORD menu,cls,title;} data{};
     data.dialog.style=WS_POPUP|WS_CAPTION|WS_SYSMENU|WS_CLIPCHILDREN|DS_MODALFRAME;data.dialog.cx=290;data.dialog.cy=125;
-    DialogBoxIndirectParamW(module,&data.dialog,owner,renameProc,(LPARAM)&choice);
+    if(DialogBoxIndirectParamW(module,&data.dialog,owner,renameProc,(LPARAM)&choice)!=IDOK)return;
+    const auto result=renameFile(id,choice.name);
+    if(result==documentrename::Result::renamed)return;
+    auto active=find(activeId);
+    HWND messageOwner=active&&IsWindow(active->hwnd)?active->hwnd:(IsWindow(owner)?owner:nullptr);
+    MessageBoxW(messageOwner,tr(result==documentrename::Result::reopenFailed?
+        L"文件已重命名。请从新路径手动打开文档。":
+        L"未完成重命名。请检查同名文件、文件格式或 Office 提示；多窗口文档和仅修改大小写暂不支持。"),
+        tr(L"重命名文件"),MB_OK|MB_ICONINFORMATION);
 }
 void Session::widthDialog(HWND owner){
     auto keep=shared_from_this();WidthChoice choice{settings.tabWidth,settings.widthMode,language()};
