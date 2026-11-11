@@ -12,7 +12,7 @@ inline int resolve(int mode,LANGID system=GetUserDefaultUILanguage()){
 }
 struct Entry {const wchar_t* zh;const wchar_t* en;};
 inline constexpr Entry entries[]={
-    {L"默认宽度",L"Default width"},{L"宽度模式",L"Width mode"},
+    {L"默认宽度（80–360）",L"Default width (80–360)"},{L"宽度模式",L"Width mode"},
     {L"更多操作",L"More actions"},
     {L"批量关闭",L"Close multiple tabs"},
     {L"关闭当前标签",L"Close current tab"},
@@ -27,7 +27,6 @@ inline constexpr Entry entries[]={
     {L"确定",L"OK"},{L"取消",L"Cancel"},
     {L"请输入 6 位十六进制颜色，例如 #F0F0F0。",L"Enter a six-digit hexadecimal color, such as #F0F0F0."},
     {L"标签宽度",L"Tab width"},
-    {L"标签宽度（80–360，按缩放自动适配）",L"Tab width (80–360; scales with DPI)"},
     {L"固定宽度",L"Fixed width"},
     {L"按标题长度（上述宽度为上限）",L"Fit title (up to the width above)"},
     {L"空间不足时压缩（上述宽度为上限）",L"Shrink to fit (up to the width above)"},

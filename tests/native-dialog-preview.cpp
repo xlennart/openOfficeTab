@@ -64,6 +64,10 @@ void previewWidth(Host host, bool dark, int language, const wchar_t* path) {
     HWND dialog = CreateDialogIndirectParamW(module, &data.dialog, nullptr, appearanceui::widthProc, (LPARAM)&choice);
     showOffscreen(dialog);
     checkBounds(dialog);
+    assert(!GetDlgItem(dialog, appearanceui::subtitleId));
+    wchar_t label[64]{};
+    assert(GetDlgItemTextW(dialog, appearanceui::widthLabelId, label, (int)std::size(label)) > 0);
+    assert(std::wstring(label) == (language == 1 ? L"默认宽度（80–360）" : L"Default width (80–360)"));
     assert(SendDlgItemMessageW(dialog, appearanceui::modeId, CB_GETCOUNT, 0, 0) == 3);
     assert(SendDlgItemMessageW(dialog, appearanceui::modeId, CB_GETCURSEL, 0, 0) == 2);
     capture(dialog, path);

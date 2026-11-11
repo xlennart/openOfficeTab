@@ -34,10 +34,10 @@ struct Dialog {
         HWND child = control(dialog, L"BUTTON", tr(label), BS_OWNERDRAW | WS_TABSTOP, id);
         SetWindowSubclass(child, dialogui::controlProc, 1, 0);
     }
-    void heading(HWND dialog, const wchar_t* title, const wchar_t* subtitle) const {
+    void heading(HWND dialog, const wchar_t* title, const wchar_t* subtitle = nullptr) const {
         SetWindowTextW(dialog, L"openOfficeTab");
         control(dialog, L"STATIC", tr(title), SS_NOPREFIX, titleId);
-        control(dialog, L"STATIC", tr(subtitle), SS_NOPREFIX, subtitleId);
+        if (subtitle) control(dialog, L"STATIC", tr(subtitle), SS_NOPREFIX, subtitleId);
     }
     void footer(HWND dialog) const {
         button(dialog, L"取消", IDCANCEL);
@@ -46,8 +46,9 @@ struct Dialog {
     void layout(HWND dialog) {
         theme.initialize(dialog, host, dark, language);
         theme.applyFonts(dialog, titleId);
-        theme.place(dialog, titleId, 80, 23, 376, 30);
-        theme.place(dialog, subtitleId, 80, 57, 376, 36);
+        const bool hasSubtitle = GetDlgItem(dialog, subtitleId) != nullptr;
+        theme.place(dialog, titleId, 80, hasSubtitle ? 23 : 33, 376, 30);
+        if (hasSubtitle) theme.place(dialog, subtitleId, 80, 57, 376, 36);
         theme.place(dialog, IDCANCEL, 256, 278, 92, 34);
         theme.place(dialog, IDOK, 360, 278, 96, 34);
     }
@@ -188,8 +189,8 @@ inline INT_PTR CALLBACK widthProc(HWND dialog, UINT message, WPARAM wp, LPARAM l
         choice = (WidthChoice*)lp;
         SetWindowLongPtrW(dialog, DWLP_USER, lp);
         auto& ui = choice->ui;
-        ui.heading(dialog, L"标签宽度", L"标签宽度（80–360，按缩放自动适配）");
-        ui.control(dialog, L"STATIC", ui.tr(L"默认宽度"), SS_NOPREFIX, widthLabelId);
+        ui.heading(dialog, L"标签宽度");
+        ui.control(dialog, L"STATIC", ui.tr(L"默认宽度（80–360）"), SS_NOPREFIX, widthLabelId);
         HWND edit = ui.control(dialog, L"EDIT", std::to_wstring(choice->width).c_str(),
             WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, editId);
         SetWindowSubclass(edit, dialogui::controlProc, 1, 0);
