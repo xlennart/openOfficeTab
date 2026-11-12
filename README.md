@@ -19,6 +19,8 @@ Free · Open source · Native C++ · Windows desktop Office
 
 </div>
 
+https://github.com/user-attachments/assets/1a013993-c86d-4efa-9c00-f8e019e599b9
+
 ---
 
 openOfficeTab adds a document tab bar below the Office ribbon. Switch documents with a click, drag tabs to reorder them, manage files from the context menu, or move a document into an independent window. It keeps Office's existing documents and save prompts, with no file conversion required.

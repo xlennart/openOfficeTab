@@ -19,6 +19,8 @@
 
 </div>
 
+https://github.com/user-attachments/assets/1a013993-c86d-4efa-9c00-f8e019e599b9
+
 ---
 
 openOfficeTab 为桌面 Office 的功能区下方增加一条文档标签栏：点击切换、拖动排序、右键管理，并能将某个文档移出标签组，继续用独立窗口编辑。它保留 Office 原有文档对象和保存提示，不需要把文件转换成其他格式。
