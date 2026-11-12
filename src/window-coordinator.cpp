@@ -1,38 +1,12 @@
 #include "model.h"
 #include "window-layout.h"
+#include "frame-close-dialog.h"
 #include <windowsx.h>
 
 namespace {
 constexpr UINT FRAME_CLOSE=WM_APP+112;
 bool owned(HWND h){DWORD pid=0;return h&&IsWindow(h)&&GetWindowThreadProcessId(h,&pid)&&pid==GetCurrentProcessId();}
 struct Guard {bool& flag;bool previous;explicit Guard(bool& f):flag(f),previous(f){flag=true;}~Guard(){flag=previous;}};
-struct CloseDialog {size_t count;int language;bool remember=false;};
-INT_PTR CALLBACK closeDialog(HWND dialog,UINT message,WPARAM wp,LPARAM lp){
-    auto data=(CloseDialog*)GetWindowLongPtrW(dialog,DWLP_USER);
-    if(message==WM_INITDIALOG){
-        data=(CloseDialog*)lp;SetWindowLongPtrW(dialog,DWLP_USER,lp);SetWindowTextW(dialog,i18n::text(data->language,L"关闭文档窗口"));
-        int scale=dpi(dialog);auto px=[&](int n){return MulDiv(n,scale,96);};RECT r{0,0,px(450),px(196)};
-        AdjustWindowRectEx(&r,(DWORD)GetWindowLongPtrW(dialog,GWL_STYLE),FALSE,(DWORD)GetWindowLongPtrW(dialog,GWL_EXSTYLE));
-        diagnostic::position(dialog,nullptr,0,0,r.right-r.left,r.bottom-r.top,SWP_NOMOVE|SWP_NOZORDER);
-        auto control=[&](const wchar_t* cls,const wchar_t* text,DWORD style,int id,int x,int y,int w,int h){auto child=CreateWindowExW(0,cls,text,WS_CHILD|WS_VISIBLE|style,px(x),px(y),px(w),px(h),dialog,(HMENU)(INT_PTR)id,module,nullptr);SendMessageW(child,WM_SETFONT,(WPARAM)GetStockObject(DEFAULT_GUI_FONT),TRUE);};
-        auto text=i18n::closeSummary(data->language,data->count);
-        control(L"STATIC",text.c_str(),0,0,18,18,414,24);
-        control(L"STATIC",i18n::text(data->language,L"关闭当前文档，还是关闭本组全部文档？\n未保存的更改仍由 Office 询问；取消保存会停止后续关闭。"),0,0,18,49,414,48);
-        control(L"BUTTON",i18n::text(data->language,L"记住我的选择（可在标签设置中更改）"),BS_AUTOCHECKBOX|WS_TABSTOP,101,18,108,414,24);
-        control(L"BUTTON",i18n::text(data->language,L"关闭当前"),WS_TABSTOP,201,18,153,112,28);
-        control(L"BUTTON",i18n::text(data->language,L"关闭本组全部"),WS_TABSTOP,202,142,153,154,28);
-        control(L"BUTTON",i18n::text(data->language,L"取消"),WS_TABSTOP|BS_DEFPUSHBUTTON,IDCANCEL,308,153,124,28);
-        SetFocus(GetDlgItem(dialog,IDCANCEL));return FALSE;
-    }
-    if(message==WM_COMMAND&&data){auto cmd=LOWORD(wp);if(cmd==201||cmd==202){data->remember=SendDlgItemMessageW(dialog,101,BM_GETCHECK,0,0)==BST_CHECKED;EndDialog(dialog,cmd-200);return TRUE;}}
-    if(message==WM_CLOSE||(message==WM_COMMAND&&LOWORD(wp)==IDCANCEL)){EndDialog(dialog,0);return TRUE;}return FALSE;
-}
-FrameCloseChoice prompt(HWND owner,size_t count,int language){
-    CloseDialog choice{count,language};struct Template {DLGTEMPLATE dialog;WORD menu,cls,title;} data{};
-    data.dialog.style=WS_POPUP|WS_CAPTION|WS_SYSMENU|DS_MODALFRAME|DS_CENTER;data.dialog.cx=280;data.dialog.cy=135;
-    auto result=DialogBoxIndirectParamW(module,&data.dialog,owner,closeDialog,(LPARAM)&choice);
-    return {(result==1||result==2)?(int)result:0,choice.remember};
-}
 }
 
 // A temporary compositor-only veil. WS_VISIBLE and Office's Window.Visible
@@ -336,7 +310,7 @@ void Session::processFrameClose(){
     std::shared_ptr<View> selected;for(auto& v:views)if(v->hwnd==root)selected=v;
     if(!selected||selected->independent)return;
     auto members=tabViews(root);FrameCloseChoice choice{members.size()>1?settings.frameCloseAction:1,false};
-    if(!choice.action){Guard guard(frameDialogActive);choice=frameClosePrompt?frameClosePrompt(root,members.size()):prompt(root,members.size(),language());}
+    if(!choice.action){Guard guard(frameDialogActive);choice=frameClosePrompt?frameClosePrompt(root,members.size()):framecloseui::prompt(root,members.size(),language(),host,darkMode());}
     if(choice.action!=1&&choice.action!=2)return;
     if(choice.remember)setFrameCloseAction(choice.action);
     std::vector<unsigned long long> ids;if(choice.action==2)for(auto& v:members)if(v->id!=selected->id)ids.push_back(v->id);ids.push_back(selected->id);
