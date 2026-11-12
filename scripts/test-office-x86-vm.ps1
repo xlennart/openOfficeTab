@@ -11,10 +11,15 @@ $root=Split-Path $PSScriptRoot -Parent
 if($JobId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Invalid jobId.'}
 $version=(Get-Content (Join-Path $root 'desktop/package.json') -Raw|ConvertFrom-Json).version
 $directory=[IO.Path]::GetFullPath((Join-Path $root ('artifacts/runtime-vm/'+$JobId)));New-Item -ItemType Directory -Force $directory|Out-Null
+function Host-Phase([string]$name){
+ @{jobId=$JobId;phase=$name;utc=[DateTime]::UtcNow.ToString('o');pid=$PID}|ConvertTo-Json|Set-Content (Join-Path $directory 'host-phase.json') -Encoding UTF8
+}
 $guestDirectory='C:\OOT-QA\runs\'+$JobId
 if(-not(Test-Path -LiteralPath $VMX) -or -not(Test-Path -LiteralPath $Vmrun)){throw 'Configured VMX or vmrun is missing.'}
 if(-not(Test-Path -LiteralPath $CredentialPath)){throw 'VM credential record missing. Run scripts/set-office-vm-credential.ps1 once in desktop-user PowerShell; never recover secrets automatically from history.'}
+Host-Phase 'read-protected-credential'
 $credential=Import-Clixml -LiteralPath $CredentialPath
+Host-Phase 'credential-loaded'
 if($credential -isnot [Management.Automation.PSCredential]){throw 'Invalid VM credential record.'}
 function Vm([string]$operation,[string[]]$parameters){
  $output=& $Vmrun -T ws -gu $credential.UserName -gp $credential.GetNetworkCredential().Password $operation $VMX @parameters 2>&1|Out-String
@@ -101,6 +106,7 @@ function Cleanup {
  if($cleanup.jobId -ne $JobId -or $cleanup.status -ne 'passed'){throw 'Guest cleanup did not pass.'}
 }
 try{
+ Host-Phase 'dispatch'
  if($Action -eq 'Collect'){Collect|ConvertTo-Json -Depth 12;return}
  if($Action -eq 'Cleanup'){
   Cleanup;Get-Content (Join-Path $directory 'cleanup.json');return
@@ -110,8 +116,10 @@ try{
   if($processes -match '(?im)cmd=.*(WINWORD|EXCEL|POWERPNT|openOfficetab\.Center)\.exe'){throw 'Guest applications are still running; shutdown stopped.'}
   [void](Vm 'stop' @('soft'));Write-Output 'Normal guest shutdown requested.';return
  }
+ Host-Phase 'list-virtual-machines'
  $running=& $Vmrun -T ws list 2>&1|Out-String
  if($running -notmatch [regex]::Escape($VMX)){[void](Vm 'start' @('gui'))}
+ Host-Phase 'check-tools'
  $tools=Vm 'checkToolsState' @()
  if($tools -ne 'running'){
   & $Vmrun -T ws captureScreen $VMX (Join-Path $directory 'boot-state.png')|Out-Null
@@ -120,7 +128,9 @@ try{
  }
  # Shared executor is fixed; every actual run holds a guest mutex and has a
  # unique directory. These directory creations are idempotent checks.
+ Host-Phase 'guest-directories'
  foreach($path in 'C:\OOT-QA','C:\OOT-QA\runs',$guestDirectory){try{[void](Vm 'createDirectoryInGuest' @($path))}catch{[void](Vm 'listDirectoryInGuest' @($path))}}
+ Host-Phase 'sync-executor'
  Sync-Executor
  if($Action -eq 'RecoverFixtures'){Start-Worker 'RecoverFixtures';$recovery=Wait-Report 'recovery.json' 120;if($recovery.status -ne 'passed'){throw 'Owned fixture recovery failed; documents preserved.'};$recovery|ConvertTo-Json -Depth 8;return}
  $request=@{schema=1;jobId=$JobId;version=$version;createdUtc=[DateTime]::UtcNow.ToString('o')}

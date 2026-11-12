@@ -44,6 +44,18 @@ let page,browser;
    assert(geometry.channelReceivesPointer,'The fixed footer must not intercept channel input');
    const tip=await page.locator('#oot-update-channel').locator('..').locator('[title]').getAttribute('title');
    assert(language==='en'?!/\p{Script=Han}/u.test(tip):/\p{Script=Han}/u.test(tip));
+   const sponsor=page.locator('a[href="https://afdian.com/a/xlennart?utm_source=copylink&utm_medium=link"]');
+   assert.equal(await sponsor.count(),1);assert.equal((await sponsor.innerText()).trim(),language==='en'?'Sponsor on Afdian':'爱发电赞助');
+   await sponsor.scrollIntoViewIfNeeded();
+   const sponsorGeometry=await sponsor.evaluate(element=>{const b=element.getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,height:b.height,viewportWidth:innerWidth,viewportHeight:innerHeight,hit:element.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2))};});
+   assert(sponsorGeometry.hit&&sponsorGeometry.x>=0&&sponsorGeometry.x+sponsorGeometry.width<=sponsorGeometry.viewportWidth+1&&sponsorGeometry.y>=0&&sponsorGeometry.y+sponsorGeometry.height<=sponsorGeometry.viewportHeight+1,'Sponsor button must fit and receive pointer input');
+   for(const selector of ['#review-minimize','#review-maximize','#review-close']){
+    const button=page.locator(selector);assert((await button.getAttribute('aria-label')).length>0);
+    await page.mouse.move(200,150);const normal=await button.evaluate(e=>getComputedStyle(e).backgroundColor);
+    await button.hover();const hover=await button.evaluate(e=>getComputedStyle(e).backgroundColor);
+    assert.notEqual(hover,normal,'Window button hover must cover its control');
+   }
+   report.sponsorChecks??=[];report.sponsorChecks.push({size,language,geometry:sponsorGeometry,passed:true});
    await page.screenshot({path:path.join(jobRoot,`${size}-${language}.png`)});
    report.checks.push({size,language,saved,geometry,passed:true});save();
   }

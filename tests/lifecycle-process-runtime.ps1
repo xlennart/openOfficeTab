@@ -1,4 +1,4 @@
-param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word')
+﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture)
 $ErrorActionPreference='Stop'
 if($env:CODEX_WINDOWS_SANDBOX_PACKAGE_FAMILY){throw 'Run outside the development process context.'}
 $root=Split-Path $PSScriptRoot -Parent
@@ -9,6 +9,7 @@ $script=Join-Path $PSScriptRoot 'lifecycle-runtime.ps1'
 $start=New-Object Diagnostics.ProcessStartInfo
 $start.FileName="$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
 $start.Arguments='-NoProfile -ExecutionPolicy Bypass -File "'+$script+'" -HostName '+$HostName+' -DeferProcessExitCheck'
+if($UseExistingFixture){$start.Arguments+=' -UseExistingFixture'}
 $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
 $child=New-Object Diagnostics.Process;$child.StartInfo=$start;[void]$child.Start()
 $output=$child.StandardOutput.ReadToEndAsync();$errorOutput=$child.StandardError.ReadToEndAsync()

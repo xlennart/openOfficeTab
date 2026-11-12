@@ -7,6 +7,13 @@
       "probeUrl": "https://cnb.cool/xlennart/openofficetab/-/releases/latest/download/SHA256SUMS.txt",
       "latestApi": "https://api.cnb.cool/xlennart/openofficetab/-/releases/latest",
       "redirectHosts": ["asset.cnb.cool"]
+    },
+    {
+      "name": "OSS 备用镜像",
+      "feedUrl": "https://openofficetab-xlennart.oss-cn-chengdu.aliyuncs.com/releases/latest/openofficetab-update.json",
+      "releaseBase": "https://openofficetab-xlennart.oss-cn-chengdu.aliyuncs.com/releases/",
+      "probeUrl": "https://openofficetab-xlennart.oss-cn-chengdu.aliyuncs.com/releases/latest/SHA256SUMS.txt",
+      "fallbackOnly": true
     }
   ]
 }

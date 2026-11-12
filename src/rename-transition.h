@@ -14,16 +14,6 @@ class RenameTransition {
     HWND source = nullptr;
     WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};
 
-    void reset() {
-        if (activationHook) {
-            activeCover = nullptr;
-            UnhookWindowsHookEx(activationHook);
-            activationHook = nullptr;
-        }
-        if (cover) DestroyWindow(cover);
-        cover = source = nullptr;
-    }
-
     static LRESULT CALLBACK onActivate(int code, WPARAM target, LPARAM detail) {
         const auto result = CallNextHookEx(nullptr, code, target, detail);
         if (code == HCBT_ACTIVATE && !result && activeCover) {
@@ -41,7 +31,13 @@ public:
     RenameTransition() = default;
     RenameTransition(const RenameTransition&) = delete;
     RenameTransition& operator=(const RenameTransition&) = delete;
-    ~RenameTransition() { reset(); }
+    ~RenameTransition() {
+        if (activationHook) {
+            activeCover = nullptr;
+            UnhookWindowsHookEx(activationHook);
+        }
+        if (cover) DestroyWindow(cover);
+    }
 
     bool begin(HWND window, HINSTANCE instance) {
         RECT bounds{};
@@ -81,15 +77,14 @@ public:
         if (!cover) return false;
 
         activationHook = SetWindowsHookExW(WH_CBT, onActivate, nullptr, GetCurrentThreadId());
-        if (!activationHook) { reset(); return false; }
+        if (!activationHook) return false;
         activeCover = cover;
-        if (!SetWindowPos(cover, HWND_TOP, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW) || FAILED(DwmFlush())) {
-            reset();
-            return false;
-        }
         source = window;
-        return true;
+        // Stay in the ordinary z-order so switching applications can never
+        // leave a topmost screenshot covering another application's UI.
+        SetWindowPos(cover, HWND_TOP, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        return SUCCEEDED(DwmFlush());
     }
 
     void reveal(HWND window) {

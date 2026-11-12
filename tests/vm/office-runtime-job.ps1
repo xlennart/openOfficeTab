@@ -44,7 +44,18 @@ if($Action -eq 'Cleanup'){
  $cleanup|ConvertTo-Json|Set-Content ('C:\OOT-QA\cleanup-'+$jobId+'.json') -Encoding UTF8;return
 }
 $report=@{jobId=$jobId;version=$request.version;status='running';startedUtc=[DateTime]::UtcNow.ToString('o');executorPid=$PID;executorStartUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o');stages=@()}
-function Report {$report|ConvertTo-Json -Depth 12|Set-Content (Join-Path $jobDirectory 'result.json') -Encoding UTF8}
+function Write-Report([string]$name){
+ # The host may be copying the previous report. Never truncate that file;
+ # atomically replace it, allowing a bounded wait for a non-delete-sharing reader.
+ $target=Join-Path $jobDirectory $name;$temporary=$target+'.'+$PID+'.tmp'
+ $text=$report|ConvertTo-Json -Depth 12
+ [IO.File]::WriteAllText($temporary,$text,[Text.UTF8Encoding]::new($true))
+ for($attempt=0;$attempt -lt 20;$attempt++){
+  try{if(Test-Path -LiteralPath $target){[IO.File]::Replace($temporary,$target,[Management.Automation.Language.NullString]::Value)}else{[IO.File]::Move($temporary,$target)};return}
+  catch [IO.IOException]{if($attempt -eq 19){throw};Start-Sleep -Milliseconds 200}
+ }
+}
+function Report {Write-Report 'result.json'}
 function Ready {if(-not [OfficeVmDesktop]::Unlocked() -or (Get-Process -Id $PID).SessionId -eq 0){throw 'Interactive desktop is locked or unavailable.'}}
 function Run([string]$label,[string]$file,[string[]]$extra){
  Ready
@@ -82,7 +93,7 @@ if($Action -eq 'RecoverFixtures'){
  if($before.jobId -ne $jobId -or $before.status -eq 'running'){throw 'Only completed jobs may recover owned fixtures.'}
  $report=@{jobId=$jobId;status='running';stages=@();action='recover-fixtures'}
  # Keep the initial failed result immutable. Recovery has its own report.
- function Report {$report|ConvertTo-Json -Depth 12|Set-Content (Join-Path $jobDirectory 'recovery.json') -Encoding UTF8}
+ function Report {Write-Report 'recovery.json'}
  try{Report;Ready;Close-Fixtures;$report.status='passed'}catch{$report.status='failed';$report.error=$_.Exception.Message}finally{Report}
  return
 }
@@ -95,6 +106,12 @@ try{
  $awake=[OfficeVmDesktop]::SetThreadExecutionState(2147483651);if(-not $awake){throw 'Wake request failed.'}
  foreach($pair in @(@('setup.exe','installerSha256'),@('package.zip','packageSha256'),@('qa.zip','qaSha256'))){if((Get-FileHash (Join-Path $jobDirectory $pair[0])).Hash -ne $request.($pair[1])){throw 'Input file hash mismatch.'}}
  Expand-Archive (Join-Path $jobDirectory 'package.zip') $root -Force;Expand-Archive (Join-Path $jobDirectory 'qa.zip') $root -Force
+ # Reusable public fixtures survive removal of this job's temporary package.
+ $review=Join-Path 'C:\OOT-QA\fixtures' $jobId
+ if(Test-Path -LiteralPath $review){throw 'Review fixture directory already exists; preserved.'}
+ New-Item -ItemType Directory -Path $review|Out-Null
+ foreach($name in 'word-demo.docx','excel-demo.xlsx','powerpoint-demo.pptx'){Copy-Item -LiteralPath (Join-Path $root ('tests/fixtures/'+$name)) -Destination $review}
+ $report.reviewFixtureDirectory=$review
  New-Item -ItemType Directory -Force (Join-Path $root 'artifacts')|Out-Null
  foreach($architecture in 'x86','x64'){if((Get-FileHash (Join-Path $root "dist/$architecture/openOfficetab.dll")).Hash -ne $request.($architecture+'Sha256')){throw 'Native payload hash mismatch.'}}
  Add-Type -Path (Join-Path $root 'service/openOfficetab.Service.dll')

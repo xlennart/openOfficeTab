@@ -6,7 +6,7 @@
 
 原生插件支持中英文。安装器与管理中心同样支持中英文。
 
-0.2.2 在 **64 位 Windows** 下自动匹配 32 位或 64 位 Office。同一 EXE 和 ZIP 包含两种原生插件，管理中心仍为 x64。见 [架构与测试说明](office-x86.md)。
+0.2.3 在 **64 位 Windows** 下自动匹配 32 位或 64 位 Office。同一 EXE 和 ZIP 包含两种原生插件，管理中心仍为 x64。见 [架构与测试说明](office-x86.md)。
 
 ## 语言设置
 
@@ -61,7 +61,7 @@ powershell -NoProfile -File scripts/uninstall.ps1 -RemoveSettings
 
 设置和日志位于 `%LOCALAPPDATA%\openOfficetab`。遇到未显示标签的情况，先重开 Office，再核对 COM 加载项及标签显隐设置。
 
-0.2.2 已验证宿主机 Office 16.0.20527.20088 x64，以及 VMware 中的 Windows 11 LTSC 26100 x64 / Office 16.0.20527.20112 x86。早期 200% 缩放记录保留在验证说明中。其他版本和 ARM64 未全量实测，不支持 Office 网页版或 macOS。安装程序尚未做代码签名；Release 提供 SHA256SUMS 校验文件，源码可自行构建。
+0.2.3 已验证宿主机 Office 16.0.20527.20150 x64，以及 VMware 中的 Windows 11 LTSC 26100 x64 / 32 位 Office（上次核验基线 16.0.20527.20112，本轮未重新采集补丁版本）。早期 200% 缩放记录保留在验证说明中。其他版本和 ARM64 未全量实测，不支持 Office 网页版或 macOS。安装程序尚未做代码签名；Release 提供 SHA256SUMS 校验文件，源码可自行构建。
 
 完整说明、截图、源码和问题反馈：[xlennart/openOfficeTab](https://github.com/xlennart/openOfficeTab)。
 
@@ -76,3 +76,9 @@ powershell -NoProfile -File scripts/uninstall.ps1 -RemoveSettings
 0.2.3-beta.2 是后台窗格 OLE 抢焦点问题的候选修复；保留诊断日志，仍需现场反馈验证。已选择 Beta 通道的 beta.1 客户端可升级至 beta.2，正式通道不会被预发布版本升级。
 
 从 0.2.3-beta.1 起，在“关于与更新 → 更新通道”选择“正式版”或“Beta 版”，默认正式版。手动、自动检查共用此设置；切换不会自动降级。Beta 序号按数值比较，同版本号正式版优先于 Beta。0.2.2 及更早客户端保持正式版通道，首次试用 Beta 请下载其预发布安装器。
+
+## 重命名与支持项目
+
+已保存的本机文件可在标签右键选择“重命名文件…”。此操作保存并重新打开文件，会重置撤销历史，对话框在确认前提示；只读、URL 路径、多窗口及不支持的格式会拒绝，不覆盖已有目标文件。网络共享未完成完整实机验证。
+
+在“关于与更新”点击“爱发电赞助”支持项目。OSS 仅作为现有下载线路之后的最终兜底，仍验签和核对哈希，凭据不进入安装包。实际覆盖与限制见[本轮验证](https://github.com/xlennart/openOfficeTab/blob/main/docs/validation-v0.2.3.md)。

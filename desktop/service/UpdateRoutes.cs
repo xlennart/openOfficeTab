@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 
 namespace OpenOfficeTab.Desktop {
- internal sealed class OwnedUpdateSource {public string name=null,feedUrl=null,releaseBase=null,probeUrl=null,latestApi=null;public string[] redirectHosts=null;}
+ internal sealed class OwnedUpdateSource {public string name=null,feedUrl=null,releaseBase=null,probeUrl=null,latestApi=null;public string[] redirectHosts=null;public bool fallbackOnly=false;}
  internal sealed class UpdateSourceConfig {public OwnedUpdateSource[] ownedSources=null;}
  internal sealed class RouteHealth {
   public string name;public bool available;public long latencyMs;public string status;
@@ -31,13 +31,14 @@ namespace OpenOfficeTab.Desktop {
   }
   static int SourceCount {get{return Names.Length+Owned.Length;}}
   static string SourceName(int index){return index<Names.Length?Names[index]:Owned[index-Names.Length].name;}
+  internal static bool IsFallback(int index){return index>=Names.Length&&Owned[index-Names.Length].fallbackOnly;}
   readonly string root;internal UpdateRoutes(string directory){root=directory;}
   internal static bool Allowed(Uri uri){return UpdateClient.AllowedDownload(uri)||uri.Scheme=="https"&&uri.Port==443&&uri.UserInfo.Length==0&&(Names.Skip(1).Contains(uri.DnsSafeHost)||Owned.Any(source=>new[]{source.feedUrl,source.releaseBase,source.probeUrl,source.latestApi}.Where(url=>!string.IsNullOrEmpty(url)).Any(url=>new Uri(url).DnsSafeHost==uri.DnsSafeHost)||(source.redirectHosts??new string[0]).Contains(uri.DnsSafeHost)));}
   static HttpWebResponse Open(string url,string method){
    ServicePointManager.SecurityProtocol|=SecurityProtocolType.Tls12;var uri=new Uri(url);
    for(int hop=0;hop<6;hop++){
     if(!Allowed(uri))throw new InvalidDataException("Download redirect is outside the configured routes.");
-    var request=(HttpWebRequest)WebRequest.Create(uri);request.AllowAutoRedirect=false;request.Method=method;request.UserAgent="openOfficetab/0.2.2";request.Timeout=4000;request.ReadWriteTimeout=5000;
+    var request=(HttpWebRequest)WebRequest.Create(uri);request.AllowAutoRedirect=false;request.Method=method;request.UserAgent="openOfficetab/0.2.3";request.Timeout=4000;request.ReadWriteTimeout=5000;
     var response=(HttpWebResponse)request.GetResponse();int status=(int)response.StatusCode;
     if(status>=300&&status<400){string next=response.Headers["Location"];response.Dispose();uri=new Uri(uri,next);continue;}return response;
    }throw new InvalidDataException("Too many download redirects.");
@@ -77,7 +78,10 @@ namespace OpenOfficeTab.Desktop {
    string file=Path.Combine(root,"updates","routes.json");RouteHealth[] health=null;
    try{if(File.Exists(file)&&DateTime.UtcNow-File.GetLastWriteTimeUtc(file)<TimeSpan.FromMinutes(10))health=new JavaScriptSerializer().Deserialize<RouteHealth[]>(File.ReadAllText(file));}catch(Exception){}
    if(health==null)health=Probe();
-   return Enumerable.Range(0,SourceCount).OrderBy(index=>{var status=health.FirstOrDefault(item=>item.name==SourceName(index));return status!=null&&status.available?status.latencyMs:long.MaxValue;}).ToArray();
+   return OrderFromHealth(health);
+  }
+  internal static int[] OrderFromHealth(RouteHealth[] health){
+   return Enumerable.Range(0,SourceCount).OrderBy(index=>IsFallback(index)?1:0).ThenBy(index=>{var status=health.FirstOrDefault(item=>item.name==SourceName(index));return status!=null&&status.available?status.latencyMs:long.MaxValue;}).ToArray();
   }
   internal void Fetch(string url,Stream target,long limit){
    if(!ReleaseUrl(url)){Direct(url,target,limit);return;}
@@ -97,10 +101,7 @@ namespace OpenOfficeTab.Desktop {
   }
   internal ReleaseInfo SignedRelease(){
    string feed=DesktopProgram.Repo+"/releases/latest/download/openofficetab-update.json";
-   var tasks=Enumerable.Range(0,SourceCount).Select(index=>Task.Run(()=>{
-    try{return SignedReleaseMetadata.Parse(new UTF8Encoding(false,true).GetString(Read(Candidate(feed,index),65536)));}catch(Exception){return null;}
-   })).ToArray();Task.WaitAll(tasks);
-   var releases=tasks.Select(task=>task.Result).Where(release=>release!=null).ToList();
+   var releases=ReadSignedCandidates(feed,false).ToList();
    // Only the user's Beta channel preference opts into discovery. API data is untrusted: it
    // can nominate tags, but every candidate still needs the existing RSA trust anchor.
    if(new Services(root).AcceptsPrerelease)try{
@@ -108,12 +109,21 @@ namespace OpenOfficeTab.Desktop {
     if(list!=null)foreach(var item in list.OfType<Dictionary<string,object>>().Where(item=>item.ContainsKey("draft")&&item["draft"] is bool&&!(bool)item["draft"]&&item.ContainsKey("prerelease")&&item["prerelease"] is bool&&(bool)item["prerelease"]).Take(6))try{
      string tag=item["tag_name"] as string;var identity=ReleaseVersion.Parse(tag!=null&&tag.StartsWith("v",StringComparison.Ordinal)?tag.Substring(1):tag);if(!identity.Prerelease||identity.Channel=="alpha")continue;
      string beta=DesktopProgram.Repo+"/releases/download/"+tag+"/openofficetab-update-beta.json";
-     var candidates=Enumerable.Range(0,SourceCount).Select(index=>Task.Run(()=>{try{return SignedReleaseMetadata.Parse(new UTF8Encoding(false,true).GetString(Read(Candidate(beta,index),65536)),true);}catch(Exception){return null;}})).ToArray();Task.WaitAll(candidates);
-     var candidate=candidates.Select(task=>task.Result).FirstOrDefault(value=>value!=null&&value.Tag==tag&&value.Label==identity.Text);if(candidate==null)continue;
+     var candidate=ReadSignedCandidates(beta,true,tag,identity.Text).FirstOrDefault();if(candidate==null)continue;
      if(candidate.Tag!=tag||candidate.Label!=identity.Text)throw new InvalidDataException("Prerelease nomination mismatch.");releases.Add(candidate);
     }catch(Exception){}
    }catch(Exception){}
    return releases.OrderByDescending(release=>release.Identity??ReleaseVersion.Parse(release.Version.ToString())).FirstOrDefault();
+  }
+  static ReleaseInfo[] ReadSignedCandidates(string feed,bool acceptsPrerelease,string requiredTag=null,string requiredVersion=null){
+   foreach(bool fallback in new[]{false,true}){
+    var tasks=Enumerable.Range(0,SourceCount).Where(index=>IsFallback(index)==fallback).Select(index=>Task.Run(()=>{
+     try{return SignedReleaseMetadata.Parse(new UTF8Encoding(false,true).GetString(Read(Candidate(feed,index),65536)),acceptsPrerelease);}catch(Exception){return null;}
+    })).ToArray();Task.WaitAll(tasks);
+    var results=tasks.Select(task=>task.Result).Where(value=>value!=null&&(requiredTag==null||value.Tag==requiredTag)&&(requiredVersion==null||value.Label==requiredVersion)).ToArray();
+    if(results.Length>0)return results;
+   }
+   return new ReleaseInfo[0];
   }
   internal static ReleaseInfo LegacyCurrent(){
    using(var response=Open(DesktopProgram.Repo+"/releases/latest","HEAD")){

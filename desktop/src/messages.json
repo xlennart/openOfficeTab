@@ -303,5 +303,8 @@
   "管理中心版本": "Management center version",
   "管理中心 {version}": "Management center {version}",
   "管理中心 {version} · 更新检查暂不可用": "Management center {version} · Update check unavailable",
-  "所选通道版本：{version}。": "Selected channel release: {version}."
+  "所选通道版本：{version}。": "Selected channel release: {version}.",
+  "支持项目": "Support the project",
+  "爱发电赞助": "Sponsor on Afdian",
+  "OSS 备用镜像": "OSS fallback mirror"
 }

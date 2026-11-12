@@ -10,11 +10,12 @@ mod service;
 // External navigation stays limited to the links visible in the approved UI.
 #[tauri::command]
 fn open_external(url: String) -> Result<(), String> {
-    const LINKS: [&str; 4] = [
+    const LINKS: [&str; 5] = [
         "https://github.com/xlennart",
         "https://github.com/xlennart/openOfficetab",
         "https://github.com/xlennart/openOfficetab/releases",
         "https://github.com/xlennart/openOfficetab/issues",
+        "https://afdian.com/a/xlennart?utm_source=copylink&utm_medium=link",
     ];
     if !LINKS.contains(&url.as_str()) {
         return Err("This destination is not allowed.".into());
