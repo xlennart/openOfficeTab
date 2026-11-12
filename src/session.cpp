@@ -3,6 +3,7 @@
 #include "window-layout.h"
 #include "tab-color.h"
 #include "excel-input.h"
+#include "rename-transition.h"
 #include <msopc.h>
 #include <xmllite.h>
 #include <cstring>
@@ -613,6 +614,7 @@ documentrename::Result Session::renameFile(unsigned long long id, const std::wst
     const auto position = std::distance(views.begin(), std::find(views.begin(), views.end(), view));
     std::wstring reopenedPath;
     Result result = Result::failed;
+    RenameTransition transition;
     try {
         Flag busy(executing);
         auto document = view->document;
@@ -642,6 +644,9 @@ documentrename::Result Session::renameFile(unsigned long long id, const std::wst
             FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
         BY_HANDLE_FILE_INFORMATION stamp{};
         if (!fileStamp(saved.value, stamp) || (pptx && presentationFormat(oldPath) != format)) return Result::failed;
+
+        const HWND root = GetAncestor(view->hwnd, GA_ROOT);
+        if (root && root == GetForegroundWindow() && !transition.begin(root, module)) return Result::failed;
 
         if (host == Host::Word) call(document.get(), L"Close", DISPATCH_METHOD, {Var(0L)});
         else if (host == Host::Excel) call(document.get(), L"Close", DISPATCH_METHOD, {Var(false)});
@@ -693,6 +698,7 @@ documentrename::Result Session::renameFile(unsigned long long id, const std::wst
             syncPanes();
             updateTaskbar();
             redraw();
+            transition.reveal(GetAncestor(replacement->hwnd, GA_ROOT));
         }
     }
     defer();

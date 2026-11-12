@@ -120,8 +120,8 @@ See [English implementation and VM acceptance notes](office-x86.en.md) / [32 位
 
 ## 标签页右键重命名
 
-右键菜单 `Session::menu` 在保存命令旁提供“重命名文件…”。`features.cpp` 调用 `rename-dialog.h` 的原生模态对话框，复用现有 DPI / 语言机制，输入的是不含扩展名的名称。`Session::renameFile` 在宿主 STA 内调用 Word `SaveAs2` 或 Excel / PowerPoint `SaveAs`，显式沿用原格式；不关闭或重新打开文档。已有的 Save As 路径变更逻辑负责继承文件偏好，刷新负责更新该文档的各个视图。
+右键菜单 `Session::menu` 在保存命令旁提供“重命名文件…”。`features.cpp` 调用 `rename-dialog.h` 的原生模态对话框，输入的是不含扩展名的名称。`Session::renameFile` 在宿主 STA 中按原格式保存编辑并关闭文档，通过 Windows 文件句柄在原目录内原子改名，然后重新打开。重新打开会重置 Office 撤销历史，刷新时恢复标签偏好和位置。
 
-仅已保存、可写的本地 / UNC 文件可用，未保存文件、URL 和只读文档禁用；保持目录与扩展名不变。拒绝已有目标、非法 / Windows 保留文件名和仅大小写变化。相同名称为无操作。Office 原生保存 / 格式 / 密码提示不被抑制。保存返回后，只有 FullName、Saved 和新文件存在性均通过检查，才尝试清理旧文件。清理核对原文件句柄身份、大小和修改时间，并按句柄删除，避免误删保存期间被替换或修改的旧文件。清理失败会明确提示保留两份文件，绝不回滚删除新文件；保存失败或取消则绝不清理旧文件。外部程序恰在检查后创建目标时，仍保留 Office 的原生冲突提示；文件系统和 Office COM 之间不是原子事务。
+仅已保存、可写的单窗口本地或 UNC 文档可用。拒绝非法文件名、仅大小写变化及无法可靠识别格式的 PowerPoint `.pptx`。原子改名禁止覆盖目标，目标在保存或关闭期间出现时保留两份文件。`RenameTransition` 在文档窗口处于前台时暂时显示关闭前的画面，等重开后的窗口重绘再移除。Office 模态提示激活时会撤下覆盖层。
 
-`tests/rename-test.cpp` 检查纯文件名规则、扩展名和保存 / 验证 / 清理顺序；可在 Linux 使用 C++17 编译执行。`tests/rename-session-test.cpp` 使用模拟的三宿主 COM 和真实 Win32 临时文件，覆盖格式参数、取消 / 拒绝、冲突、只读、旧文件保留、偏好继承和不生成关闭记录；由 `scripts/test-native.ps1` 在 x64 / x86 执行，不等价于 Office 实机验收。人工验收清单见 [重命名验证](rename-validation.md)。
+`tests/rename-test.cpp` 检查文件名规则和扩展名保留。`tests/rename-session-test.cpp` 使用模拟 Office COM、真实 Win32 文件和 OPC 包，覆盖格式识别、保存或关闭取消、同名冲突、原路径被替换、重开失败和偏好继承。双架构测试入口及实机验收清单见 [重命名验证](rename-validation.md)。
