@@ -19,7 +19,7 @@ Free · Open source · Native C++ · Windows desktop Office
 
 </div>
 
-https://github.com/user-attachments/assets/1a013993-c86d-4efa-9c00-f8e019e599b9
+https://github.com/user-attachments/assets/a5109e5d-9893-47cd-a9d3-8ce726861605
 
 ---
 
