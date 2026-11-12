@@ -18,6 +18,8 @@ inline constexpr Entry entries[]={
     {L"重命名",L"Rename"},
     {L"新文件名（不含扩展名）：",L"New file name (without extension):"},
     {L"保存当前编辑，再关闭文档并用新名称重新打开。Office 撤销历史将重置。",L"Saves edits, then closes and reopens the document. Office undo history resets."},
+    {L"以新名称保存当前编辑，演示文稿会保持打开。",L"Saves your edits under the new name and keeps the presentation open."},
+    {L"已切换到新文件，原文件仍保留在原路径。",L"Office switched to the new file. The original file remains at its original path."},
     {L"文件名无效。请勿使用保留名称、路径字符或末尾的空格和句点。",L"Invalid file name. Avoid reserved names, path characters, and trailing spaces or periods."},
     {L"文档路径已改变，请关闭对话框后重试。",L"The document path has changed. Close this dialog and try again."},
     {L"未完成重命名。请检查同名文件、文件格式或 Office 提示；多窗口文档和仅修改大小写暂不支持。",L"Rename was not completed. Check for an existing file, the file format, or Office prompts. Multiple document windows and case-only changes are unsupported."},

@@ -14,6 +14,16 @@ class RenameTransition {
     HWND source = nullptr;
     WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};
 
+    void reset() {
+        if (activationHook) {
+            activeCover = nullptr;
+            UnhookWindowsHookEx(activationHook);
+            activationHook = nullptr;
+        }
+        if (cover) DestroyWindow(cover);
+        cover = source = nullptr;
+    }
+
     static LRESULT CALLBACK onActivate(int code, WPARAM target, LPARAM detail) {
         const auto result = CallNextHookEx(nullptr, code, target, detail);
         if (code == HCBT_ACTIVATE && !result && activeCover) {
@@ -31,13 +41,7 @@ public:
     RenameTransition() = default;
     RenameTransition(const RenameTransition&) = delete;
     RenameTransition& operator=(const RenameTransition&) = delete;
-    ~RenameTransition() {
-        if (activationHook) {
-            activeCover = nullptr;
-            UnhookWindowsHookEx(activationHook);
-        }
-        if (cover) DestroyWindow(cover);
-    }
+    ~RenameTransition() { reset(); }
 
     bool begin(HWND window, HINSTANCE instance) {
         RECT bounds{};
@@ -59,7 +63,7 @@ public:
             if (previous && BitBlt(image, 0, 0, size.cx, size.cy, screen,
                     bounds.left, bounds.top, SRCCOPY | CAPTUREBLT)) {
                 cover = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE |
-                    WS_EX_TOPMOST | WS_EX_TRANSPARENT, L"STATIC", nullptr, WS_POPUP,
+                    WS_EX_TRANSPARENT, L"STATIC", nullptr, WS_POPUP,
                     bounds.left, bounds.top, size.cx, size.cy, nullptr, nullptr, instance, nullptr);
                 if (cover) {
                     POINT destination{bounds.left, bounds.top}, origin{};
@@ -77,11 +81,15 @@ public:
         if (!cover) return false;
 
         activationHook = SetWindowsHookExW(WH_CBT, onActivate, nullptr, GetCurrentThreadId());
-        if (!activationHook) return false;
+        if (!activationHook) { reset(); return false; }
         activeCover = cover;
+        if (!SetWindowPos(cover, HWND_TOP, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW) || FAILED(DwmFlush())) {
+            reset();
+            return false;
+        }
         source = window;
-        ShowWindow(cover, SW_SHOWNOACTIVATE);
-        return SUCCEEDED(DwmFlush());
+        return true;
     }
 
     void reveal(HWND window) {
