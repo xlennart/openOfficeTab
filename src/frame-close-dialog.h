@@ -41,15 +41,16 @@ inline void layout(HWND dialog, Choice& choice) {
 }
 
 inline void paintIcon(HDC dc, const dialogui::Theme& theme) {
-    dialogui::rounded(dc, theme.rect(24, 24, 40, 48), theme.footer, theme.border, theme.px(8));
-    dialogui::rounded(dc, theme.rect(35, 39, 17, 15), theme.footer, theme.accent, theme.px(4));
-    dialogui::rounded(dc, theme.rect(39, 43, 17, 15), theme.footer, theme.accent, theme.px(4));
-    auto pen = CreatePen(PS_SOLID, theme.px(1), theme.accent);
+    // A single document glyph, without a nested tile or warning-style frame.
+    auto pen = CreatePen(PS_SOLID, theme.px(2), theme.muted);
     auto oldPen = SelectObject(dc, pen);
-    MoveToEx(dc, theme.px(45), theme.px(48), nullptr);
-    LineTo(dc, theme.px(51), theme.px(54));
-    MoveToEx(dc, theme.px(50), theme.px(48), nullptr);
-    LineTo(dc, theme.px(44), theme.px(54));
+    POINT sheet[]={{30,27},{48,27},{58,37},{58,67},{30,67},{30,27}};
+    POINT fold[]={{48,27},{48,37},{58,37}};
+    for(auto& p:sheet){p.x=theme.px(p.x);p.y=theme.px(p.y);}
+    for(auto& p:fold){p.x=theme.px(p.x);p.y=theme.px(p.y);}
+    Polyline(dc,sheet,(int)std::size(sheet));Polyline(dc,fold,(int)std::size(fold));
+    MoveToEx(dc, theme.px(39), theme.px(47), nullptr);LineTo(dc, theme.px(49), theme.px(57));
+    MoveToEx(dc, theme.px(49), theme.px(47), nullptr);LineTo(dc, theme.px(39), theme.px(57));
     SelectObject(dc, oldPen);
     DeleteObject(pen);
 }
@@ -70,7 +71,8 @@ inline INT_PTR CALLBACK closeProc(HWND dialog, UINT message, WPARAM wp, LPARAM l
         control(L"STATIC", summary.c_str(), SS_NOPREFIX, summaryId);
         control(L"STATIC", tr(L"关闭当前文档，还是关闭本组全部文档？"), SS_NOPREFIX, questionId);
         control(L"STATIC", tr(L"未保存的更改仍由 Office 询问；取消保存会停止后续关闭。"), SS_NOPREFIX, saveNoteId);
-        control(L"BUTTON", tr(L"记住我的选择（可在标签设置中更改）"), BS_AUTOCHECKBOX | WS_TABSTOP, rememberId);
+        HWND remember=control(L"BUTTON", tr(L"记住我的选择（可在标签设置中更改）"), BS_AUTOCHECKBOX | WS_TABSTOP, rememberId);
+        SetWindowSubclass(remember, dialogui::checkboxProc, 2, (DWORD_PTR)&choice->theme);
         auto button = [&](const wchar_t* label, int id) {
             HWND child = control(L"BUTTON", tr(label), BS_OWNERDRAW | WS_TABSTOP, id);
             SetWindowSubclass(child, dialogui::controlProc, 1, 0);

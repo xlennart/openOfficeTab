@@ -9,6 +9,9 @@ namespace OpenOfficeTab.Desktop {
   static string Hash(byte[] bytes){using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-","").ToLowerInvariant();}
   static int Main(string[] args){try{
    string root=Path.GetFullPath(args[0]);Directory.CreateDirectory(root);var store=new StateStore(root);
+   var routeOrder=UpdateRoutes.OrderFromHealth(new[]{new RouteHealth{name="OSS 备用镜像",available=true,latencyMs=1},new RouteHealth{name="GitHub",available=false}});
+   Check(UpdateRoutes.IsFallback(routeOrder[routeOrder.Length-1])&&!UpdateRoutes.IsFallback(routeOrder[0]),"OSS stays last even when fastest and primary routes are unavailable");
+   Check(UpdateRoutes.Candidate(DesktopProgram.Repo+"/releases/download/v0.2.3/SHA256SUMS.txt",routeOrder[routeOrder.Length-1])=="https://openofficetab-xlennart.oss-cn-chengdu.aliyuncs.com/releases/v0.2.3/SHA256SUMS.txt","OSS maps exact versioned assets without changing the signed canonical URL");
    using(var process=System.Diagnostics.Process.GetCurrentProcess()){
     string main=process.MainModule.FileName;
     Check(Array.Exists(Api.ModulePaths(process.Id),path=>string.Equals(Path.GetFullPath(path),Path.GetFullPath(main),StringComparison.OrdinalIgnoreCase)),"native module enumeration includes current executable");

@@ -23,11 +23,11 @@ Free · Open source · Native C++ · Windows desktop Office
 
 openOfficeTab adds a document tab bar below the Office ribbon. Switch documents with a click, drag tabs to reorder them, manage files from the context menu, or move a document into an independent window. It keeps Office's existing documents and save prompts, with no file conversion required.
 
-**Current release: 0.2.2.** One installer selects native 32-bit or 64-bit Office support on 64-bit Windows. This version adds a separate update window, fixes foreground tab selection and cross-architecture loading diagnostics, and retains shared English/Chinese settings and redacted logs. See the [validation record](docs/validation-v0.2.2.md) for actual coverage and limits.
+**Current release: 0.2.3.** Adds themed native menus and dialogs, safe local-file renaming, integrated Beta diagnostics and a sponsorship button. The installer retains x86/x64 Office support. See the [release notes](docs/release-notes-v0.2.3.md) and [validation record](docs/validation-v0.2.3.md).
 
 The add-in supports English and Simplified Chinese through **… → Language**. The installer and management center share the same saved language setting, with a language selector in the sidebar or setup content area and Windows display-language detection by default. The screenshots below show the English interface; [English installation instructions](docs/installation.en.md) are also available. Most supporting technical documents are in Chinese.
 
-Downloads: [GitHub Releases](https://github.com/xlennart/openOfficeTab/releases/latest) · [CNB mirror](https://cnb.cool/xlennart/openofficetab/-/releases). Both provide the same release assets and checksums.
+Downloads: [GitHub Releases](https://github.com/xlennart/openOfficeTab/releases/latest) · [CNB mirror](https://cnb.cool/xlennart/openofficetab/-/releases). Both provide the same release assets and checksums. [OSS backup (last resort)](https://openofficetab-xlennart.oss-cn-chengdu.aliyuncs.com/releases/v0.2.3/openOfficetab-0.2.3-setup-x64.exe).
 
 The installer and management center remain x64; both Office DLLs are included. See the [architecture and test notes](docs/office-x86.en.md).
 
@@ -80,7 +80,7 @@ These user-provided screenshots show version 0.1.7. Choose either appearance und
 
 ## Features
 
-**Diagnostic Beta:** [0.2.3-beta.3](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.3-beta.3) integrates mouse/activation observation and loaded-module fingerprints into the existing diagnostic export. The root cause of issue #5 remains unconfirmed. Stable remains 0.2.2. In the Beta management center, choose **About & updates → Update channel → Stable / Beta**; Stable is the default. Channel changes do not downgrade. The intermittent issue #5 still requires reporter validation. [Beta notes](docs/release-notes-v0.2.3-beta.3.md) · [Logging](docs/diagnostic-logging.en.md).
+Version 0.2.3 incorporates the diagnostic Beta changes. Intermittent issue #5 still has no confirmed sole cause. In **About & updates → Update channel**, choose **Stable / Beta**; Stable is the default and switching never downgrades. [Logging](docs/diagnostic-logging.en.md).
 
 | Feature | What it does |
 | :--- | :--- |
@@ -104,19 +104,19 @@ Save All and bulk closing apply only to the current tab group. They exclude inde
 
 ## Installation
 
-1. Download `openOfficetab-0.2.2-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficeTab/releases/latest).
+1. Download `openOfficetab-0.2.3-setup-x64.exe` from [Releases](https://github.com/xlennart/openOfficeTab/releases/latest).
 2. Save your work and fully exit Word, Excel, and PowerPoint, including any old background instances.
 3. Run the installer and select the components and click **Install**.
 4. Open an Office document again. The tab bar appears below the ribbon.
 
 Installation is per Windows user and does not require administrator privileges. The installer does not close Office windows for you.
 
-Alternatively, download `openOfficetab-0.2.2-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
+Alternatively, download `openOfficetab-0.2.3-win-x64.zip`, extract the entire package, and run `Install.cmd`. The ZIP and EXE install the same add-in.
 
 Releases include `SHA256SUMS.txt`. The installer is not code-signed; you can verify its checksum or build from source.
 
 ```powershell
-Get-FileHash .\openOfficetab-0.2.2-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.2.3-setup-x64.exe -Algorithm SHA256
 ```
 
 ### Uninstall
@@ -266,6 +266,7 @@ Language, appearance, color, default width, single-taskbar mode, theme, and titl
 
 | Version | Date | Highlights |
 | :--- | :--- | :--- |
+| [0.2.3](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.3) | 2026-11-12 | Themed native menus/dialogs, safe local-file renaming, integrated Beta diagnostics, Afdian support and final OSS fallback. |
 | [0.2.2](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.2) | 2026-10-30 | Unified x86/x64 Office installer, separate update window, loading diagnostics and tab-selection fixes. |
 | [0.2.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.1) | 2026-10-29 | English and Chinese setup/management center, shared language settings, responsive layout fixes and English documentation labels. |
 | [0.2.0](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.0) | 2026-10-28 | Management center, sanitized operation timelines, automatic update route selection and initial tab/document alignment improvements. |

@@ -175,6 +175,34 @@ struct Theme {
         }
     }
 
+    void paintCheckbox(HWND window,HDC dc) const {
+        RECT bounds{};GetClientRect(window,&bounds);fill(dc,bounds,background);
+        const bool checked=SendMessageW(window,BM_GETCHECK,0,0)==BST_CHECKED;
+        const bool enabled=IsWindowEnabled(window)!=FALSE;
+        const bool pressed=(SendMessageW(window,BM_GETSTATE,0,0)&BST_PUSHED)!=0;
+        POINT cursor{};GetCursorPos(&cursor);ScreenToClient(window,&cursor);
+        const bool hover=PtInRect(&bounds,cursor)!=FALSE;
+        const int side=px(18),top=(bounds.bottom-side)/2;
+        RECT box{px(1),top,px(1)+side,top+side};
+        COLORREF edge=enabled&&(hover||GetFocus()==window)?accent:border;
+        COLORREF surface=checked?(enabled?accent:muted):(pressed?footer:field);
+        rounded(dc,box,surface,checked?surface:edge,px(7),std::max(1,px(1)));
+        if(checked){
+            LOGBRUSH brush{BS_SOLID,dark?RGB(20,26,34):RGB(255,255,255),0};
+            auto pen=ExtCreatePen(PS_GEOMETRIC|PS_SOLID|PS_ENDCAP_ROUND|PS_JOIN_ROUND,px(2),&brush,0,nullptr);
+            auto old=SelectObject(dc,pen);
+            POINT check[]={{box.left+px(4),top+px(9)},{box.left+px(8),top+px(13)},{box.left+px(14),top+px(5)}};
+            Polyline(dc,check,(int)std::size(check));SelectObject(dc,old);DeleteObject(pen);
+        }
+        RECT label=bounds;label.left=px(28);
+        wchar_t text[256]{};GetWindowTextW(window,text,(int)std::size(text));
+        auto oldFont=SelectObject(dc,body);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,enabled?foreground:muted);
+        UINT flags=DT_LEFT|DT_VCENTER|DT_SINGLELINE;
+        auto state=SendMessageW(window,WM_QUERYUISTATE,0,0);if(state&UISF_HIDEACCEL)flags|=DT_HIDEPREFIX;
+        DrawTextW(dc,text,-1,&label,flags);SelectObject(dc,oldFont);
+        if(GetFocus()==window&&!(state&UISF_HIDEFOCUS)){InflateRect(&bounds,-px(1),-px(1));DrawFocusRect(dc,&bounds);}
+    }
+
 private:
     void clear() {
         if (body) DeleteObject(body);
@@ -183,4 +211,24 @@ private:
         if (fieldBrush) DeleteObject(fieldBrush);
     }
 };
+
+inline LRESULT CALLBACK checkboxProc(HWND window,UINT message,WPARAM wp,LPARAM lp,UINT_PTR,DWORD_PTR data){
+    auto theme=(const Theme*)data;
+    // Keep BUTTON/BS_AUTOCHECKBOX, native state, Space, Tab and MSAA semantics.
+    // High contrast uses system painting rather than custom colors.
+    if(theme&&!theme->contrast){
+        if(message==WM_PAINT||message==WM_PRINT||message==WM_PRINTCLIENT){
+            PAINTSTRUCT paint{};HDC dc=message==WM_PAINT?BeginPaint(window,&paint):(HDC)wp;
+            theme->paintCheckbox(window,dc);if(message==WM_PAINT)EndPaint(window,&paint);return 0;
+        }
+        if(message==WM_ERASEBKGND)return 1;
+    }
+    if(message==WM_MOUSEMOVE){TRACKMOUSEEVENT track{sizeof(track),TME_LEAVE,window,0};TrackMouseEvent(&track);}
+    if(message==WM_NCDESTROY)RemoveWindowSubclass(window,checkboxProc,2);
+    auto result=DefSubclassProc(window,message,wp,lp);
+    if(message==WM_MOUSEMOVE||message==WM_MOUSELEAVE||message==WM_SETFOCUS||message==WM_KILLFOCUS||
+        message==BM_SETCHECK||message==BM_CLICK||message==WM_KEYUP||message==WM_ENABLE||message==WM_UPDATEUISTATE)
+        InvalidateRect(window,nullptr,FALSE);
+    return result;
+}
 }

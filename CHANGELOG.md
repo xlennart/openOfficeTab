@@ -1,5 +1,20 @@
 # 更新记录
 
+## 0.2.3 · 2026-11-12
+
+- 统一明暗主题原生菜单、级联、宽度/颜色/关闭对话框及窗口按钮。
+- Polish themed native menus, cascades, width/color/close dialogs and window controls.
+- 新增本机文件重命名；保存后以不覆盖目标的方式改名并重开，明确撤销历史重置，遮罩不全局置顶。
+- Add local-file renaming with save/close/reopen, no destination overwrite, an undo-reset warning and a non-topmost transition cover.
+- 纳入 Beta 的焦点保护与内置点击/激活/模块指纹诊断，不宣称间歇故障彻底解决。
+- Include Beta focus protection and built-in input/activation/module diagnostics without claiming all intermittent faults resolved.
+- 管理中心加入爱发电按钮；OSS 最后兜底保留验签与哈希，发布凭据不入源码。
+- Add the management-center Afdian button and final OSS fallback with signature/hash verification and external upload credentials.
+- 调整贡献验证规范，记录作者亲自执行的检查，并允许维护者补充实机覆盖。
+- Require personally executed author checks while allowing maintainer runtime validation.
+- 已获项目所有者试用确认并授权正式发行，实际测试覆盖及限制见本版验证记录。
+- The project owner tested the candidate and authorized stable publication; see the version validation record for actual coverage and limits.
+
 ## 0.2.3-beta.3 · 2026-11-04
 
 - 将文档窗口点击命中、激活请求及默认处理前后状态取证集成到插件，沿用管理中心诊断导出，不需单独运行采集器。

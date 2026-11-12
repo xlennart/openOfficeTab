@@ -53,7 +53,7 @@ try{
  if(-not $ready){$record.webviewProcesses=@(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -OperationTimeoutSec 5|Where-Object {$_.ParentProcessId -eq $app.Id -or ($_.CommandLine -and $_.CommandLine.Contains($jobRoot))}|ForEach-Object {@{pid=$_.ProcessId;parent=$_.ParentProcessId;testProfile=($_.CommandLine -and $_.CommandLine.Contains($jobRoot));debugArgument=($_.CommandLine -match '--remote-debugging-port=');version=[Diagnostics.FileVersionInfo]::GetVersionInfo($_.ExecutablePath).FileVersion}});throw 'Test-only CDP endpoint did not become ready.'}
  $record.cdpLoopbackOnly=$true;$app.Refresh();$record.dpi=[CenterRuntimeWindow]::GetDpiForWindow($app.MainWindowHandle)
  $node=[Diagnostics.ProcessStartInfo]::new($NodeExecutable);$node.UseShellExecute=$false;$node.CreateNoWindow=$true;$node.RedirectStandardOutput=$true;$node.RedirectStandardError=$true
- $node.Arguments=(@((Join-Path $PSScriptRoot 'center-webview2-runtime.cjs'),([IO.Path]::GetFullPath($PlaywrightModule)),[string]$port,$jobRoot,$JobId,'0.2.3-beta.3')|ForEach-Object {'"'+$_+'"'}) -join ' '
+ $node.Arguments=(@((Join-Path $PSScriptRoot 'center-webview2-runtime.cjs'),([IO.Path]::GetFullPath($PlaywrightModule)),[string]$port,$jobRoot,$JobId,'0.2.3')|ForEach-Object {'"'+$_+'"'}) -join ' '
  $driver=[Diagnostics.Process]::Start($node);$stdout=$driver.StandardOutput.ReadToEndAsync();$stderr=$driver.StandardError.ReadToEndAsync()
  $resized=$false;$deadline=[DateTime]::UtcNow.AddSeconds(240)
  while(-not $driver.HasExited -and [DateTime]::UtcNow -lt $deadline){

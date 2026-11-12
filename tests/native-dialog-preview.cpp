@@ -51,10 +51,14 @@ void previewFrameClose(Host host, bool dark, int language, const wchar_t* path) 
     auto defaultId = SendMessageW(dialog, DM_GETDEFID, 0, 0);
     assert(HIWORD(defaultId) == DC_HASDEFID && LOWORD(defaultId) == IDCANCEL);
     HWND remember = GetDlgItem(dialog, framecloseui::rememberId);
+    assert((GetWindowLongPtrW(remember,GWL_STYLE)&BS_TYPEMASK)==BS_AUTOCHECKBOX);
     assert(SendMessageW(remember, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
     capture(dialog, path);
     SendMessageW(remember, BM_CLICK, 0, 0);
     assert(SendMessageW(remember, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    std::wstring checkedPath=path;checkedPath.insert(checkedPath.size()-4,L"-checked");capture(dialog,checkedPath.c_str());
+    SendMessageW(remember,WM_KEYDOWN,VK_SPACE,0);SendMessageW(remember,WM_KEYUP,VK_SPACE,0);
+    assert(SendMessageW(remember,BM_GETCHECK,0,0)==BST_UNCHECKED);
     DestroyWindow(dialog);
 }
 
@@ -106,12 +110,13 @@ void checkTabMenu() {
         tabmenu::Menu menu(owner, Host::Word, false, 2);
         tabmenu::populate(menu, view, 2);
         HMENU root = menu.handle();
-        assert(GetMenuItemCount(root) == 12);
+        assert(GetMenuItemCount(root) == 13);
         assert(GetMenuState(root, 2, MF_BYCOMMAND) & MF_DISABLED);
+        assert(GetMenuState(root, 20, MF_BYCOMMAND) & MF_DISABLED);
         assert(GetMenuState(root, 5, MF_BYCOMMAND) & MF_DISABLED);
         assert(GetMenuState(root, 10, MF_BYCOMMAND) & MF_CHECKED);
         assert(!(GetMenuState(root, 11, MF_BYCOMMAND) & MF_DISABLED));
-        HMENU move = GetSubMenu(root, 5), close = GetSubMenu(root, 9), more = GetSubMenu(root, 11);
+        HMENU move = GetSubMenu(root, 6), close = GetSubMenu(root, 10), more = GetSubMenu(root, 12);
         assert(move && close && more);
         assert(GetMenuItemCount(move) == 3 && GetMenuItemCount(close) == 4 && GetMenuItemCount(more) == 5);
         assert(GetMenuItemID(move, 0) == 13 && GetMenuItemID(move, 2) == 15);

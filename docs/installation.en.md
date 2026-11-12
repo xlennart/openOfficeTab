@@ -4,7 +4,7 @@
 
 Native document tabs for Word, Excel, and PowerPoint. The native add-in supports English and Simplified Chinese. The installer and center share this language setting.
 
-Version 0.2.2 selects native 32-bit or 64-bit Office support automatically on **64-bit Windows**. Both payloads are in the same EXE and ZIP; the center remains x64. See the [architecture and test notes](office-x86.en.md).
+Version 0.2.3 selects native 32-bit or 64-bit Office support automatically on **64-bit Windows**. Both payloads are in the same EXE and ZIP; the center remains x64. See the [architecture and test notes](office-x86.en.md).
 
 ## Install
 
@@ -54,3 +54,9 @@ Use the ribbon management-center entry or Start menu shortcut. Export a JSON rep
 0.2.3-beta.2 contains a candidate fix for background-pane OLE focus stealing and retains diagnostic logging. Reporter validation is still needed. A beta.1 client on the Beta channel can upgrade to beta.2; stable-channel clients are not upgraded to a prerelease.
 
 From 0.2.3-beta.1, choose **About & updates → Update channel → Stable / Beta**. Stable is the default. Manual and automatic checks share this preference. Switching channels never downgrades. Beta numbers compare numerically; a matching stable version supersedes its Beta. Version 0.2.2 and older remain on stable updates; download the prerelease setup to try Beta initially.
+
+## Rename and support
+
+For saved local documents, right-click the tab and choose **Rename file…**. Renaming saves and reopens the file, resetting undo history; the dialog warns before confirmation. Read-only files, remote paths, multiple windows and unsupported formats are refused. Existing target files are never replaced.
+
+In **About & updates**, use **Sponsor on Afdian** to support the project. OSS is the final fallback after existing download routes and keeps signature/hash verification; credentials are never packaged. See [current validation](https://github.com/xlennart/openOfficeTab/blob/main/docs/validation-v0.2.3.md) for actual coverage and limits.

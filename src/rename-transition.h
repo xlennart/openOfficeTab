@@ -59,7 +59,7 @@ public:
             if (previous && BitBlt(image, 0, 0, size.cx, size.cy, screen,
                     bounds.left, bounds.top, SRCCOPY | CAPTUREBLT)) {
                 cover = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE |
-                    WS_EX_TOPMOST | WS_EX_TRANSPARENT, L"STATIC", nullptr, WS_POPUP,
+                    WS_EX_TRANSPARENT, L"STATIC", nullptr, WS_POPUP,
                     bounds.left, bounds.top, size.cx, size.cy, nullptr, nullptr, instance, nullptr);
                 if (cover) {
                     POINT destination{bounds.left, bounds.top}, origin{};
@@ -80,7 +80,10 @@ public:
         if (!activationHook) return false;
         activeCover = cover;
         source = window;
-        ShowWindow(cover, SW_SHOWNOACTIVATE);
+        // Stay in the ordinary z-order so switching applications can never
+        // leave a topmost screenshot covering another application's UI.
+        SetWindowPos(cover, HWND_TOP, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         return SUCCEEDED(DwmFlush());
     }
 

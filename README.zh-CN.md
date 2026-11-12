@@ -23,11 +23,11 @@
 
 openOfficeTab 为桌面 Office 的功能区下方增加一条文档标签栏：点击切换、拖动排序、右键管理，并能将某个文档移出标签组，继续用独立窗口编辑。它保留 Office 原有文档对象和保存提示，不需要把文件转换成其他格式。
 
-当前版本为 **0.2.2**：统一安装器在 64 位 Windows 下自动匹配 32/64 位 Office，新增独立更新窗口，修复前台标签选择和跨位数加载诊断，保留共享中英文设置与脱敏日志。实际覆盖范围及限制见 [验证记录](docs/validation-v0.2.2.md)。
+当前版本为 **0.2.3**：统一原生菜单与对话框，新增安全的本机文件重命名，纳入 Beta 诊断及赞助按钮，保留 x86/x64 Office 统一安装。见[本版说明](docs/release-notes-v0.2.3.md)及[验证记录](docs/validation-v0.2.3.md)。
 
 原生标签栏、菜单支持中英文。安装器和管理中心支持中英文，在侧栏底部或安装内容区选择语言，与原生插件共享设置，默认跟随 Windows 显示语言。
 
-下载：[GitHub Releases](https://github.com/xlennart/openOfficeTab/releases/latest) · [CNB 国内镜像](https://cnb.cool/xlennart/openofficetab/-/releases)。两端提供相同安装包和校验文件。
+下载：[GitHub Releases](https://github.com/xlennart/openOfficeTab/releases/latest) · [CNB 国内镜像](https://cnb.cool/xlennart/openofficetab/-/releases)。两端提供相同安装包和校验文件。[OSS 备用下载（最后兜底）](https://openofficetab-xlennart.oss-cn-chengdu.aliyuncs.com/releases/v0.2.3/openOfficetab-0.2.3-setup-x64.exe)。
 
 安装器与管理中心仍为 x64，同一安装包包含两种 Office 插件。见 [架构与测试说明](docs/office-x86.md)。
 
@@ -90,7 +90,7 @@ openOfficeTab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 它能做什么
 
-**诊断增强测试版：**[0.2.3-beta.3](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.3-beta.3) 将点击/激活观察和实际加载模块指纹集成进原有诊断导出，issue #5 根因仍未确认。正式版仍为 0.2.2。在 Beta 管理中心的“关于与更新 → 更新通道”选择“正式版 / Beta 版”，默认正式版，切换不会降级。issue #5 仍需现场反馈验证。[本版说明](docs/release-notes-v0.2.3-beta.3.md) · [日志机制](docs/diagnostic-logging.md)。
+0.2.3 已纳入诊断 Beta 的改动，issue #5 的唯一根因仍未确认。在“关于与更新 → 更新通道”选择“正式版 / Beta 版”，默认正式版且切换不会降级。[日志机制](docs/diagnostic-logging.md)。
 
 
 | 功能 | 操作与行为 |
@@ -117,19 +117,19 @@ openOfficeTab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 ## 安装
 
-1. 从 [Releases](https://github.com/xlennart/openOfficeTab/releases/latest) 下载 `openOfficetab-0.2.2-setup-x64.exe`。
+1. 从 [Releases](https://github.com/xlennart/openOfficeTab/releases/latest) 下载 `openOfficetab-0.2.3-setup-x64.exe`。
 2. 保存文档并退出 Word、Excel、PowerPoint。
 3. 双击安装程序，在安装页选择组件后点击 **安装**。
 4. 重新打开 Office 文档，标签栏会出现在功能区下方。
 
 安装按当前 Windows 用户注册，无需管理员权限。安装程序不会替你关闭 Office 窗口。
 
-也可下载 `openOfficetab-0.2.2-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
+也可下载 `openOfficetab-0.2.3-win-x64.zip`，完整解压后运行 `Install.cmd`。ZIP 包与 EXE 安装相同的插件；源码可从仓库获取。
 
 Release 附有 `SHA256SUMS.txt`。安装程序尚未做代码签名，可先核对文件校验值，或自行从源码构建。
 
 ```powershell
-Get-FileHash .\openOfficetab-0.2.2-setup-x64.exe -Algorithm SHA256
+Get-FileHash .\openOfficetab-0.2.3-setup-x64.exe -Algorithm SHA256
 ```
 
 ### 卸载
@@ -267,6 +267,7 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 
 | 版本 | 日期 | 主要更新 |
 | :--- | :--- | :--- |
+| [0.2.3](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.3) | 2026-11-12 | 统一原生菜单与弹窗、安全重命名、纳入 Beta 诊断、爱发电入口及 OSS 最后兜底。 |
 | [0.2.2](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.2) | 2026-10-30 | 统一 x86/x64 Office 安装器、独立更新窗口、加载诊断及标签选择修复。 |
 | [0.2.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.1) | 2026-10-29 | 安装器与管理中心中英双语，共享语言偏好，修正小窗口布局和英文说明控件名称。 |
 | [0.2.0](https://github.com/xlennart/openOfficeTab/releases/tag/v0.2.0) | 2026-10-28 | 管理中心、脱敏日志导出与自动选线更新；标签与文档内容同步的初步修复；统一功能区布局。 |

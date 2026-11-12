@@ -1,4 +1,4 @@
-﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture,[string]$ExpectedVersion='0.2.3-beta.3',[switch]$DeferProcessExitCheck)
+﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture,[string]$ExpectedVersion='0.2.3',[switch]$DeferProcessExitCheck)
 $ErrorActionPreference='Stop'
 if($env:CODEX_WINDOWS_SANDBOX_PACKAGE_FAMILY){throw 'Run outside the development process context.'}
 $taskRoot=Split-Path $PSScriptRoot -Parent

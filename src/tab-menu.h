@@ -2,7 +2,7 @@
 #include "dialog-theme.h"
 
 namespace tabmenu {
-enum class Glyph { none, save, saveAs, folder, external, move, lock, close, stack, more, check, file, history, trash, sliders, info };
+enum class Glyph { none, save, saveAs, rename, folder, external, move, lock, close, stack, more, check, file, history, trash, sliders, info };
 
 inline void drawGlyph(HDC dc, Glyph glyph, int x, int y, const dialogui::Theme& theme, COLORREF color) {
     if (glyph == Glyph::none) return;
@@ -25,6 +25,10 @@ inline void drawGlyph(HDC dc, Glyph glyph, int x, int y, const dialogui::Theme& 
         line({{3,2},{9,2},{13,6},{13,14},{3,14},{3,2}});
         line({{9,2},{9,6},{13,6}});
         line({{8,8},{8,12}}); line({{6,10},{11,10}});
+        break;
+    case Glyph::rename:
+        line({{3,10},{11,2},{14,5},{6,13},{2,14},{3,10}});
+        line({{9,4},{12,7}});
         break;
     case Glyph::folder:
         line({{2,13},{2,4},{6,4},{8,6},{14,6},{14,7}});
@@ -290,6 +294,7 @@ inline void populate(Menu& menu, const View& view, int language) {
     HMENU root = menu.handle();
     menu.add(root, 2, tr(L"保存"), Glyph::save, !view.readOnly);
     menu.add(root, 3, tr(L"另存为…"), Glyph::saveAs, !view.readOnly);
+    menu.add(root, 20, tr(L"重命名文件…"), Glyph::rename, !view.readOnly && storage::localFile(view.path));
     menu.add(root, 11, tr(L"打开所在文件夹"), Glyph::folder, !view.path.empty() && view.path.find(L"://") == std::wstring::npos);
     menu.separator();
     menu.add(root, 12, tr(L"在独立窗口中显示"), Glyph::external);

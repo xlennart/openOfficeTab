@@ -1,0 +1,6 @@
+{
+  "name": "openofficetab-release-tools",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": { "ali-oss": "6.23.0" }
+}

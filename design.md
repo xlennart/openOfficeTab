@@ -22,9 +22,9 @@
 
 ### 界面验收
 
-- PR 作者须亲自在实际程序中验证受影响界面并附前后对照及通过证据，标注测试提交、程序及载荷哈希、应用、语言、主题、窗口尺寸和显示缩放。原生菜单和弹窗放回实际 Office 窗口检查，覆盖相关宿主和键盘操作。
+- PR 作者优先在自己可用的环境中亲自验证一次受影响界面，附实际结果和前后对照，说明未覆盖项。缺少环境时与维护者约定补测；完整实机矩阵可由维护者承担。最终记录标注测试提交、程序及载荷哈希、应用、语言、主题、窗口尺寸和显示缩放，原生菜单和弹窗在实际 Office 中检查相关宿主及键盘操作。
 - 以当前配置的默认和最小尺寸验收管理中心与更新窗口。当前管理中心为 920 × 700 和 420 × 480，更新窗口为 560 × 530 和 360 × 400，均为逻辑像素。检查换行、边界、窗口按钮与底部操作区。
-- 分开记录离线检查、预览和实机证据。AI 生成的说明、模拟测试和离屏预览不能替代实际程序的通过证据。必要场景缺少证据或尚未通过时保持草稿。验收要求见[贡献指南](CONTRIBUTING.zh-CN.md)。
+- 分开记录离线检查、预览和实机证据。AI 生成的说明、模拟测试和离屏预览不能替代实际程序验收。缺少完整环境不自动要求草稿；代码审查及必要验收通过后再合并、发版。见[贡献指南](CONTRIBUTING.zh-CN.md)。
 
 ## English
 
@@ -46,6 +46,6 @@
 
 ### UI acceptance
 
-- The PR author must personally verify affected surfaces in the actual application and attach before/after captures and passing evidence. Record the tested commit, program and payload hashes, app, language, theme, window size, and display scale. Check native menus and dialogs inside Office, covering the relevant hosts and keyboard interaction.
+- Authors should first personally check affected surfaces in an available environment, attach actual results and before/after captures, and explain gaps. Agree on maintainer testing when environments are unavailable; maintainers may provide the full runtime matrix. Final records identify the tested commit, program and payload hashes, app, language, theme, window size, and display scale. Check native menus and dialogs inside Office, covering relevant hosts and keyboard interaction.
 - Check the management center and update window at the configured default and minimum sizes. The current management center uses 920 × 700 and 420 × 480, and the update window uses 560 × 530 and 360 × 400, all in logical pixels. Check wrapping, control bounds, window buttons, and the bottom action area.
-- Report offline checks, previews, and real runtime evidence separately. AI-generated descriptions, mocks, and off-screen previews cannot replace passing evidence from the actual application. Keep the PR in draft while required scenarios lack evidence or have not passed. See the [contribution guide](CONTRIBUTING.md) for acceptance requirements.
+- Report offline checks, previews, and real runtime evidence separately. AI-generated descriptions, mocks, and off-screen previews do not replace actual application acceptance. Missing the full environment alone does not require draft status; merge and release after code review and required acceptance. See the [contribution guide](CONTRIBUTING.md).
