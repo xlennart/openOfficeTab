@@ -13,7 +13,7 @@ Version 0.2.3 selects native 32-bit or 64-bit Office support automatically on **
 3. For the ZIP package, extract all files and run `Install.cmd`.
 4. Reopen an Office document. The tab bar appears below the ribbon.
 
-Installation is per user and needs no administrator rights. The installer does not close your documents or change Office security policy. Windows x64 with 32-bit or 64-bit Office is required. Tests cover host Office 16.0.20527.20088 x64 and VMware Office 16.0.20527.20112 x86; other builds and display setups have not all been verified. The installer is unsigned; compare the download with `SHA256SUMS.txt`.
+Installation is per user and needs no administrator rights. The installer does not close your documents or change Office security policy. Windows x64 with 32-bit or 64-bit Office is required. 0.2.3 checks cover host Office 16.0.20527.20150 x64 and VMware Office x86 (last verified baseline 16.0.20527.20112; patch version not resampled this round); other builds and display setups have not all been verified. The installer is unsigned; compare the download with `SHA256SUMS.txt`.
 
 ## Interface language
 
@@ -57,6 +57,6 @@ From 0.2.3-beta.1, choose **About & updates → Update channel → Stable / Beta
 
 ## Rename and support
 
-For saved local documents, right-click the tab and choose **Rename file…**. Renaming saves and reopens the file, resetting undo history; the dialog warns before confirmation. Read-only files, remote paths, multiple windows and unsupported formats are refused. Existing target files are never replaced.
+For saved local documents, right-click the tab and choose **Rename file…**. Renaming saves and reopens the file, resetting undo history; the dialog warns before confirmation. Read-only files, URL-based paths, multiple windows and unsupported formats are refused. Existing target files are never replaced. Network shares have not been fully validated.
 
 In **About & updates**, use **Sponsor on Afdian** to support the project. OSS is the final fallback after existing download routes and keeps signature/hash verification; credentials are never packaged. See [current validation](https://github.com/xlennart/openOfficeTab/blob/main/docs/validation-v0.2.3.md) for actual coverage and limits.

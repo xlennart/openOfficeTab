@@ -33,7 +33,7 @@ openOfficeTab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 安装器与管理中心仍为 x64，同一安装包包含两种 Office 插件。见 [架构与测试说明](docs/office-x86.md)。
 
-32 位 Office 在 VMware 虚拟机中测试：Windows 11 企业版 LTSC 26100（64 位），Microsoft 365 Apps 16.0.20527.20112（32 位）。此环境不覆盖所有 Office 版本。如遇问题，请按[故障报告模板](https://github.com/xlennart/openOfficeTab/issues/new?template=bug_report.yml)提供复现步骤、Office 版本与位数，附上导出的脱敏诊断日志，必要时附视频。
+32 位 Office 在 VMware 虚拟机中测试：Windows 11 企业版 LTSC 26100（64 位），Microsoft 365 Apps（32 位，上次核验基线 16.0.20527.20112，0.2.3 本轮未重新采集补丁版本）。此环境不覆盖所有 Office 版本。如遇问题，请按[故障报告模板](https://github.com/xlennart/openOfficeTab/issues/new?template=bug_report.yml)提供复现步骤、Office 版本与位数，附上导出的脱敏诊断日志，必要时附视频。
 
 ## 看看效果
 
@@ -88,7 +88,7 @@ openOfficeTab 为桌面 Office 的功能区下方增加一条文档标签栏：�
 
 从 0.2.2 起，“检查更新”会打开独立窗口，展示新版本和更新说明，或提示“当前已是最新版”。点击“立即更新”后下载、校验并安装。保存文档与保留设置的提示直接显示；Office 运行时，保持更新窗口打开并退出 Office 后继续。
 
-若再次遇到标签、内容或窗口异常，请在 **诊断与修复 → 导出诊断与日志** 导出 JSON，在原 issue 下说明触发步骤和发生时间并附上文件。结构化时间线记录操作、Office 事件、窗口/标签编号及错误码，默认不采集文档名称、路径、正文、单元格、账号或令牌，不自动上传。日志有轮转与容量限制，详见 [诊断日志说明](docs/diagnostic-logging.md)。相关问题先保持打开，继续收集使用反馈。
+若再次遇到标签、内容或窗口异常，请在 **诊断与修复 → 导出诊断与日志** 导出 JSON，在原 issue 下说明触发步骤和发生时间并附上文件。结构化时间线记录操作、Office 事件、窗口/标签编号及错误码，默认不采集文档名称、路径、正文、单元格、账号或令牌，不自动上传。日志有轮转与容量限制，详见 [诊断日志说明](docs/diagnostic-logging.md)。发布 0.2.3 后，#4、#5 因暂无后续反馈关闭，根因仍未确认；有新的复现证据可在原 issue 回复并请求重新打开。
 
 ## 它能做什么
 
@@ -243,8 +243,8 @@ powershell -NoProfile -File .\scripts\uninstall.ps1 -RemoveSettings
 | :--- | :--- |
 | 早期实机验证环境 | Windows 11、Office Home 2024 x64、Word / Excel / PowerPoint 16.0.20430.20146 |
 | 已验证缩放 | 200% 缩放；水平栏被本机 Office 限制为至少 80 物理像素，约 40 DIP |
-| 发布架构 | 0.2.2：64 位 Windows 下自动匹配 x86/x64 Office，同一安装包包含两种原生载荷 |
-| x86 / 其他 Office 版本 | 32 位 Office 在 VMware 中测试，版本 16.0.20527.20112；64 位在宿主机测试，版本 16.0.20527.20088；其他版本未全部覆盖 |
+| 发布架构 | 0.2.3：64 位 Windows 下自动匹配 x86/x64 Office，同一安装包包含两种原生载荷 |
+| x86 / 其他 Office 版本 | 0.2.3：宿主机 Office 16.0.20527.20150 x64；VMware 内 32 位 Office（上次核验基线 16.0.20527.20112，本轮未重采补丁版本）；其他版本未全部覆盖 |
 | Office 网页版 / macOS | 不支持；这是 Windows 原生 COM 加载项 |
 
 目前是可使用的早期版本，不承诺覆盖成熟商用标签插件的全部功能。尚未提供全局快捷键和完整辅助技术语义。验证方法与边界见 [验证记录](docs/validation.md)。

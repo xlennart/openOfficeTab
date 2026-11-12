@@ -33,7 +33,7 @@ Downloads: [GitHub Releases](https://github.com/xlennart/openOfficeTab/releases/
 
 The installer and management center remain x64; both Office DLLs are included. See the [architecture and test notes](docs/office-x86.en.md).
 
-32-bit Office is tested in VMware on Windows 11 Enterprise LTSC 26100 (64-bit), using 32-bit Microsoft 365 Apps 16.0.20527.20112. This test environment does not cover every Office build. If a problem occurs, use the [bug report template](https://github.com/xlennart/openOfficeTab/issues/new?template=bug_report.yml), include reproduction steps and the Office version/architecture, and attach the exported, redacted diagnostic log and a video when useful.
+32-bit Office is tested in VMware on Windows 11 Enterprise LTSC 26100 (64-bit), using 32-bit Microsoft 365 Apps (last verified baseline 16.0.20527.20112; the patch version was not resampled for 0.2.3). This test environment does not cover every Office build. If a problem occurs, use the [bug report template](https://github.com/xlennart/openOfficeTab/issues/new?template=bug_report.yml), include reproduction steps and the Office version/architecture, and attach the exported, redacted diagnostic log and a video when useful.
 
 ## Screenshots
 
@@ -139,7 +139,7 @@ A manual update check probes available routes automatically. Signed metadata and
 
 In 0.2.2, **Check for updates** opens a separate window with the new version and release notes, or **You're up to date**. Choose **Update now** to download, verify and install. The save-work and settings-retention notice is shown directly; if Office is running, leave the update window open and exit Office to continue.
 
-If a problem recurs, choose **Diagnostics & repair → Export diagnostics and logs** to export a JSON report, then attach it to the original issue with the steps and approximate time. The bounded timeline records operations, Office events, process-local window/tab identities and error codes. Document names, paths, content, cell values, accounts and tokens are excluded by default; nothing is uploaded automatically. See [diagnostic logging](docs/diagnostic-logging.md). Related issues remain open for follow-up.
+If a problem recurs, choose **Diagnostics & repair → Export diagnostics and logs** to export a JSON report, then attach it to the original issue with the steps and approximate time. The bounded timeline records operations, Office events, process-local window/tab identities and error codes. Document names, paths, content, cell values, accounts and tokens are excluded by default; nothing is uploaded automatically. See [diagnostic logging](docs/diagnostic-logging.md). Issues #4 and #5 were closed after 0.2.3 for lack of further feedback; their root causes remain unconfirmed. Reply with new reproduction evidence to request reopening.
 
 ## User guide
 
@@ -242,8 +242,8 @@ These versions describe the development environment, rather than minimum require
 | :--- | :--- |
 | Earlier runtime-tested environment | Windows 11; Office Home 2024 x64; Word / Excel / PowerPoint 16.0.20430.20146. |
 | Tested display scale | 200%. This Office installation imposes a minimum horizontal pane height of 80 physical pixels, approximately 40 DIP. |
-| Release architecture | 0.2.2: automatic x86/x64 Office selection on 64-bit Windows, with both native payloads in the same installer. |
-| x86 / other Office versions | 32-bit Office tested in VMware with build 16.0.20527.20112; 64-bit Office tested on the host with build 16.0.20527.20088. Other builds are not all covered. |
+| Release architecture | 0.2.3: automatic x86/x64 Office selection on 64-bit Windows, with both native payloads in the same installer. |
+| x86 / other Office versions | 0.2.3: host Office 16.0.20527.20150 x64; VMware Office x86 (last verified baseline 16.0.20527.20112; patch not resampled this round). Other builds are not all covered. |
 | Office for the web / macOS | Unsupported. This is a native Windows COM add-in. |
 
 This is an early usable release, with no claim of feature parity with mature commercial tab add-ins. Configurable global shortcuts and complete accessibility support are not yet available. See the [validation record](docs/validation.md) for methods and limits.
