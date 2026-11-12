@@ -87,7 +87,7 @@ These user-provided screenshots show version 0.1.7. Choose either appearance und
 | Document tabs | Click to switch, drag to reorder, and see `*` on unsaved documents. |
 | New documents and document list | Use `+` to create a document, the down arrow to list documents, and `…` for settings. |
 | Quick closing | Close with `×` or the middle mouse button; optional double-click closing. Closing the final document exits the application when no other documents remain. Cancelling keeps the document open. |
-| Context menu | Save, Save As, close other / left / right / all tabs, and open the containing folder. |
+| Context menu | Save, Save As, rename file, close other / left / right / all tabs, and open the containing folder. |
 | Independent windows | Move a document out of its tab group while keeping its original window, file, and unsaved edits. |
 | Multiple tab groups | Drag a tab out to create a group, drag it onto another tab bar to merge, or choose a target group from the menu. |
 | Resizable tabs | Drag an individual tab's right edge to resize it from 80–360 DIP. Choose fixed, title-based, or compressed default widths. |
@@ -146,6 +146,11 @@ The instructions below use the English interface labels.
 ### Choose the interface language
 
 Open **… → Language**. Select **Follow Windows (default)**, **Simplified Chinese**, or **English**. Automatic mode uses Chinese for Chinese Windows display languages and English for other languages. Your choice survives restarts and syncs across running Office instances. Ribbon labels, menus, and subsequent add-in dialogs update without recreating document panes. File names and contents stay unchanged; Office save prompts and native Windows dialogs retain their own language. In the installer and center, the language selector in the sidebar or setup content area uses this same saved setting. Center windows refresh on focus after a native-language change. Static labels, runtime messages and sample content are translated; user file names, paths and content retain their original text.
+
+### Rename a file
+
+Right-click a tab → **Rename file…** and enter a name without the extension. Office saves current edits in the existing format, closes the document, and reopens it after Windows renames the file. The rename fails if the destination already exists. Available for saved, writable documents with one window. See the [validation checklist](docs/rename-validation.md) for limitations.
+
 
 ### Use an independent window
 

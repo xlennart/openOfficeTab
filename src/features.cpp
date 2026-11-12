@@ -21,10 +21,13 @@ const std::wstring& moduleSha256(){
 }
 }
 #include "appearance-dialog.h"
+#include "rename-dialog.h"
 
 namespace {
 bool ownedWindow(HWND window){DWORD pid=0;GetWindowThreadProcessId(window,&pid);return window&&IsWindow(window)&&pid==GetCurrentProcessId();}
 std::wstring hostLabel(Host host){return host==Host::Word?L"Word":host==Host::Excel?L"Excel":L"PowerPoint";}
+using renameui::RenameChoice;
+using renameui::renameProc;
 std::wstring hex(HRESULT hr){wchar_t text[16];swprintf_s(text,L"0x%08X",(unsigned)hr);return text;}
 }
 bool Session::openManagement(HWND owner,const wchar_t* page){
@@ -77,6 +80,22 @@ bool Session::setViewWidth(unsigned long long id,int width){
     auto v=find(id);if(!v||stopped||width<0||(width!=0&&!tablayout::validWidth(width,0)))return false;
     v->manualTabWidth=width;persistView(*v);redraw();return true;
 }
+void Session::renameDialog(HWND owner,unsigned long long id){
+    auto keep=shared_from_this();auto v=find(id);
+    if(stopped||executing||refreshing||!v||v->readOnly||!storage::localFile(v->path))return;
+    RenameChoice choice{this,id,v->path,language()};
+    struct Template {DLGTEMPLATE dialog;WORD menu,cls,title;} data{};
+    data.dialog.style=WS_POPUP|WS_CAPTION|WS_SYSMENU|WS_CLIPCHILDREN|DS_MODALFRAME;data.dialog.cx=290;data.dialog.cy=125;
+    if(DialogBoxIndirectParamW(module,&data.dialog,owner,renameProc,(LPARAM)&choice)!=IDOK)return;
+    const auto result=renameFile(id,choice.name);
+    if(result==documentrename::Result::renamed)return;
+    auto active=find(activeId);
+    HWND messageOwner=active&&IsWindow(active->hwnd)?active->hwnd:(IsWindow(owner)?owner:nullptr);
+    MessageBoxW(messageOwner,tr(result==documentrename::Result::reopenFailed?
+        L"文件已重命名。请从新路径手动打开文档。":
+        L"未完成重命名。请检查同名文件、文件格式或 Office 提示；多窗口文档和仅修改大小写暂不支持。"),
+        tr(L"重命名文件"),MB_OK|MB_ICONINFORMATION);
+}
 void Session::widthDialog(HWND owner){
     auto keep = shared_from_this();
     appearanceui::WidthChoice choice{settings.tabWidth, settings.widthMode, {language(), host, darkMode()}};
@@ -124,10 +143,10 @@ std::wstring Session::diagnostics()const{
     size_t independent=0,mounted=0,visible=0;std::map<unsigned,int> groups;
     for(auto& v:views){if(v->independent)independent++;else groups[v->groupId]++;}
     for(auto& p:panes){HWND h=p.control?p.control->NativeWindow():nullptr;if(h&&IsWindow(h))mounted++;if(h&&IsWindowVisible(h))visible++;}
-    return L"{\"version\":\"0.2.3-beta.3\",\"host\":"+json(hostLabel(host))+L",\"officeVersion\":"+json(version)+L",\"architecture\":\""+(sizeof(void*)==8?std::wstring(L"x64"):std::wstring(L"x86"))+L"\",\"connected\":"+(stopped?L"false":L"true")+L",\"loadBehavior\":"+std::to_wstring(registration)+L",\"registrationReadable\":"+(status==ERROR_SUCCESS?L"true":L"false")+L",\"eventsConnected\":"+(cookie?L"true":L"false")+L",\"paneFactoryAvailable\":"+(factory?L"true":L"false")+L",\"viewCount\":"+std::to_wstring(views.size())+L",\"groupCount\":"+std::to_wstring(groups.size())+L",\"independentCount\":"+std::to_wstring(independent)+L",\"paneCount\":"+std::to_wstring(panes.size())+L",\"mountedCount\":"+std::to_wstring(mounted)+L",\"visiblePaneCount\":"+std::to_wstring(visible)+L",\"visibleSetting\":"+(settings.visible?L"true":L"false")+L",\"autoHide\":"+(settings.autoHide?L"true":L"false")+L",\"tabWidth\":"+std::to_wstring(settings.tabWidth)+L",\"widthMode\":"+std::to_wstring(settings.widthMode)+L",\"accentPosition\":"+std::to_wstring(settings.accentPosition)+L",\"barStyle\":"+std::to_wstring(settings.barStyle)+L",\"barColor\":"+json(tabcolor::format(settings.barColor))+L",\"customBarColor\":"+(settings.customBarColor?L"true":L"false")+L",\"singleTaskbarSetting\":"+(settings.group?L"true":L"false")+L",\"languageSetting\":"+std::to_wstring(settings.language)+L",\"language\":"+json(language()==1?L"zh-CN":L"en")+L",\"themeMode\":"+std::to_wstring(settings.themeMode)+L",\"frameCloseAction\":"+std::to_wstring(settings.frameCloseAction)+L",\"observedRootCount\":"+std::to_wstring(rootObservers.size())+L",\"windowCoordination\":true,\"dark\":"+(darkMode()?L"true":L"false")+L",\"barBackground\":"+json(tabcolor::format((darkMode()&&settings.barStyle==1?surroundColor():tabcolor::background(darkMode(),settings.barStyle==1,settings.barColor,settings.customBarColor))))+L",\"surroundBackground\":"+json(tabcolor::format(surroundColor()))+L",\"settingsLiveSync\":true,\"settingsWritePending\":"+(settings.savePending?L"true":L"false")+L",\"recentlyClosedCount\":"+std::to_wstring(recentlyClosed().size())+L",\"closePending\":"+(pendingCloseId?L"true":L"false")+L",\"refreshFailures\":"+std::to_wstring(failures)+L",\"lastOperation\":"+json(lastOperation)+L",\"lastError\":"+json(hex(lastError))+L",\"inputTraceAvailable\":"+(inputTraceAvailable()?L"true":L"false")+L",\"moduleSha256\":"+json(moduleSha256())+L",\"moduleHashReadable\":"+(!moduleSha256().empty()?L"true":L"false")+L",\"logSchema\":1,\"droppedLogRecords\":"+std::to_wstring(runtimelog::recorder().lost())+L",\"privacy\":\"No document names, paths, content, account names or legacy raw logs\"}";
+    return L"{\"version\":\"0.2.3\",\"host\":"+json(hostLabel(host))+L",\"officeVersion\":"+json(version)+L",\"architecture\":\""+(sizeof(void*)==8?std::wstring(L"x64"):std::wstring(L"x86"))+L"\",\"connected\":"+(stopped?L"false":L"true")+L",\"loadBehavior\":"+std::to_wstring(registration)+L",\"registrationReadable\":"+(status==ERROR_SUCCESS?L"true":L"false")+L",\"eventsConnected\":"+(cookie?L"true":L"false")+L",\"paneFactoryAvailable\":"+(factory?L"true":L"false")+L",\"viewCount\":"+std::to_wstring(views.size())+L",\"groupCount\":"+std::to_wstring(groups.size())+L",\"independentCount\":"+std::to_wstring(independent)+L",\"paneCount\":"+std::to_wstring(panes.size())+L",\"mountedCount\":"+std::to_wstring(mounted)+L",\"visiblePaneCount\":"+std::to_wstring(visible)+L",\"visibleSetting\":"+(settings.visible?L"true":L"false")+L",\"autoHide\":"+(settings.autoHide?L"true":L"false")+L",\"tabWidth\":"+std::to_wstring(settings.tabWidth)+L",\"widthMode\":"+std::to_wstring(settings.widthMode)+L",\"accentPosition\":"+std::to_wstring(settings.accentPosition)+L",\"barStyle\":"+std::to_wstring(settings.barStyle)+L",\"barColor\":"+json(tabcolor::format(settings.barColor))+L",\"customBarColor\":"+(settings.customBarColor?L"true":L"false")+L",\"singleTaskbarSetting\":"+(settings.group?L"true":L"false")+L",\"languageSetting\":"+std::to_wstring(settings.language)+L",\"language\":"+json(language()==1?L"zh-CN":L"en")+L",\"themeMode\":"+std::to_wstring(settings.themeMode)+L",\"frameCloseAction\":"+std::to_wstring(settings.frameCloseAction)+L",\"observedRootCount\":"+std::to_wstring(rootObservers.size())+L",\"windowCoordination\":true,\"dark\":"+(darkMode()?L"true":L"false")+L",\"barBackground\":"+json(tabcolor::format((darkMode()&&settings.barStyle==1?surroundColor():tabcolor::background(darkMode(),settings.barStyle==1,settings.barColor,settings.customBarColor))))+L",\"surroundBackground\":"+json(tabcolor::format(surroundColor()))+L",\"settingsLiveSync\":true,\"settingsWritePending\":"+(settings.savePending?L"true":L"false")+L",\"recentlyClosedCount\":"+std::to_wstring(recentlyClosed().size())+L",\"closePending\":"+(pendingCloseId?L"true":L"false")+L",\"refreshFailures\":"+std::to_wstring(failures)+L",\"lastOperation\":"+json(lastOperation)+L",\"lastError\":"+json(hex(lastError))+L",\"inputTraceAvailable\":"+(inputTraceAvailable()?L"true":L"false")+L",\"moduleSha256\":"+json(moduleSha256())+L",\"moduleHashReadable\":"+(!moduleSha256().empty()?L"true":L"false")+L",\"logSchema\":1,\"droppedLogRecords\":"+std::to_wstring(runtimelog::recorder().lost())+L",\"privacy\":\"No document names, paths, content, account names or legacy raw logs\"}";
 }
 void Session::showDiagnostics(HWND owner){
-    auto keep=shared_from_this();std::wstring advice=L"openOfficeTab 0.2.3-beta.3\n\n";
+    auto keep=shared_from_this();std::wstring advice=L"openOfficeTab 0.2.3\n\n";
     if(!factory)advice+=tr(L"Office 尚未提供标签窗格工厂。请保存后重开 Office，或在安装器中检查和修复注册。\n");
     if(!settings.visible)advice+=tr(L"标签栏当前被隐藏，可使用“恢复标签栏与窗口”。\n");
     if(settings.autoHide)advice+=tr(L"已启用单标签自动隐藏。\n");

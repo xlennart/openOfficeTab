@@ -3,6 +3,7 @@
 #include "diagnostic-trace.h"
 #include "storage.h"
 #include "localization.h"
+#include "rename.h"
 enum class Host {Word,Excel,PowerPoint};
 struct View {
     unsigned long long id=0;
@@ -116,6 +117,8 @@ public:
     bool excelEditing()const;
     bool close(unsigned long long id,bool fromFrame=false);
     bool save(unsigned long long id,bool saveAs=false);
+    documentrename::Result renameFile(unsigned long long id,const std::wstring& name);
+    void renameDialog(HWND owner,unsigned long long id);
     void create(bool independent=false,HWND owner=nullptr);void open();void quitIfEmpty();void finishClose();void nativeClose();
     void batchClose(std::vector<unsigned long long> ids,bool fromFrame=false);
     void saveAll(HWND owner=nullptr);void reorder(unsigned long long from,unsigned long long to);

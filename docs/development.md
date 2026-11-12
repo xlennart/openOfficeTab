@@ -117,3 +117,11 @@ powershell -NoProfile -File tests/ribbon-runtime.ps1 -HostName PowerPoint
 ## Dual-architecture Office delivery
 
 See [English implementation and VM acceptance notes](office-x86.en.md) / [32 位 Office 制作与验收说明](office-x86.md). The unified x64 Windows center embeds both DLLs. Test x86 Office in the VMware desktop and x64 Office on the host; see the linked versioned evidence and coverage limits.
+
+## 标签页右键重命名
+
+右键菜单 `Session::menu` 在保存命令旁提供“重命名文件…”。`features.cpp` 调用 `rename-dialog.h` 的原生模态对话框，输入的是不含扩展名的名称。`Session::renameFile` 在宿主 STA 中按原格式保存编辑并关闭文档，通过 Windows 文件句柄在原目录内原子改名，然后重新打开。重新打开会重置 Office 撤销历史，刷新时恢复标签偏好和位置。
+
+仅已保存、可写的单窗口本地或 UNC 文档可用。拒绝非法文件名、仅大小写变化及无法可靠识别格式的 PowerPoint `.pptx`。原子改名禁止覆盖目标，目标在保存或关闭期间出现时保留两份文件。`RenameTransition` 在文档窗口处于前台时暂时显示关闭前的画面，等重开后的窗口重绘再移除。Office 模态提示激活时会撤下覆盖层。
+
+`tests/rename-test.cpp` 检查文件名规则和扩展名保留。`tests/rename-session-test.cpp` 使用模拟 Office COM、真实 Win32 文件和 OPC 包，覆盖格式识别、保存或关闭取消、同名冲突、原路径被替换、重开失败和偏好继承。双架构测试入口及实机验收清单见 [重命名验证](rename-validation.md)。
