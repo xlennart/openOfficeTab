@@ -4,6 +4,8 @@
 #include "storage.h"
 #include "localization.h"
 #include "rename.h"
+#include "mixed-office.h"
+#include "mixed-office.h"
 enum class Host {Word,Excel,PowerPoint};
 struct View {
     unsigned long long id=0;
@@ -17,6 +19,12 @@ struct View {
     WINDOWPLACEMENT original{sizeof(WINDOWPLACEMENT)},applied{sizeof(WINDOWPLACEMENT)};
     RECT originalBounds{},appliedBounds{};
     bool moved=false,taskbarRemoved=false;
+    bool remote=false,mixedWasIndependent=false;
+    unsigned mixedPreviousGroup=0;
+    unsigned long long mixedGroup=0;
+    unsigned mixedOriginalGroup=0;
+    bool mixedOriginalIndependent=false;
+    int tabHost=-1;
 };
 class PaneChrome;
 class RootObserver;
@@ -53,6 +61,7 @@ public:
     std::vector<std::wstring> pendingRecent;
     std::vector<std::shared_ptr<View>> views;
     std::vector<Pane> panes;
+    std::unique_ptr<mixedoffice::Client> mixed;
     unsigned long long nextId=1,activeId=0,groupActiveId=0;
     unsigned nextGroupId=2,newDocumentGroup=1;
     std::map<unsigned,unsigned long long> groupActives;

@@ -12,6 +12,10 @@ inline int resolve(int mode,LANGID system=GetUserDefaultUILanguage()){
 }
 struct Entry {const wchar_t* zh;const wchar_t* en;};
 inline constexpr Entry entries[]={
+    {L"混合 Office 标签组（实验）…",L"Mixed Office group (experimental)…"},
+    {L"退出混合标签组",L"Leave mixed group"},
+    {L"请先打开另一个 Office 文档",L"Open another Office document first"},
+    {L"混合标签组暂不支持批量保存或关闭。请逐个处理文档。",L"Mixed groups do not support bulk save or close yet. Handle each document individually."},
     {L"默认宽度（80–360）",L"Default width (80–360)"},{L"宽度模式",L"Width mode"},
     {L"更多操作",L"More actions"},
     {L"批量关闭",L"Close multiple tabs"},

@@ -20,7 +20,7 @@ public:
     ULONG STDMETHODCALLTYPE Release()override{ULONG n=--refs;if(!n)delete this;return n;}
     DISPATCH_STUBS
     HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR* names,UINT n,LCID,DISPID* ids)override{
-        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth",L"SetBarColor",L"ShowColor",L"GetRecentlyClosed",L"ReopenClosed",L"ClearRecentlyClosed",L"ResetFileSettings",L"ResetAllFileSettings",L"SyncSettings",L"ShowRecentlyClosed",L"SetThemeMode",L"SetFrameCloseAction",L"SetLanguage",L"GetLabel",L"RibbonLoaded",L"OpenManagementCenter"};
+        const wchar_t* api[]={L"Refresh",L"GetState",L"Activate",L"Close",L"Save",L"NewDocument",L"ToggleGroup",L"ToggleVisible",L"RestoreWindows",L"ShowSettings",L"SetLocked",L"Reorder",L"SaveAll",L"CloseOther",L"OpenDocument",L"SetDark",L"SetIndependent",L"JoinTabs",L"DetachDocument",L"NewIndependentDocument",L"NewTabGroup",L"MoveToGroup",L"SetTabWidth",L"GetDiagnostics",L"Recover",L"ShowDiagnostics",L"ExportDiagnostics",L"ShowWidth",L"ChooseTabGroup",L"DropTab",L"SetAppearance",L"SetViewWidth",L"SetBarColor",L"ShowColor",L"GetRecentlyClosed",L"ReopenClosed",L"ClearRecentlyClosed",L"ResetFileSettings",L"ResetAllFileSettings",L"SyncSettings",L"ShowRecentlyClosed",L"SetThemeMode",L"SetFrameCloseAction",L"SetLanguage",L"GetLabel",L"RibbonLoaded",L"OpenManagementCenter",L"JoinOfficeGroup",L"LeaveOfficeGroup"};
         if(!names||!ids)return E_POINTER;
         for(UINT i=0;i<n;i++){ids[i]=DISPID_UNKNOWN;for(size_t j=0;j<std::size(api);j++)if(!_wcsicmp(names[i],api[j]))ids[i]=(DISPID)j+1;if(ids[i]==DISPID_UNKNOWN)return DISP_E_UNKNOWNNAME;}return S_OK;
     }
@@ -74,6 +74,8 @@ public:
                 case 44:booleanResult(s->setLanguage(arg(0).number()));break;
                 case 45:{auto control=arg(0).disp();auto label=i18n::ribbonLabel(s->language(),prop(control.get(),L"Id").str());if(result){result->vt=VT_BSTR;result->bstrVal=SysAllocString(label);}break;}
                 case 46:s->ribbon=arg(0).disp();s->lastLanguage=0;s->refreshLanguage();break;
+                case 48:booleanResult(s->mixed&&s->mixed->joinInto(*s,(unsigned long long)arg(0).number(),(HWND)(UINT_PTR)(unsigned long)arg(1).number()));break;
+                case 49:if(s->mixed)s->mixed->leave(*s,(unsigned long long)arg(0).number());break;
                 case 47:{auto v=s->find(s->activeId);booleanResult(s->openManagement(v?v->hwnd:nullptr));break;}
                 default:return DISP_E_MEMBERNOTFOUND;
             }if(id>2&&id!=24&&id!=35&&id!=45&&id!=46)logEvent(L"command.return",{{"dispid",id},{"activeId",(long long)s->activeId},{"outcome",result&&result->vt==VT_BOOL?(result->boolVal==VARIANT_TRUE?1:0):-1}});return S_OK;

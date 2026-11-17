@@ -60,6 +60,7 @@ constexpr UINT FRAME_CLOSE=WM_APP+112;
 constexpr UINT NEW_DOCUMENT=WM_APP+113;
 LRESULT CALLBACK sessionProc(HWND w,UINT m,WPARAM a,LPARAM b){
     auto s=(Session*)GetWindowLongPtrW(w,GWLP_USERDATA);
+    if(s&&m==WM_TIMER&&a==6){try{auto keep=s->shared_from_this();if(s->mixed&&!s->stopped)s->mixed->tick(*s);}catch(...){log(L"mixed.tick.failed",E_FAIL);}return 0;}
     if(m==WM_TIMER&&a==1&&s&&!s->windowFrameBusy()&&!s->coordinatingWindows)runtimelog::recorder().flush();
     if(m==WM_NCCREATE){s=(Session*)((CREATESTRUCTW*)b)->lpCreateParams;SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)s);}
     if(s&&m==FRAME_CLOSE){auto keep=s->shared_from_this();s->processFrameClose();return 0;}
@@ -95,13 +96,14 @@ void Session::start(){
     auto cp=app.as<IConnectionPointContainer>();
     if(cp&&SUCCEEDED(cp->FindConnectionPoint(events,connection.out()))){sink=Ptr<EventSink>(new EventSink(this,events),false);HRESULT hr=connection->Advise(sink.get(),&cookie);if(FAILED(hr)){connection.reset();sink.reset();log(L"events.advise.failed",hr);}else log(L"events.connected");}
     HRESULT hr=CoCreateInstance(CLSID_TaskbarList,nullptr,CLSCTX_INPROC_SERVER,IID_ITaskbarList,(void**)taskbar.out());if(SUCCEEDED(hr)&&FAILED(taskbar->HrInit()))taskbar.reset();
+    mixed=std::make_unique<mixedoffice::Client>();SetTimer(timer,6,200,nullptr);
     SetTimer(timer,1,750,nullptr);defer();log(L"session.started");runtimelog::recorder().flush();
 }
 void Session::stop(){
-    if(stopped)return;stopped=true;detachWindowObservers();
+    if(stopped)return;stopped=true;if(mixed)mixed->stop(*this);detachWindowObservers();
     try{flushPersistence(200);}catch(...){log(L"state.shutdown.flushFailed",E_FAIL);}
     queuedNewDocument=false;
-    if(timer){KillTimer(timer,1);KillTimer(timer,2);KillTimer(timer,5);DestroyWindow(timer);timer=nullptr;}
+    if(timer){KillTimer(timer,1);KillTimer(timer,2);KillTimer(timer,5);KillTimer(timer,6);DestroyWindow(timer);timer=nullptr;}
     if(sink)sink->detach();if(connection&&cookie)connection->Unadvise(cookie);cookie=0;connection.reset();sink.reset();
     restore();
     for(auto& p:panes){if(p.control)p.control->Bind(nullptr,nullptr);p.chrome.reset();if(p.control)p.control->Unmount();try{call(p.office.get(),L"Delete",DISPATCH_METHOD);}catch(...){}}
@@ -131,12 +133,13 @@ void Session::event(DISPID id,DISPPARAMS* params){
     // parking pane, including the custom caption. Let Office finish the event.
     defer();
 }
-std::shared_ptr<View> Session::find(unsigned long long id)const{for(auto& v:views)if(v->id==id)return v;return {};}
+std::shared_ptr<View> Session::find(unsigned long long id)const{for(auto& v:views)if(v->id==id)return v;return mixed?mixed->remote(id):nullptr;}
 unsigned Session::groupForWindow(HWND root)const{
     if(root)root=GetAncestor(root,GA_ROOT);for(auto& v:views)if(v->hwnd==root)return v->groupId;return currentGroup();
 }
 unsigned Session::currentGroup()const{auto v=find(activeId);return v?v->groupId:1;}
 std::vector<std::shared_ptr<View>> Session::tabViews(HWND root)const{
+    std::vector<std::shared_ptr<View>> mixedViews;if(mixed&&root&&mixed->members(*this,root,mixedViews))return mixedViews;
     unsigned group=root?groupForWindow(root):0;
     std::vector<std::shared_ptr<View>> result;for(auto& v:views)if(!v->independent&&(!root||v->groupId==group))result.push_back(v);return result;
 }
@@ -185,7 +188,7 @@ bool Session::setIndependent(unsigned long long id,bool independent){
 bool Session::moveToGroup(unsigned long long id,unsigned group){
     logEvent(L"group.move.request",{{"viewId",(long long)id},{"group",group}});
     auto keep=shared_from_this();if(stopped||executing||refreshing)return false;
-    auto v=find(id);if(!v||!valid(v->hwnd))return false;
+    auto v=find(id);if(!v||!valid(v->hwnd)||v->mixedGroup)return false;
     if(v->groupId==group)return true;
     if(group>=nextGroupId)return false;
     restoreWindowMasks();
@@ -241,6 +244,7 @@ bool Session::refresh(){
             if(!v){v=std::make_shared<View>();v->id=nextId++;v->hwnd=h;v->identity=ident;GetWindowPlacement(h,&v->original);
                 if(pendingNewDocument&&GetTickCount64()-pendingNewSince>5000)pendingNewDocument=false;
                 v->groupId=pendingNewDocument?newDocumentGroup:currentGroup();v->independent=v->groupId==0;v->lastGroupId=v->groupId?v->groupId:1;pendingNewDocument=false;}
+            if(isNew)for(auto& parent:views)if(parent->mixedGroup&&v->groupId==parent->groupId){v->groupId=parent->mixedOriginalGroup;v->independent=parent->mixedOriginalIndependent;v->lastGroupId=v->groupId?v->groupId:1;break;}
             v->window=win;v->document=doc;v->title=call(doc.get(),L"Name").str();
             std::wstring caption=prop(win.get(),L"Caption").str();
             if(caption.find(L":")!=std::wstring::npos)v->title=caption;
@@ -369,6 +373,7 @@ bool Session::excelEditing()const{
     return false;
 }
 void Session::activate(unsigned long long id,HWND owner){
+    if(id&mixedoffice::remoteBit){if(mixed)mixed->request(*this,id,mixedoffice::Activate,owner);return;}
     diagnostic::Scope cause(diagnostic::Tab);
     logEvent(L"tab.activate.request",{{"viewId",(long long)id},{"activeId",(long long)activeId},{"frameBusy",windowFrameBusy()}});
     auto keep=shared_from_this();if(stopped||executing)return;auto target=find(id);if(!target)return;
@@ -408,6 +413,7 @@ void Session::activate(unsigned long long id,HWND owner){
     if(current){HWND previous=operatingRoot;operatingRoot=current->hwnd;try{rootLayoutChanged(current->hwnd);}catch(...){operatingRoot=previous;throw;}operatingRoot=previous;}
 }
 bool Session::close(unsigned long long id,bool fromFrame){
+    if(id&mixedoffice::remoteBit){if(mixed)mixed->request(*this,id,mixedoffice::Close,nullptr);return false;}
     logEvent(L"tab.close.request",{{"viewId",(long long)id},{"fromFrame",fromFrame}});
     auto keep=shared_from_this();if(stopped||executing||pendingCloseId)return false;auto v=find(id);if(!v||(v->locked&&!fromFrame))return false;
     if(host==Host::PowerPoint||(host==Host::Word&&fromFrame)){
@@ -481,6 +487,7 @@ void Session::quitIfEmpty(){
     }catch(const ComError& e){report(e);}
 }
 bool Session::save(unsigned long long id,bool saveAs){
+    if(id&mixedoffice::remoteBit)return false;
     logEvent(L"document.save.request",{{"viewId",(long long)id},{"saveAs",saveAs}});
     auto keep=shared_from_this();if(stopped||executing)return false;auto v=find(id);if(!v||v->readOnly)return false;
     try{
@@ -733,21 +740,22 @@ void Session::processCreate(){
 }
 void Session::open(){log(L"document.open.request");auto keep=shared_from_this();if(stopped||executing)return;try{Flag busy(executing);auto b=call(app.get(),L"CommandBars").disp();call(b.get(),L"ExecuteMso",DISPATCH_METHOD,{Var(std::wstring(L"FileOpen"))});}catch(const ComError& e){report(e);}refresh();}
 void Session::batchClose(std::vector<unsigned long long> ids,bool fromFrame){
+    if(ids.size()>1)for(auto id:ids){auto v=find(id);if(v&&v->mixedGroup){lastError=E_NOTIMPL;return;}}
     auto keep=shared_from_this();if(pendingCloseId)return;frameBatch=fromFrame;
     for(size_t i=0;i<ids.size();i++){auto id=ids[i];auto v=find(id);if(!v||(v->locked&&!fromFrame)||v->independent)continue;
         if(!close(id,fromFrame)){frameBatch=false;return;}
         if(pendingCloseId){pendingBatch.assign(ids.begin()+i+1,ids.end());return;}
     }frameBatch=false;
 }
-void Session::saveAll(HWND owner){auto keep=shared_from_this();auto active=find(activeId);if(!owner&&active)owner=active->hwnd;std::vector<unsigned long long> ids;std::vector<IUnknown*> docs;for(auto& v:tabViews(owner)){auto i=v->document.as<IUnknown>();if(std::find(docs.begin(),docs.end(),i.get())==docs.end()){docs.push_back(i.get());if(!v->saved)ids.push_back(v->id);}}for(auto id:ids)if(!save(id))break;}
-void Session::reorder(unsigned long long from,unsigned long long to){logEvent(L"tab.reorder.request",{{"viewId",(long long)from},{"targetId",(long long)to}});auto a=std::find_if(views.begin(),views.end(),[&](auto& v){return v->id==from;});auto b=std::find_if(views.begin(),views.end(),[&](auto& v){return v->id==to;});if(a==views.end()||b==views.end())return;auto v=*a;size_t index=(size_t)(b-views.begin());views.erase(a);views.insert(views.begin()+index,v);redraw();}
+void Session::saveAll(HWND owner){auto keep=shared_from_this();auto active=find(activeId);if(!owner&&active)owner=active->hwnd;if(mixed&&mixed->contains(owner)){lastError=E_NOTIMPL;MessageBoxW(owner,tr(L"混合标签组暂不支持批量保存或关闭。请逐个处理文档。"),L"openOfficeTab",MB_OK|MB_ICONINFORMATION);return;}std::vector<unsigned long long> ids;std::vector<IUnknown*> docs;for(auto& v:tabViews(owner)){auto i=v->document.as<IUnknown>();if(std::find(docs.begin(),docs.end(),i.get())==docs.end()){docs.push_back(i.get());if(!v->saved)ids.push_back(v->id);}}for(auto id:ids)if(!save(id))break;}
+void Session::reorder(unsigned long long from,unsigned long long to){auto source=find(from);auto target=find(to);if((source&&source->mixedGroup)||(target&&target->mixedGroup)){if(mixed)mixed->reorder(*this,from,to);return;}logEvent(L"tab.reorder.request",{{"viewId",(long long)from},{"targetId",(long long)to}});auto a=std::find_if(views.begin(),views.end(),[&](auto& v){return v->id==from;});auto b=std::find_if(views.begin(),views.end(),[&](auto& v){return v->id==to;});if(a==views.end()||b==views.end())return;auto v=*a;size_t index=(size_t)(b-views.begin());views.erase(a);views.insert(views.begin()+index,v);redraw();}
 void Session::restoreView(View& v){
     if(valid(v.hwnd)){
         if(v.taskbarRemoved&&taskbar)taskbar->AddTab(v.hwnd);
         if(v.moved&&windowlayout::matches(v.hwnd,v.applied,v.appliedBounds))windowlayout::apply(v.hwnd,v.original,v.originalBounds);
     }v.taskbarRemoved=false;v.moved=false;
 }
-void Session::restore(){restoreWindowMasks();bool previous=coordinatingWindows;coordinatingWindows=true;groupSlots.clear();for(auto& v:views)restoreView(*v);coordinatingWindows=previous;log(L"windows.restored");}
+void Session::restore(){if(mixed)mixed->stop(*this);restoreWindowMasks();bool previous=coordinatingWindows;coordinatingWindows=true;groupSlots.clear();for(auto& v:views)restoreView(*v);coordinatingWindows=previous;log(L"windows.restored");}
 void Session::updateTaskbar(){
     if(!taskbar)return;
     // Office can register a window again after activation, or after Explorer
@@ -757,12 +765,13 @@ void Session::updateTaskbar(){
     std::set<unsigned> ready;
     for(auto& v:views){
         if(!valid(v->hwnd))continue;
+        if(v->mixedGroup){if(v->taskbarRemoved&&SUCCEEDED(taskbar->AddTab(v->hwnd)))v->taskbarRemoved=false;continue;}
         bool grouped=settings.group&&showTabs(v->hwnd)&&!v->independent;
         if(grouped&&v->id==activeTabId(v->hwnd)){
             if(SUCCEEDED(taskbar->AddTab(v->hwnd))){v->taskbarRemoved=false;ready.insert(v->groupId);}
         }else if(!grouped&&v->taskbarRemoved&&SUCCEEDED(taskbar->AddTab(v->hwnd)))v->taskbarRemoved=false;
     }
-    for(auto& v:views)if(valid(v->hwnd)&&ready.count(v->groupId)&&!v->independent&&v->id!=activeTabId(v->hwnd)){
+    for(auto& v:views)if(!v->mixedGroup&&valid(v->hwnd)&&ready.count(v->groupId)&&!v->independent&&v->id!=activeTabId(v->hwnd)){
         if(SUCCEEDED(taskbar->DeleteTab(v->hwnd)))v->taskbarRemoved=true;
     }
 }
@@ -779,6 +788,9 @@ bool Session::recover(){
 std::wstring Session::state()const{
     std::wstring r=L"{\"version\":\"0.2.3\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
+    r+=L"],\"mixedTabs\":[";
+    auto current=find(activeId);bool firstMixed=true;
+    if(current&&current->mixedGroup)for(auto& v:tabViews(current->hwnd)){if(!firstMixed)r+=L",";firstMixed=false;r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"host\":"+std::to_wstring(v->tabHost)+L",\"title\":"+json(v->title)+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
         if(i)r+=L",";auto& p=panes[i];HWND h=p.control?p.control->NativeWindow():nullptr;RECT rc{};if(h)GetWindowRect(h,&rc);
@@ -791,15 +803,24 @@ std::wstring Session::state()const{
 }
 void Session::menu(HWND owner,unsigned long long id,POINT pt){
     auto keep=shared_from_this();auto v=find(id);if(!v)return;
+    if(v->mixedGroup){
+        tabmenu::Menu menu(owner,host,darkMode(),language());
+        menu.add(menu.handle(),1,tr(L"切换到此文档"));menu.add(menu.handle(),5,tr(L"关闭当前标签"),tabmenu::Glyph::close,!v->locked);
+        menu.add(menu.handle(),2,tr(L"保存"),tabmenu::Glyph::save,!(id&mixedoffice::remoteBit)&&!v->readOnly);
+        menu.separator();menu.add(menu.handle(),62,tr(L"退出混合标签组"),tabmenu::Glyph::external);
+        auto choice=menu.track(pt);if(choice==1)activate(id,owner);if(choice==5)close(id);if(choice==2)save(id);if(choice==62&&mixed)mixed->leave(*this,id);return;
+    }
     UINT command = 0;
     {
         tabmenu::Menu menu(owner, host, darkMode(), language());
         tabmenu::populate(menu, *v, language());
+        menu.separator();menu.add(menu.handle(),61,tr(L"混合 Office 标签组（实验）…"),tabmenu::Glyph::stack);
         command = menu.track(pt);
     }
     if (!command || stopped) return;
     v = find(id);
     if (!v) return;
+    if(command==61&&mixed){mixed->choose(*this,owner,id,pt);return;}
     if(command==1)activate(id);if(command==2)save(id);if(command==3)save(id,true);if(command==4)saveAll(v->hwnd);if(command==5)close(id);if(command==12)setIndependent(id,true);
     if(command>=6&&command<=9){std::vector<unsigned long long> ids;bool after=false;for(auto& x:tabViews(v->hwnd)){if(x->id==id){after=true;if(command==9)ids.push_back(x->id);continue;}if(command==6||command==9||(command==7&&!after)||(command==8&&after))ids.push_back(x->id);}batchClose(ids);}
     if(command==10){v->locked=!v->locked;redraw();}
@@ -818,6 +839,8 @@ void Session::options(HWND owner,POINT pt){
     }
     if (!cmd || stopped) return;
     if(cmd==60)openManagement(owner);
+    if(cmd==61&&mixed){unsigned long long id=0;auto root=GetAncestor(owner,GA_ROOT);for(auto& v:views)if(v->hwnd==root)id=v->id;mixed->choose(*this,owner,id,pt);}
+
     if(cmd==1)toggleVisible();if(cmd==2)toggleGroup();if(cmd==4){settings.autoHide=!settings.autoHide;changed();}if(cmd==5){settings.doubleClose=!settings.doubleClose;changed();}
     if(cmd==6||cmd==7){settings.position=cmd==6?1:3;changed();}if(cmd==8){restore();changed();}if(cmd==9)open();if(cmd==10)ShellExecuteW(owner,L"open",dataDir().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
     if(cmd==12)widthDialog(GetAncestor(owner,GA_ROOT));if(cmd==13)showDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==14)exportDiagnostics(GetAncestor(owner,GA_ROOT));if(cmd==15)recover();if(cmd==16)create(true,owner);

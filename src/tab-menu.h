@@ -328,6 +328,7 @@ inline void populateOptions(Menu& menu, const Settings& settings, int language) 
     };
     HMENU root = menu.handle();
     add(root, 60, L"管理中心", Glyph::sliders);
+    add(root, 61, L"混合 Office 标签组（实验）…", Glyph::stack);
     add(root, 1, L"显示标签栏", Glyph::move, settings.visible);
     add(root, 2, L"单任务栏模式", Glyph::stack, settings.group);
     add(root, 4, L"单标签时自动隐藏", Glyph::none, settings.autoHide);

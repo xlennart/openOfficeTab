@@ -117,6 +117,7 @@ bool Session::newTabGroup(unsigned long long id,const POINT* position){
     SetWindowPos(v->hwnd,nullptr,left,top,width,height,SWP_NOZORDER|SWP_NOACTIVATE);return true;
 }
 bool Session::drop(unsigned long long id,POINT screen){
+    if(mixed){if(mixed->drop(*this,id,screen))return true;auto v=find(id);if(v&&v->mixedGroup)return false;}
     logEvent(L"tab.drop.request",{{"viewId",(long long)id},{"x",screen.x},{"y",screen.y}});
     auto keep=shared_from_this();if(stopped||executing||refreshing)return false;auto source=find(id);if(!source)return false;
     HWND under=WindowFromPoint(screen),root=under?GetAncestor(under,GA_ROOT):nullptr;

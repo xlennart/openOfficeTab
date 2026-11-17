@@ -245,6 +245,7 @@ void Session::processWindowLayout(){
     operatingRoot=previous;
 }
 void Session::rootLayoutChanged(HWND root){
+    if(mixed&&mixed->contains(root))return;
     if(stopped||executing||refreshing||coordinatingWindows||windowFrameBusy()||!settings.group||!owned(root)||!IsWindowEnabled(root))return;
     if(excelEditing())return;
     std::shared_ptr<View> source;for(auto& v:views)if(v->hwnd==root)source=v;
@@ -309,6 +310,7 @@ void Session::processFrameClose(){
     if(stopped||executing||refreshing||frameDialogActive||!owned(root))return;
     std::shared_ptr<View> selected;for(auto& v:views)if(v->hwnd==root)selected=v;
     if(!selected||selected->independent)return;
+    if(selected->mixedGroup){batchClose({selected->id},true);return;}
     auto members=tabViews(root);FrameCloseChoice choice{members.size()>1?settings.frameCloseAction:1,false};
     if(!choice.action){Guard guard(frameDialogActive);choice=frameClosePrompt?frameClosePrompt(root,members.size()):framecloseui::prompt(root,members.size(),language(),host,darkMode());}
     if(choice.action!=1&&choice.action!=2)return;

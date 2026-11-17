@@ -1,4 +1,4 @@
-﻿param([ValidateSet('x64','x86')][string]$Architecture='x64')
+param([ValidateSet('x64','x86')][string]$Architecture='x64')
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
 $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -12,6 +12,10 @@ $batch=@"
 call "$vcvars" $Architecture >nul
 if not "%errorlevel%"=="0" exit /b 1
 cd /d "$testBuild"
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\mixed-store-test.cpp" /Fe:"$testBuild\mixed-store-test.exe" /link user32.lib advapi32.lib
+if not "%errorlevel%"=="0" exit /b 1
+"$testBuild\mixed-store-test.exe"
+if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\runtime-log-test.cpp" /Fe:"$testBuild\runtime-log-test.exe" /link ole32.lib shell32.lib user32.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\runtime-log-test.exe"
@@ -24,31 +28,31 @@ cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT "$taskRoot\tests\layout-test.cpp"
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\layout-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\rename-session-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\rename-session-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\rename-session-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" "$taskRoot\src\mixed-office.cpp" /Fe:"$testBuild\rename-session-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\rename-session-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\appearance-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\appearance-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\appearance-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" "$taskRoot\src\mixed-office.cpp" /Fe:"$testBuild\appearance-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\appearance-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\window-state-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\window-state-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\window-state-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" "$taskRoot\src\mixed-office.cpp" /Fe:"$testBuild\window-state-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\window-state-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\persistence-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\persistence-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\persistence-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" "$taskRoot\src\mixed-office.cpp" /Fe:"$testBuild\persistence-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\persistence-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\frame-close-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\frame-close-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\frame-close-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" "$taskRoot\src\mixed-office.cpp" /Fe:"$testBuild\frame-close-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\frame-close-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\localization-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\localization-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\localization-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" "$taskRoot\src\mixed-office.cpp" /Fe:"$testBuild\localization-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\localization-test.exe"
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\active-selection-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" /Fe:"$testBuild\active-selection-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
+cl /nologo /std:c++17 /utf-8 /EHsc /W4 /WX /MT /DUNICODE /D_UNICODE "$taskRoot\tests\active-selection-test.cpp" "$taskRoot\src\addin.cpp" "$taskRoot\src\session.cpp" "$taskRoot\src\features.cpp" "$taskRoot\src\tabs.cpp" "$taskRoot\src\storage.cpp" "$taskRoot\src\settings.cpp" "$taskRoot\src\persistence.cpp" "$taskRoot\src\theme.cpp" "$taskRoot\src\window-coordinator.cpp" "$taskRoot\src\mixed-office.cpp" /Fe:"$testBuild\active-selection-test.exe" /link ole32.lib oleaut32.lib user32.lib gdi32.lib gdiplus.lib comctl32.lib comdlg32.lib shell32.lib advapi32.lib uuid.lib
 if not "%errorlevel%"=="0" exit /b 1
 "$testBuild\active-selection-test.exe"
 if not "%errorlevel%"=="0" exit /b 1

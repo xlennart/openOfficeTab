@@ -219,6 +219,8 @@ void Tabs::paint(HDC target,RECT rc){
             else rounded(d,r,MulDiv(16,scale,96),tabColor,border,active);
             if(active&&session->settings.accentPosition!=2){int thick=std::max(2,MulDiv(2,scale,96));int y=session->settings.accentPosition==1?r.top+MulDiv(1,scale,96):r.bottom-thick-MulDiv(1,scale,96);RECT line{r.left+pad,y,r.right-pad,y+thick};HBRUSH b=CreateSolidBrush(accent);auto ob=SelectObject(d,b);auto op=SelectObject(d,GetStockObject(NULL_PEN));RoundRect(d,line.left,line.top,line.right,line.bottom,thick,thick);SelectObject(d,ob);SelectObject(d,op);DeleteObject(b);}
             RECT label{r.left+pad,r.top,r.right-button,r.bottom-MulDiv(2,scale,96)};std::wstring title=std::wstring(v->locked?L"● ":L"")+(v->saved?L"":L"* ")+v->title;
+            if(v->mixedGroup){RECT app{label.left,label.top,label.left+MulDiv(18,scale,96),label.bottom};
+                text(d,v->tabHost==0?L"W":v->tabHost==1?L"X":L"P",app,contrast?fg:v->tabHost==0?RGB(24,90,189):v->tabHost==1?RGB(16,124,65):RGB(196,62,28));label.left=app.right;}
             COLORREF tabForeground=contrast?(active?GetSysColor(COLOR_HIGHLIGHTTEXT):fg):tabcolor::foreground(tabColor);
             text(d,title,label,tabForeground);
             RECT closer{r.right-button,r.top,r.right-MulDiv(4,scale,96),r.bottom};text(d,v->locked?L"●":L"×",closer,tabForeground,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
