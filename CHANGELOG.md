@@ -1,5 +1,18 @@
 # 更新记录
 
+## 0.3.0-beta.1 · 2026-11-17
+
+- 实验性窗口内混合 Word、Excel、PowerPoint 标签组，整组合并、共享单标签宽度及可恢复的单窗口/任务栏呈现。
+- Experimental in-window mixed Word/Excel/PowerPoint groups, whole-group merges, shared tab widths and recoverable single-window/taskbar presentation.
+- 整组最小化、还原、最大化及移动；关闭当前文档保留剩余组。混合组入口加入功能区和管理中心。
+- Group minimize/restore/maximize/move, surviving membership after current-document close, and grouping entries in the Ribbon and management center.
+- 本机 Office 应用图标统一对齐与底座，菜单线条抗锯齿，“…”集中常用入口并保留完整设置子菜单。
+- Aligned local Office icons with consistent badges, antialiased menu strokes, and a compact menu retaining a full preferences submenu.
+- 合入 @lmdbot 的 PR #6，普通/Strict PPTX 安全改名保持文稿打开；其他格式保留原有安全流程。
+- Merge @lmdbot's PR #6: safe regular/Strict PPTX rename while keeping presentations open; other formats retain their existing safe flow.
+- Beta 独立签名清单与双架构交付，不更改正式 latest，OSS 始终最后兜底。验证范围见 [本版记录](docs/validation-v0.3.0-beta.1.md)。
+- Separate signed Beta feed and dual-architecture delivery; stable latest is unchanged and OSS remains last. See [version validation](docs/validation-v0.3.0-beta.1.md).
+
 ## 0.2.3 · 2026-11-12
 
 - 统一明暗主题原生菜单、级联、宽度/颜色/关闭对话框及窗口按钮。

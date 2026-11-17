@@ -1,7 +1,9 @@
-﻿param([string]$Version='0.2.3',[switch]$SkipBuild,[string]$OutputDirectory)
+﻿param([string]$Version='0.3.0-beta.1',[switch]$SkipBuild,[string]$OutputDirectory)
 $ErrorActionPreference='Stop'
 $ootRoot=Split-Path $PSScriptRoot -Parent
-if($Version -ne '0.2.3'){throw 'Update the native, service and Tauri versions together before packaging a different version.'}
+$ootBeta=$Version -match '-beta\.[1-9][0-9]*$'
+$ootManifestName=if($ootBeta){'openofficetab-update-beta.json'}else{'openofficetab-update.json'}
+if($Version -ne '0.3.0-beta.1'){throw 'Update the native, service and Tauri versions together before packaging a different version.'}
 if(-not $SkipBuild){& (Join-Path $PSScriptRoot 'build-desktop.ps1')}
 $ootCenter=Join-Path $ootRoot 'dist\desktop\openOfficetab.Center.exe'
 $ootDll=Join-Path $ootRoot 'dist\x64\openOfficetab.dll'
@@ -39,7 +41,7 @@ $ootArchive=[IO.Compression.ZipFile]::Open($ootZip,[IO.Compression.ZipArchiveMod
 try{foreach($file in Get-ChildItem -LiteralPath $ootStage -File -Recurse){$relative=$file.FullName.Substring($ootStage.Length+1).Replace('\','/');[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($ootArchive,$file.FullName,$relative,[IO.Compression.CompressionLevel]::Optimal)}}finally{$ootArchive.Dispose()}
 $ootPrivateKey=Join-Path $ootRoot 'build\signing\update-private-key.xml'
 if(Test-Path -LiteralPath $ootPrivateKey){
-    $ootMetadata=[ordered]@{schemaVersion=1;protocol='openofficetab-desktop-v1';architecture='x64';version=$Version;tag=('v'+$Version);name=[IO.Path]::GetFileName($ootSetup);url=('https://github.com/xlennart/openOfficetab/releases/download/v'+$Version+'/'+[IO.Path]::GetFileName($ootSetup));size=(Get-Item -LiteralPath $ootSetup).Length;sha256=(Get-FileHash -LiteralPath $ootSetup).Hash.ToLowerInvariant();channel='stable'}
+    $ootMetadata=[ordered]@{schemaVersion=1;protocol='openofficetab-desktop-v1';architecture='x64';version=$Version;tag=('v'+$Version);name=[IO.Path]::GetFileName($ootSetup);url=('https://github.com/xlennart/openOfficetab/releases/download/v'+$Version+'/'+[IO.Path]::GetFileName($ootSetup));size=(Get-Item -LiteralPath $ootSetup).Length;sha256=(Get-FileHash -LiteralPath $ootSetup).Hash.ToLowerInvariant();channel=$(if($ootBeta){'beta'}else{'stable'})}
     $ootReleaseNotes=Join-Path $ootRoot "docs/release-notes-v$Version.md"
     if(Test-Path -LiteralPath $ootReleaseNotes){
         $ootNotesText=[IO.File]::ReadAllText($ootReleaseNotes);$ootNotes=@{}
@@ -54,7 +56,7 @@ if(Test-Path -LiteralPath $ootPrivateKey){
     $ootSigner=[Security.Cryptography.RSACryptoServiceProvider]::new();$ootSigner.PersistKeyInCsp=$false
     try{$ootSigner.FromXmlString([IO.File]::ReadAllText($ootPrivateKey));$ootSignature=$ootSigner.SignData($ootPayload,[Security.Cryptography.CryptoConfig]::MapNameToOID('SHA256'))}finally{$ootSigner.Dispose()}
     $ootEnvelope=@{payload=[Convert]::ToBase64String($ootPayload);signature=[Convert]::ToBase64String($ootSignature)}|ConvertTo-Json -Compress
-    [IO.File]::WriteAllText((Join-Path $ootDelivery 'openofficetab-update.json'),$ootEnvelope,[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $ootDelivery $ootManifestName),$ootEnvelope,[Text.UTF8Encoding]::new($false))
 }
 $ootSums=foreach($file in $ootSetup,$ootZip){'{0}  {1}' -f (Get-FileHash -LiteralPath $file).Hash.ToLowerInvariant(),[IO.Path]::GetFileName($file)}
 [IO.File]::WriteAllLines((Join-Path $ootDelivery 'SHA256SUMS.txt'),$ootSums,[Text.Encoding]::ASCII)

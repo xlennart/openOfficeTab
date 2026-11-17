@@ -141,12 +141,14 @@ class RootObserver:public std::enable_shared_from_this<RootObserver> {
         diagnostic::Scope cause(diagnostic::WindowMessage,0,false);
         auto self=((RootObserver*)ref)->shared_from_this();auto s=self->session;auto keep=s->shared_from_this();
         if(m==WM_NCDESTROY){RemoveWindowSubclass(w,proc,112);self->window=nullptr;if(s->maskSource==w)s->restoreWindowMasks();if(s->sizingRoot==w)s->sizingRoot=nullptr;if(s->queuedLayoutRoot==w){s->cancelLayoutDiagnostic(4);s->queuedLayoutRoot=nullptr;s->queuedLayoutCommand=false;}return DefSubclassProc(w,m,a,b);}
-        if((m==WM_ACTIVATE&&LOWORD(a)!=WA_INACTIVE)||(m==WM_ENABLE&&!a)){if(s->mixed&&s->mixed->contains(w))s->mixed->activated(*s,w);}
+        if(m==WM_ACTIVATE&&LOWORD(a)!=WA_INACTIVE){if(s->mixed&&s->mixed->contains(w))s->mixed->activated(*s,w);}
+        if(m==WM_ENABLE&&!a&&s->mixed&&s->mixed->contains(w))s->mixedPresentation(w,false);
         if((m==WM_CLOSE||(m==WM_SYSCOMMAND&&(a&0xfff0)==SC_CLOSE))&&s->queueFrameClose(w))return 0;
         auto input=s->inputObserver;
         bool inputMessage=m==WM_ACTIVATE||m==WM_MOUSEACTIVATE||m==WM_NCLBUTTONDOWN||m==WM_NCLBUTTONUP||m==WM_NCLBUTTONDBLCLK;
         if(input&&inputMessage)input->message(w,m,a,b,1);
         auto command=a&0xfff0;
+        if(s->mixed&&s->mixed->contains(w)&&((m==WM_SYSCOMMAND&&(command==SC_MINIMIZE||command==SC_RESTORE))||(m==WM_SIZE&&a==SIZE_MINIMIZED)))s->mixed->windowCommand(*s,w,m==WM_SIZE||command==SC_MINIMIZE);
         bool frameOperation=m==WM_SYSCOMMAND&&(command==SC_MOVE||command==SC_SIZE||command==SC_MINIMIZE||command==SC_MAXIMIZE||command==SC_RESTORE);
         bool geometryChanging=m==WM_WINDOWPOSCHANGING&&b&&(((WINDOWPOS*)b)->flags&(SWP_NOMOVE|SWP_NOSIZE))!=(SWP_NOMOVE|SWP_NOSIZE);
         // Veil siblings before Office/DefWindowProc can move the active frame.

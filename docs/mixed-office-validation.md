@@ -2,6 +2,31 @@
 
 2026-11-17 · Development branch `codex/mixed-office-tabs`; no release.
 
+## 本轮界面与窗口行为 / Current UI and window behavior
+
+本轮使用以下开发载荷，不能将后面的历史哈希或结果改绑到它们：
+
+| Payload | SHA-256 |
+| --- | --- |
+| x64 DLL | `1D14AD1DF29F7DB9D8D0D5FEDE5E23912EF345C81A3B16660BECD276BC5B818D` |
+| x86 DLL | `E9219380C775583FFD2A4B18A873A9BED1935EBE8C3A38463ED78F115FC53A59` |
+| x64 management center | `D31BCFBFB236A13A2A37DD4764098CC3065BB29FDEE8312876560D47D5225281` |
+
+- 双架构原生回归通过；标签采用本机 Office 图标、统一底座与对齐，菜单改为抗锯齿线条。原生明暗菜单预览通过，但预览不代替 Office 实机验收。
+- 最终 x64 DLL 的三应用实机结果：`artifacts/mixed-office-67e1380bc33b4a18b192c34debbc9b59/result.json`。通过三成员整组合并、窗口内控件边界、共享宽度、真实前台切换及单窗口/任务栏呈现；整组最小化/还原、最大化/还原和原生移动通过；从真实窗口关闭当前文档后，其余两成员保留，恢复命令解组并揭示窗口。
+- 最终管理中心真实 WebView2 检查：`artifacts/runtime-tests/a314ddcdcce443569b3c9183974770bf/result.json`。中英文、920×700 及 420×480、语言自动跟随、通道持久化及新分组入口的无 Office 提示通过；测试恢复偏好，自有窗口和进程退出。此前最小窗口被固定底栏遮挡的失败保留，已改为正文滚动、底栏独立后复测通过。
+- PR #6 精确 head `1b9ddd95c9519c3c49099fb7132fe0c09ef74e79` 已保留贡献历史合入主分支，merge 为 `88720d5a55754e8198619f4dda8597e6a71c39a8`。本分支原先的本地合并为 `f1e7028`。最终 DLL 的普通及 Strict PPTX 原生重命名弹窗验证通过：`artifacts/ppt-live-rename-a4d03371ba7e4c2aa7b7daaec16536a3/result.json`。保持原对象与 HWND，旧路径清理，正常退出后检查新文件内容和主部件格式命名空间。
+- 本轮 x86 Office 实机预检因 VMware Tools 未就绪而阻塞；没有重置客机，已通过固定入口请求正常关机。x86 编译和离线通过不算实机通过。
+- 未覆盖：人工跨应用拖放手感、所有保存取消/模态组合、网络共享、跨屏 DPI、受保护视图和完整发行/升级矩阵。右键菜单的自动化定位失败未计通过；重命名实测通过与 Ribbon 相同的生产命令打开原生弹窗。
+
+The hashes above identify this round's development payloads; historical evidence below retains its original identity. Both native architectures passed offline regressions. Mixed tabs use locally installed Office icons in aligned badges, and menu strokes use antialiasing; off-screen previews are not Office acceptance.
+
+The final x64 three-host run passed whole-group merging, internal control bounds, shared widths, real foreground switching, a single presented window/taskbar entry, group minimize/restore, maximize/restore, native movement, closing the current document while retaining two members, and recovery. The final center passed real WebView2 checks in English/Chinese at default and minimum sizes, automatic language selection, persistent channels, and the no-Office branch of its new group entry. The earlier minimum-size overlap failure remains recorded; scrolling content and a separate footer resolved it. Preferences were restored and owned processes exited.
+
+PR #6 head `1b9ddd9` was merged with contributor history preserved. The final-DLL native dialog run above passed ordinary/Strict PPTX renaming with the same object/window, old-path cleanup, normal PowerPoint process exit, and saved content/namespace checks. This used the production Ribbon-equivalent command; failed right-click automation is not counted as passed.
+
+VMware Tools readiness blocked this round's x86 Office preflight; no reset was used, and the fixed runner requested normal shutdown. Human dragging, all modal/save-cancel combinations, network shares, multi-monitor DPI, Protected View, and full release/upgrade acceptance remain uncovered. Nothing in this record authorizes or establishes a new release.
+
 ## 试用反馈修正 / Review corrections
 
 用户反馈确认首版仅能切换，仍暴露多个窗口，且标签宽度不同步。新增整组合并、共享宽度、按当前成员遮蔽后台窗口与切换任务栏入口；后台选中端失去心跳时恢复其他成员。

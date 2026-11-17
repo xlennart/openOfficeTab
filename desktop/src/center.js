@@ -98,6 +98,7 @@ function setSnapshot(value,loadAppearance=false){
  if(installedHosts){$('oot-installed-list').textContent=t('{hosts} 组件已安装',{hosts:installedHosts.join(', ')});$('oot-finish-install').textContent=$('oot-open-center').checked?t('完成并打开管理中心'):t('完成');}
 }
 async function refreshState(){const result=await operation('state',{},t('正在读取状态…'));if(result){setSnapshot(result);toast(t('状态已更新。'));}return result;}
+$('oot-mixed-open').addEventListener('click',async()=>{const result=await operation('mixed-group',{host:$('oot-mixed-host').value});if(result)toast(t(result.opened?'请在 Office 窗口中选择文档。':'请先打开所选 Office 应用的文档，并确认插件已加载。'));});
 async function diagnostics(){
  const report=await operation('diagnostics',{},t('正在检查组件与运行载荷…'));if(!report)return;
  lastDiagnostics=report;renderDiagnostics(report);toast(t('检查完成。'));

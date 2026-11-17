@@ -1,5 +1,5 @@
 ﻿param(
-    [ValidateSet('state','language','appearance','hosts','install','repair','diagnostics','preferences','check-update','probe-routes','download-update','apply-update','background-update','uninstall','finish-uninstall')][string]$Action='state',
+    [ValidateSet('state','mixed-group','language','appearance','hosts','install','repair','diagnostics','preferences','check-update','probe-routes','download-update','apply-update','background-update','uninstall','finish-uninstall')][string]$Action='state',
     [switch]$Library,[string]$TestRoot,[int]$WaitForProcess,[string]$ParentStartTicks,[switch]$RemoveSettings,[string]$ResultFile,
     [ValidateSet('auto','zh-CN','en')][string]$Language='auto'
 )
@@ -25,7 +25,7 @@ function Get-OotState {
     $architecture=if($TestRoot){'unknown'}else{[OpenOfficeTab.Desktop.Api]::OfficeArchitecture()}
     $center=if($TestRoot){$null}else{(Get-ItemProperty 'HKCU:\Software\openOfficetab' -ErrorAction SilentlyContinue).CenterPath}
     return [ordered]@{
-        version='0.2.3';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
+        version='0.3.0-beta.1';installed=@($hosts|Where-Object {$_.registered -and $_.dllExists}).Count -gt 0
         centerInstalled=[bool]($center -and (Test-Path -LiteralPath $center -PathType Leaf))
         architecture=$architecture;compatible=[Environment]::Is64BitOperatingSystem -and $architecture -in @('x64','x86');officeRunning=if($TestRoot){$false}else{[OpenOfficeTab.Desktop.Api]::OfficeRunning()};hosts=$hosts
         appearance=[ordered]@{themeMode=(Number 'themeMode' 0);barStyle=(Number 'barStyle' 1);tabWidth=(Number 'tabWidth' 120);widthMode=(Number 'widthMode' 2);autoHide=$native.autoHide -eq '1';doubleClose=$native.doubleClose -eq '1'}
@@ -49,6 +49,35 @@ function Invoke-OotDesktopAction([string]$Name,$Request){
     if($Request.language -in @('zh-CN','en')){$script:OotLocale=$Request.language}
     switch($Name){
         'state' {return Get-OotState}
+        'mixed-group' {
+            Assert-OotSystemMutation
+            if($Request.host -notin @('Word','Excel','PowerPoint')){throw 'Unsupported Office host.'}
+            $officeApp=$null;$officeApi=$null
+            try{
+                $officeApp=[Runtime.InteropServices.Marshal]::GetActiveObject($Request.host+'.Application')
+                $officeApi=$officeApp.COMAddIns.Item('openOfficetab.Connect').Object
+                $officeState=$officeApi.GetState()|ConvertFrom-Json
+                if(-not $officeState.views.Count){return @{opened=$false}}
+                if(-not ('OotMixedForeground' -as [type])){
+                    Add-Type -TypeDefinition @'
+using System;using System.Runtime.InteropServices;
+public static class OotMixedForeground {
+ [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr w,out uint p);
+ [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(uint p);
+ public static void Grant(long window){uint pid;if(GetWindowThreadProcessId(new IntPtr(window),out pid)!=0)AllowSetForegroundWindow(pid);}
+}
+'@
+                }
+                $activeView=@($officeState.views|Where-Object id -eq $officeState.activeId)[0]
+                if(-not $activeView){$activeView=@($officeState.views)[0]}
+                [OotMixedForeground]::Grant([long]$activeView.hwnd)
+                [void]$officeApi.ShowOfficeGroups()
+                return @{opened=$true}
+            }catch{
+                [OpenOfficeTab.Desktop.Api]::RecordAction($script:DataRoot,'mixed-group','error',$_.Exception.GetBaseException().HResult,0)
+                return @{opened=$false}
+            }finally{$officeApi=$null;$officeApp=$null;[GC]::Collect();[GC]::WaitForPendingFinalizers()}
+        }
         'language' {
             if(($Request.mode -isnot [int] -and $Request.mode -isnot [long]) -or $Request.mode -lt 0 -or $Request.mode -gt 2){throw 'Invalid interface language.'}
             [OpenOfficeTab.Desktop.Api]::Merge($script:DataRoot,'openOfficetab',(@{language=[string]$Request.mode}|ConvertTo-Json -Compress))

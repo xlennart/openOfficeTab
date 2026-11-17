@@ -2,6 +2,12 @@
 
 [简体中文](installation.md)
 
+## Trying 0.3.0-beta.1
+
+This development package is a beta; the default Stable channel remains 0.2.3. Save and exit all Office applications and the center before upgrading. The installer selects x86/x64 payloads by actual Office bitness. Try disposable document copies: **openOfficeTab Ribbon** or tab bar **… → Mixed Office group (experimental)…**, choose a document in another app, then add the third. The center's **Overview** page has the same entry.
+
+The shorter **…** menu places display, appearance, language and close preferences under **Tab settings**. Minimize affects the whole mixed group; maximize, restore and move keep group placement aligned. **Recover tab bar and windows** exits mixed coordination. Regular/Strict PPTX rename keeps the presentation open; other supported formats may close/reopen and reset undo history. See the [mixed-group guide](mixed-office-groups.md) for steps and limits. Opt in through **About and updates → Update channel → Beta**; switching back to Stable does not automatically downgrade.
+
 Native document tabs for Word, Excel, and PowerPoint. The native add-in supports English and Simplified Chinese. The installer and center share this language setting.
 
 Version 0.2.3 selects native 32-bit or 64-bit Office support automatically on **64-bit Windows**. Both payloads are in the same EXE and ZIP; the center remains x64. See the [architecture and test notes](office-x86.en.md).

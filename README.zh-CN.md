@@ -15,6 +15,8 @@
 
 [English](README.md) · **简体中文**
 
+**测试版：[0.3.0-beta.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.3.0-beta.1)。** 将 Word、Excel、PowerPoint 加入窗口内的混合标签组，同步单标签宽度及整组窗口行为。入口在 openOfficeTab 功能区、标签栏“…”和管理中心“概览”。“…”已精简，完整偏好归入“标签设置”；普通/Strict PPTX 重命名保持文稿打开。详见[试用步骤与边界](docs/mixed-office-groups.md)、[发布说明](docs/release-notes-v0.3.0-beta.1.md)和[验证记录](docs/validation-v0.3.0-beta.1.md)。通过“关于与更新 → 更新通道 → Beta 版”加入测试。默认正式版仍为 0.2.3。
+
 [下载安装](https://github.com/xlennart/openOfficeTab/releases/latest) · [使用指南](#使用指南) · [版本更新](#版本更新) · [反馈问题](https://github.com/xlennart/openOfficeTab/issues) · [开发说明](docs/development.md)
 
 </div>

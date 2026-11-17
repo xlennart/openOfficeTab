@@ -9,10 +9,20 @@
 ### 试用
 
 1. 使用本分支构建的对应位数插件，分别打开 Word、Excel、PowerPoint 的测试文档副本。
-2. 在标签栏设置菜单或普通标签右键菜单选择“混合 Office 标签组（实验）…”，选择另一个文档。第三个文档可以再加入该组。也可将标签拖到另一个 Office 的窗口内标签栏。
-3. 点击带 W、X、P 标记的标签，检查对应应用的功能区、文档内容和实际键盘输入。可以拖动标签调整组内顺序。
+2. 在 **openOfficeTab 功能区 → 标签与窗口 → 混合 Office 标签组（实验）…**，或标签栏“…”菜单中选择同名命令，再选择另一个文档。第三个文档可以继续加入；选择已有组中的文档会合并整个源组。管理中心 **概览 → 混合 Office 标签组** 也可选择已打开的应用并打开分组选择器。也可将标签拖到另一个 Office 的窗口内标签栏。
+3. 点击带应用图标的标签，检查对应应用的功能区、文档内容和实际键盘输入。图标取自本机已安装的 Office，放在统一底色和尺寸内；提取失败时使用居中字母。可以拖动标签调整组内顺序，调整某个标签宽度后检查另两端同步。
 4. 关闭单个标签时，保存提示由文档所属的 Office 处理；检查取消关闭是否保留内容。混合组的窗口关闭按钮只关闭当前文档，不沿用旧的“关闭本组”记忆。
 5. 在标签右键菜单选择“退出混合标签组”，或通过“恢复窗口排列与任务栏”退出并恢复。同组仅剩一个成员时自动解组。手动调整过且已不匹配插件最后应用位置的窗口不会被强行移回旧位置。
+6. 点击当前窗口的最小化按钮，应整组最小化；从任务栏恢复后仍仅呈现当前文档。再检查最大化、还原、移动和关闭当前文档，确认其余成员仍可切换且未丢失。
+
+### 命令位置
+
+| 位置 | 命令 |
+| --- | --- |
+| 标签栏“…” | 管理中心、混合组、最近关闭、标签设置子菜单、恢复标签栏与窗口。显示、外观、语言及关闭习惯集中在“标签设置”，保留原有功能。 |
+| Office 的 openOfficeTab 功能区 | 新建、打开、重命名文件、保存、普通组与混合组、独立窗口、诊断及恢复。 |
+| 管理中心 | 应用启停、混合组入口、完整外观与交互设置、维护诊断、语言及更新。 |
+| 标签右键 | 对该文档执行切换、保存、关闭、重命名或退出混合组；混合组的远端标签需先切换到所属应用后重命名。 |
 
 ### 当前边界
 
@@ -24,7 +34,7 @@
 
 ### 实现约束
 
-现有 Automation 接口保留 DISPID 1–47；48 为 `JoinOfficeGroup(viewId, targetHwnd)`，49 为 `LeaveOfficeGroup(viewId)`。`GetState().mixedTabs` 提供当前混合组的显示顺序与宿主类型。远端标签编号保留在有符号 32 位整数范围内。
+现有 Automation 接口保留 DISPID 1–49；50 为 `ShowOfficeGroups()`，51 为 `RenameCurrent()`。其中 48 为 `JoinOfficeGroup(viewId, targetHwnd)`，49 为 `LeaveOfficeGroup(viewId)`。`GetState().mixedTabs` 提供当前混合组的显示顺序与宿主类型。远端标签编号保留在有符号 32 位整数范围内。v3 共享账本使用独立命名空间并包含整组最小化状态，不与旧协议混用；更新时应先退出全部 Office。
 
 使用本项目自有的 Windows 登录及完整性级别隔离共享内存与零等待互斥，不传递 COM 指针、凭据或文档路径。共享数据包含有界标题、成员身份和单个待处理命令，仅授权本次登录与 SYSTEM 访问。成员身份绑定进程启动、会话随机身份、文档视图及窗口寿命标记。
 
@@ -39,10 +49,20 @@ This feature is under development on `codex/mixed-office-tabs` and is not releas
 ### Try it
 
 1. Build this branch, use the plugin matching Office's architecture, and open disposable document copies in the three applications.
-2. Choose **Mixed Office group (experimental)…** from the tab bar settings or a regular tab's context menu, then select another document. Add the third document the same way. Dropping a tab onto another Office window's internal tab bar also joins them.
-3. Select the W, X and P tabs. Check the actual Ribbon, document content and keyboard input. Drag tabs to reorder the group.
+2. Choose **openOfficeTab Ribbon → Tabs and windows → Mixed Office group (experimental)…**, or the same command in the tab bar's **…** menu, then select another document. Add the third document the same way; merging existing groups retains all source members. In the management center, **Overview → Mixed Office group**, select an already-open application and open the document chooser. Dropping a tab onto another Office window's internal tab bar also joins them.
+3. Select the application-icon tabs. Check the actual Ribbon, document content and keyboard input. Icons come from the locally installed Office executable, in equal-size badges with centered letter fallback. Drag tabs to reorder; resize one tab and check the width in the other two hosts.
 4. Close one tab and check the owning Office application's save/cancel behavior. The window close button closes only the current mixed-group document; existing close-group preferences do not expand across applications.
 5. Choose **Leave mixed group** from a tab's context menu, or **Restore window layout and taskbar** to detach and restore. A group dissolves when only one member remains. Restoration respects subsequent manual placement changes.
+6. Minimize the current window: the entire group should minimize. Restoring from the taskbar should present only the current document. Also check maximize, restore, move and closing the current document; surviving members should remain available.
+
+### Command locations
+
+| Location | Commands |
+| --- | --- |
+| Tab bar **…** | Management center, mixed groups, recently closed, Tab settings submenu, and recovery. Display, appearance, language and close preferences remain in Tab settings. |
+| Office openOfficeTab Ribbon | New, open, rename, save, same-app and mixed groups, independent windows, diagnostics and recovery. |
+| Management center | Enable/disable hosts, mixed-group entry, full appearance/interaction settings, diagnostics, language and updates. |
+| Tab context menu | Actions on that document: activate, save, close, rename or leave a mixed group. Switch a remote mixed tab to its owning application before renaming it. |
 
 ### Current limits
 
@@ -54,7 +74,7 @@ This feature is under development on `codex/mixed-office-tabs` and is not releas
 
 ### Implementation constraints
 
-Automation DISPIDs 1–47 are retained. DISPID 48 is `JoinOfficeGroup(viewId, targetHwnd)` and 49 is `LeaveOfficeGroup(viewId)`. `GetState().mixedTabs` exposes the current mixed group's display order and host types. Remote tab identifiers stay within the signed 32-bit argument contract.
+Automation DISPIDs 1–49 are retained; 50 is `ShowOfficeGroups()` and 51 is `RenameCurrent()`. DISPID 48 is `JoinOfficeGroup(viewId, targetHwnd)` and 49 is `LeaveOfficeGroup(viewId)`. `GetState().mixedTabs` exposes the current mixed group's display order and host types. Remote tab identifiers stay within the signed 32-bit argument contract. The v3 ledger has a separate namespace and carries group minimization state; it does not join older protocols. Exit all Office applications before updating.
 
 A logon- and integrity-scoped shared-memory ledger uses a zero-wait mutex. It carries bounded titles, lifetime-bound member identities and one pending command per member, with access limited to the logon SID and SYSTEM. It carries no credentials, document paths or COM pointers. Identities include process start, randomized session ownership, view identity and a native window lifetime marker.
 

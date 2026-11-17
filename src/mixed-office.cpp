@@ -9,7 +9,7 @@ Client::Client(){
     FILETIME created{},exit{},kernel{},user{};
     if(GetProcessTimes(GetCurrentProcess(),&created,&exit,&kernel,&user))start=(uint64_t(created.dwHighDateTime)<<32)|created.dwLowDateTime;
 }
-Client::~Client()=default;
+Client::~Client(){for(auto& pair:hostIcons)if(pair.second)DestroyIcon(pair.second);}
 uint64_t Client::localKey(const Session& s,uint64_t id)const{
     if(id&remoteBit)return remote(id)?id:0;
     for(auto& m:snapshot)if(m.owner==owner&&m.start==start&&m.view==id&&m.pid==GetCurrentProcessId()){
@@ -77,13 +77,18 @@ void Client::tick(Session& s){
         }
         normalize(state);
         HWND foreground=GetAncestor(GetForegroundWindow(),GA_ROOTOWNER);
-        for(auto& m:state.members)if(m.group&&window(m)==foreground&&live(m)){
+        for(auto& m:state.members)if(m.group&&!m.minimized&&window(m)==foreground&&live(m)){
             auto key=m.key,group=m.group;for(auto& n:state.members)if(n.group==group)n.selected=key;break;
         }
         for(auto& m:state.members)if(m.key)nextSnapshot.push_back(m);
     });
     if(!ok&&!store.failed())return;
     if(ok)snapshot=std::move(nextSnapshot);else snapshot.clear();
+    // Resolve application resources once outside painting and input callbacks.
+    for(auto& m:snapshot)if(!hostIcons.count(m.host)&&live(m)){
+        HANDLE process=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,m.pid);wchar_t path[32768]{};DWORD size=32768;
+        if(process){if(QueryFullProcessImageNameW(process,0,path,&size)){HICON image=nullptr;if(SUCCEEDED(SHDefExtractIconW(path,0,0,&image,nullptr,64))&&image)hostIcons[m.host]=image;}CloseHandle(process);}
+    }
     // A ledger failure makes mixed mode inert. Local Office tabs stay usable.
     bool changed=false;
     for(auto& v:s.views){uint64_t group=0;for(auto& m:snapshot)if(ok&&m.owner==owner&&m.view==v->id&&window(m)==v->hwnd)group=m.group;
@@ -99,19 +104,20 @@ void Client::tick(Session& s){
     // Only the actual foreground member supplies the slot. Each STA moves
     // its own windows and retains their placement restoration bookkeeping.
     HWND foreground=GetAncestor(GetForegroundWindow(),GA_ROOT);
-    const Member* leader=nullptr;for(auto& m:snapshot)if(m.group&&window(m)==foreground&&available(m,now))leader=&m;
+    const Member* leader=nullptr;for(auto& m:snapshot)if(m.group&&!m.minimized&&window(m)==foreground&&available(m,now))leader=&m;
     if(ok&&ready&&leader&&!IsIconic(foreground)){
         WINDOWPLACEMENT placement{sizeof(placement)};RECT bounds{};
         if(windowlayout::capture(foreground,placement,bounds)&&!windowlayout::minimized(placement))for(auto& v:s.views)
-            if(v->mixedGroup==leader->group&&v->hwnd!=foreground&&IsWindowEnabled(v->hwnd)&&!IsIconic(v->hwnd)&&!windowlayout::sameSlot(v->hwnd,placement,bounds)){
+            if(v->mixedGroup==leader->group&&v->hwnd!=foreground&&IsWindowEnabled(v->hwnd)&&!windowlayout::sameSlot(v->hwnd,placement,bounds)){
                 if(windowlayout::apply(v->hwnd,placement,bounds)){v->moved=true;windowlayout::capture(v->hwnd,v->applied,v->appliedBounds);}
             }
     }
     if(changed){s.syncPanes();s.updateTaskbar();}
     for(auto& v:s.views)if(v->mixedGroup){
-        const Member* selected=nullptr;for(auto& m:snapshot)if(m.owner==owner&&m.view==v->id)for(auto& n:snapshot)if(n.key==m.selected&&n.group==m.group)selected=&n;
+        const Member* selected=nullptr;const Member* own=nullptr;for(auto& m:snapshot)if(m.owner==owner&&m.view==v->id){own=&m;for(auto& n:snapshot)if(n.key==m.selected&&n.group==m.group)selected=&n;}
         // A nonresponsive selected endpoint cannot strand its siblings.
         bool healthy=selected&&live(*selected)&&now>=selected->seen&&now-selected->seen<2000;
+        if(healthy&&own&&own->minimized&&!IsIconic(v->hwnd))ShowWindow(v->hwnd,SW_SHOWMINNOACTIVE);
         if(!healthy||window(*selected)==v->hwnd||!IsWindowEnabled(v->hwnd))s.mixedPresentation(v->hwnd,false);
         else s.mixedPresentation(v->hwnd,true);
     }
@@ -152,11 +158,27 @@ bool Client::drop(Session& s,uint64_t id,POINT point){
     HWND hit=WindowFromPoint(point);wchar_t name[80]{};GetClassNameW(hit,name,80);
     for(int i=0;hit&&wcscmp(name,L"openOfficetab.Tabs")&&i<8;i++){hit=GetParent(hit);GetClassNameW(hit,name,80);}
     if(wcscmp(name,L"openOfficetab.Tabs"))return false;
-    return joinInto(s,id,GetAncestor(hit,GA_ROOT));
+    HWND root=GetAncestor(hit,GA_ROOT);
+    // Keep ordinary, same-session grouping on its existing path. Mixed
+    // joining is needed only across sessions or when either side is mixed.
+    auto source=s.find(id);
+    if(source&&!source->mixedGroup)for(auto& target:s.views)
+        if(target->hwnd==root&&!target->mixedGroup)return false;
+    return joinInto(s,id,root);
 }
 void Client::activated(Session& s,HWND root){
+    bool suppressed=false;
+    store.access([&](Ledger& state){for(auto& m:state.members)if(m.owner==owner&&window(m)==root&&m.group){
+        if(m.minimized&&m.selected!=m.key){suppressed=true;break;}
+        auto group=m.group,key=m.key;bool restoring=m.minimized&&!IsIconic(root);
+        for(auto& n:state.members)if(n.group==group){n.selected=key;if(restoring)n.minimized=0;}break;
+    }});
+    if(suppressed){PostMessageW(root,WM_SYSCOMMAND,SC_MINIMIZE,0);return;}
     s.mixedPresentation(root,false);
-    store.access([&](Ledger& state){for(auto& m:state.members)if(m.owner==owner&&window(m)==root&&m.group){auto group=m.group,key=m.key;for(auto& n:state.members)if(n.group==group)n.selected=key;break;}});
+}
+void Client::windowCommand(Session& s,HWND root,bool minimize){
+    store.access([&](Ledger& state){for(auto& m:state.members)if(m.owner==owner&&window(m)==root&&m.group){auto group=m.group,key=m.key;for(auto& n:state.members)if(n.group==group){n.minimized=minimize?1:0;if(!minimize)n.selected=key;}break;}});
+    if(!minimize)s.mixedPresentation(root,false);
 }
 bool Client::setWidth(Session& s,uint64_t id,int width){
     if(width!=0&&(width<80||width>360))return false;

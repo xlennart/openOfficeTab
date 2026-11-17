@@ -1,9 +1,10 @@
-﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture,[string]$ExpectedVersion='0.2.3',[switch]$DeferProcessExitCheck)
+﻿param([ValidateSet('Word','Excel','PowerPoint')][string]$HostName='Word',[switch]$UseExistingFixture,[string]$ExpectedVersion='0.3.0-beta.1',[switch]$DeferProcessExitCheck)
 $ErrorActionPreference='Stop'
 if($env:CODEX_WINDOWS_SANDBOX_PACKAGE_FAMILY){throw 'Run outside the development process context.'}
 $taskRoot=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'common.ps1')
-Add-Type -TypeDefinition @'
+Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+Add-Type -ReferencedAssemblies @('System.dll',[Windows.Automation.AutomationElement].Assembly.Location,[Windows.Automation.AutomationPattern].Assembly.Location) -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
@@ -41,6 +42,21 @@ public static class TestWindows {
  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window,out uint process);
+ static int cancelGeneration;public static int PromptCancels;
+ public static void DisarmCancel(){System.Threading.Interlocked.Increment(ref cancelGeneration);}
+ public static void ArmCancel(long root,uint pid){
+  int ticket=System.Threading.Interlocked.Increment(ref cancelGeneration);
+  var thread=new System.Threading.Thread(()=>{var end=DateTime.UtcNow.AddSeconds(10);while(ticket==cancelGeneration&&DateTime.UtcNow<end){
+   try{var frame=System.Windows.Automation.AutomationElement.FromHandle(new IntPtr(root));if(frame.Current.ProcessId!=pid)return;
+    var condition=new System.Windows.Automation.AndCondition(new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty,System.Windows.Automation.ControlType.Button),
+     new System.Windows.Automation.OrCondition(new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.NameProperty,"\u53d6\u6d88"),new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.NameProperty,"Cancel")));
+    var button=frame.FindFirst(System.Windows.Automation.TreeScope.Descendants,condition);object pattern;
+    if(button!=null&&button.Current.IsEnabled&&button.TryGetCurrentPattern(System.Windows.Automation.InvokePattern.Pattern,out pattern)){
+     ((System.Windows.Automation.InvokePattern)pattern).Invoke();System.Threading.Interlocked.Increment(ref PromptCancels);return;}
+   }catch(System.Windows.Automation.ElementNotAvailableException){return;}
+   System.Threading.Thread.Sleep(40);
+  }});thread.IsBackground=true;thread.Start();
+ }
 }
 '@
 function Wait-State([scriptblock]$check){
@@ -128,9 +144,11 @@ try{
     # Avoid automating that dialog: cancel the native event with the test-only
     # Saved flag temporarily set, then restore unsaved status and verify content.
     if($HostName -eq 'PowerPoint'){Set-TestSaved $created $true}
+    if($HostName -eq 'Word'){[TestWindows]::ArmCancel([long]$newRoot,$officePid)}
     $api.CloseOther($independentId)
     $batchCancelled=Wait-State {param($s)$s.views.Count -eq 3 -and -not $s.diagnostics.closePending}
     $hook.Armed=$false
+    [TestWindows]::DisarmCancel()
     if($HostName -eq 'PowerPoint'){Set-TestSaved $created $false}
     if($created.Saved){throw 'Cancelled batch close changed unsaved content.'}
     # This is our own new test document, never a user file.
@@ -187,10 +205,12 @@ try{
     $api.SetTabWidth($originalWidth,$originalMode)|Out-Null
     $hook.Armed=$true
     if($HostName -eq 'PowerPoint'){Set-TestSaved $created $true}
+    if($HostName -eq 'Word'){[TestWindows]::ArmCancel([long]$newRoot,$officePid)}
     $closeRequest=$api.Close($newId)
     if($HostName -ne 'PowerPoint' -and $closeRequest){throw 'Last unsaved document cancellation was ignored.'}
     $lastCancelled=Wait-State {param($s)$s.views.Count -eq 1 -and ($HostName -eq 'PowerPoint' -or -not $s.views[0].saved) -and -not $s.diagnostics.closePending}
     $hook.Armed=$false
+    [TestWindows]::DisarmCancel()
     if($HostName -eq 'PowerPoint'){Set-TestSaved $created $false}
     $hook.Dispose();$hook=$null
     Set-TestSaved $created $true # Discard only our deliberately generated marker.
@@ -212,6 +232,7 @@ try{
     Write-Output $_.ScriptStackTrace
     throw
 }finally{
+    [TestWindows]::DisarmCancel()
     if($api){try{$api.SetTabWidth($originalWidth,$originalMode)|Out-Null}catch{}}
     if($hook){try{$hook.Dispose()}catch{}}
 }

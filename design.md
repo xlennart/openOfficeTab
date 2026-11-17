@@ -17,12 +17,15 @@
 - 用标题、间距、分组和清楚的按钮文案建立层级。每个状态突出一个主要操作。字段名称与取值范围各显示一次，补充说明优先放在可用键盘访问的信息提示里。
 - Office 内沿用 Word 蓝、Excel 绿、PowerPoint 橙作为宿主强调色。浅色与深色随现有主题偏好切换，高对比度采用系统颜色。勾选、禁用、焦点与危险状态同时用文字、图标或轮廓表达。
 - 右键菜单保留原生级联、勾选与禁用状态。常用命令放在一级菜单，相关的移动或批量操作归入子菜单。自绘控件须保留可访问名称、键盘导航和高对比度支持。
+- 标签栏“…”只保留常用入口，完整设置归入子菜单，诊断和维护放在功能区及管理中心。混合标签采用等尺寸、居中的应用图标底座；图标取自本机 Office。菜单线条使用抗锯齿绘制。
 - 弹窗采用一致的标题、内容和底部操作区。关闭文档、覆盖或删除文件等操作写明后果，保留安全的默认选项和取消路径。默认焦点、Enter 和 Esc 的结果应与按钮语义一致。
 - 沿用共享语言偏好，支持跟随 Windows、简体中文和 English。同步控件名称、动态状态和错误文案。文档名、路径及内容按原样显示。文档中的操作步骤使用对应语言的实际控件名称。
 
 ### 界面验收
 
 混合 Office 标签组继续使用窗口内的现有标签控件。同组呈现一个当前文档窗口和一个任务栏入口，其他成员保持遮蔽且可恢复；切换后在同一位置显示真实文档和功能区。宽度与顺序属于共享组视图，合并已有组时保留全部成员。验收须检查窗口是否实际暴露及能否恢复，不能只检查前台 HWND。
+
+最小化作用于整组；从任务栏还原后继续只呈现当前成员。最大化、还原和移动保持同组位置一致；关闭当前文档后保留其余成员及恢复路径。测试区分原生窗口消息驱动与人工拖动观感。
 
 - PR 作者优先在自己可用的环境中亲自验证一次受影响界面，附实际结果和前后对照，说明未覆盖项。缺少环境时与维护者约定补测；完整实机矩阵可由维护者承担。最终记录标注测试提交、程序及载荷哈希、应用、语言、主题、窗口尺寸和显示缩放，原生菜单和弹窗在实际 Office 中检查相关宿主及键盘操作。
 - 以当前配置的默认和最小尺寸验收管理中心与更新窗口。当前管理中心为 920 × 700 和 420 × 480，更新窗口为 560 × 530 和 360 × 400，均为逻辑像素。检查换行、边界、窗口按钮与底部操作区。
@@ -43,12 +46,15 @@
 - Use headings, spacing, grouping, and clear action labels to establish hierarchy. Emphasize one primary action per state. Show each field label and allowed range once. Put supplementary guidance in a keyboard-accessible info tip where possible.
 - In Office, use Word blue, Excel green, and PowerPoint orange as host accents. Respect the existing light and dark theme preference and use system colors in high contrast. Pair color with text, icons, or outlines to convey checked, disabled, focused, and destructive states.
 - Preserve native cascading menus, check marks, and disabled states. Keep frequent commands at the top level and group related move or batch commands in submenus. Custom-drawn controls must retain accessible names, keyboard navigation, and high-contrast support.
+- Keep frequent entries in the tab bar's **…** menu, place full preferences in its submenu, and put diagnostics/maintenance in the Ribbon and management center. Mixed tabs use centered application icons in equally sized badges, sourced from local Office installations. Menu strokes use antialiasing.
 - Use a consistent heading, body, and action area in dialogs. Explain the consequences of closing documents, overwriting, or deleting files, and provide a safe default and cancellation path. Align default focus, Enter, and Esc with the action labels.
 - Use the shared language preference for Follow Windows, Simplified Chinese, and English. Localize control names, dynamic states, and errors. Display document names, paths, and content as provided. Use the actual localized control names in instructions.
 
 ### UI acceptance
 
 Mixed Office groups keep the existing tab control inside the Office frame. A group presents one active document window and one taskbar entry, with the other members concealed and recoverable. Selecting a tab changes the real document and Ribbon in the same slot. Widths and ordering belong to the shared group view; merging an existing group must keep all members. Validate actual window exposure and recovery, not only foreground HWND changes.
+
+Minimize applies to the entire group; restoring from the taskbar presents only the selected member. Maximize, restore and move keep group placement consistent. Closing the current document preserves surviving members and recovery. Distinguish native-message automation from human drag acceptance.
 
 - Authors should first personally check affected surfaces in an available environment, attach actual results and before/after captures, and explain gaps. Agree on maintainer testing when environments are unavailable; maintainers may provide the full runtime matrix. Final records identify the tested commit, program and payload hashes, app, language, theme, window size, and display scale. Check native menus and dialogs inside Office, covering relevant hosts and keyboard interaction.
 - Check the management center and update window at the configured default and minimum sizes. The current management center uses 920 × 700 and 420 × 480, and the update window uses 560 × 530 and 360 × 400, all in logical pixels. Check wrapping, control bounds, window buttons, and the bottom action area.

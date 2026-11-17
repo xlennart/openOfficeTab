@@ -7,6 +7,7 @@ class Client {
     uint64_t owner=0,start=0;
     std::vector<Member> snapshot;
     bool ticking=false;
+    std::map<unsigned,HICON> hostIcons;
     uint64_t localKey(const Session&,uint64_t id)const;
 public:
     Client();~Client();
@@ -21,6 +22,8 @@ public:
     bool joinInto(Session&,uint64_t,HWND);
     bool setWidth(Session&,uint64_t,int);
     void activated(Session&,HWND);
+    HICON icon(unsigned host)const{auto i=hostIcons.find(host);return i==hostIcons.end()?nullptr:i->second;}
+    void windowCommand(Session&,HWND,bool minimize);
     void choose(Session&,HWND,uint64_t,POINT);
     void leave(Session&,uint64_t);
 };

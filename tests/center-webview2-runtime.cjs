@@ -58,6 +58,17 @@ let page,browser;
    report.sponsorChecks??=[];report.sponsorChecks.push({size,language,geometry:sponsorGeometry,passed:true});
    await page.screenshot({path:path.join(jobRoot,`${size}-${language}.png`)});
    report.checks.push({size,language,saved,geometry,passed:true});save();
+   await page.locator('.o-nav [data-route="overview"]').click();await idle();
+   await page.locator('#oot-mixed-host').selectOption('PowerPoint');
+   assert.equal(await page.locator('#oot-mixed-open').innerText(),language==='en'?'Choose documents to group…':'选择文档分组…');
+   await page.locator('#oot-mixed-open').click();await idle();
+   assert((await page.locator('[data-toast]').allTextContents()).some(text=>text.includes(language==='en'?'Open a document in the selected Office application':'请先打开所选 Office 应用的文档')));
+   await page.locator('#oot-mixed-open').scrollIntoViewIfNeeded();
+   const mixedGeometry=await page.locator('#oot-mixed-open').evaluate(element=>{const b=element.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:innerWidth,height:innerHeight,hit:element.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)),overflow:document.documentElement.scrollWidth>innerWidth+1};});
+   assert(mixedGeometry.hit&&!mixedGeometry.overflow&&mixedGeometry.left>=0&&mixedGeometry.right<=mixedGeometry.width+1&&mixedGeometry.bottom<=mixedGeometry.height+1,'Mixed group entry must fit and receive input');
+   await page.screenshot({path:path.join(jobRoot,`mixed-${size}-${language}.png`)});
+   report.mixedChecks??=[];report.mixedChecks.push({size,language,geometry:mixedGeometry,noOfficeMessage:true});save();
+   await page.locator('.o-nav [data-route="updates"]').click();await idle();
   }
  }
  await page.locator('#oot-language').selectOption('0');await idle();const automatic=await state();

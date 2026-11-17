@@ -861,7 +861,7 @@ bool Session::recover(){
     panes.clear();settings.save();bool ok=refresh();lastOperation=ok?L"recovery.completed":L"recovery.deferred";if(ok)lastError=S_OK;defer();return ok;
 }
 std::wstring Session::state()const{
-    std::wstring r=L"{\"version\":\"0.2.3\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
+    std::wstring r=L"{\"version\":\"0.3.0-beta.1\",\"host\":"+json(hostName(host))+L",\"style\":"+json(settings.barStyle==1?L"open":L"browser")+L",\"activeId\":"+std::to_wstring(activeId)+L",\"activeTabId\":"+std::to_wstring(activeTabId())+L",\"tabCount\":"+std::to_wstring(tabViews().size())+L",\"visible\":"+(settings.visible?L"true":L"false")+L",\"group\":"+(settings.group?L"true":L"false")+L",\"panes\":"+std::to_wstring(panes.size())+L",\"views\":[";
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"mixedTabs\":[";
     auto current=find(activeId);bool firstMixed=true;
@@ -882,9 +882,10 @@ void Session::menu(HWND owner,unsigned long long id,POINT pt){
         tabmenu::Menu menu(owner,host,darkMode(),language());
         menu.add(menu.handle(),1,tr(L"切换到此文档"));menu.add(menu.handle(),5,tr(L"关闭当前标签"),tabmenu::Glyph::close,!v->locked);
         menu.add(menu.handle(),2,tr(L"保存"),tabmenu::Glyph::save,!(id&mixedoffice::remoteBit)&&!v->readOnly);
+        menu.add(menu.handle(),20,tr(L"重命名文件…"),tabmenu::Glyph::rename,!(id&mixedoffice::remoteBit)&&!v->readOnly&&storage::localFile(v->path));
         menu.add(menu.handle(),61,tr(L"混合 Office 标签组（实验）…"),tabmenu::Glyph::stack);
         menu.separator();menu.add(menu.handle(),62,tr(L"退出混合标签组"),tabmenu::Glyph::external);
-        auto choice=menu.track(pt);if(choice==1)activate(id,owner);if(choice==5)close(id);if(choice==2)save(id);if(choice==61&&mixed)mixed->choose(*this,owner,id,pt);if(choice==62&&mixed)mixed->leave(*this,id);return;
+        auto choice=menu.track(pt);if(choice==1)activate(id,owner);if(choice==5)close(id);if(choice==2)save(id);if(choice==20)renameDialog(GetAncestor(owner,GA_ROOT),id);if(choice==61&&mixed)mixed->choose(*this,owner,id,pt);if(choice==62&&mixed)mixed->leave(*this,id);return;
     }
     UINT command = 0;
     {
@@ -926,5 +927,5 @@ void Session::options(HWND owner,POINT pt){
     if(cmd>=30&&cmd<=33)setThemeMode((int)cmd-30);if(cmd>=40&&cmd<=42)setFrameCloseAction((int)cmd-40);
     if(cmd>=50&&cmd<=52)setLanguage((int)cmd-50);
     if(cmd==17)recentMenu(owner,pt);if(cmd==18)resetAllFilePreferences();
-    if(cmd==11)MessageBoxW(owner,tr(L"openOfficeTab 0.2.3\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficeTab"),MB_OK|MB_ICONINFORMATION);
+    if(cmd==11)MessageBoxW(owner,tr(L"openOfficeTab 0.3.0-beta.1\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。"),tr(L"关于 openOfficeTab"),MB_OK|MB_ICONINFORMATION);
 }

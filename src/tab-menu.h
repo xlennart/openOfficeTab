@@ -1,19 +1,18 @@
 #pragma once
 #include "dialog-theme.h"
+#include <gdiplus.h>
 
 namespace tabmenu {
 enum class Glyph { none, save, saveAs, rename, folder, external, move, lock, close, stack, more, check, file, history, trash, sliders, info };
 
 inline void drawGlyph(HDC dc, Glyph glyph, int x, int y, const dialogui::Theme& theme, COLORREF color) {
     if (glyph == Glyph::none) return;
-    auto pen = CreatePen(PS_SOLID, theme.px(1), color);
-    auto previousPen = SelectObject(dc, pen);
+    Gdiplus::Graphics graphics(dc);graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    Gdiplus::Pen pen(Gdiplus::Color(255,GetRValue(color),GetGValue(color),GetBValue(color)),std::max(1.0f,(float)theme.px(1)*1.1f));
+    pen.SetStartCap(Gdiplus::LineCapRound);pen.SetEndCap(Gdiplus::LineCapRound);pen.SetLineJoin(Gdiplus::LineJoinRound);
     auto line = [&](std::initializer_list<POINT> points) {
-        auto point = points.begin();
-        MoveToEx(dc, x + theme.px(point->x), y + theme.px(point->y), nullptr);
-        for (++point; point != points.end(); ++point) {
-            LineTo(dc, x + theme.px(point->x), y + theme.px(point->y));
-        }
+        std::vector<Gdiplus::PointF> path;for(auto p:points)path.emplace_back((Gdiplus::REAL)(x+theme.px(p.x)),(Gdiplus::REAL)(y+theme.px(p.y)));
+        if(path.size()>1)graphics.DrawLines(&pen,path.data(),(INT)path.size());
     };
     switch (glyph) {
     case Glyph::save:
@@ -85,8 +84,7 @@ inline void drawGlyph(HDC dc, Glyph glyph, int x, int y, const dialogui::Theme& 
     case Glyph::none:
         break;
     }
-    SelectObject(dc, previousPen);
-    DeleteObject(pen);
+
 }
 
 struct Item {
@@ -148,6 +146,7 @@ class Menu {
     const int rowHeight;
     HFONT detailFont = nullptr;
     bool themed = false;
+    ULONG_PTR graphicsToken=0;
     std::vector<std::unique_ptr<Item>> items;
 
     Item* findItem(ULONG_PTR data) const {
@@ -237,6 +236,7 @@ class Menu {
 public:
     Menu(HWND ownerWindow, Host host, bool dark, int language, int itemHeight = 33)
         : owner(ownerWindow), root(CreatePopupMenu()), rowHeight(itemHeight) {
+        Gdiplus::GdiplusStartupInput input;Gdiplus::GdiplusStartup(&graphicsToken,&input,nullptr);
         theme.initialize(owner, host, dark, language);
         // High contrast and hosts that reject subclassing use system drawing.
         themed = root && !theme.contrast && SetWindowSubclass(owner, ownerProc, (UINT_PTR)this, (DWORD_PTR)this);
@@ -248,6 +248,7 @@ public:
         if (themed) RemoveWindowSubclass(owner, ownerProc, (UINT_PTR)this);
         if (root) DestroyMenu(root);
         if (detailFont) DeleteObject(detailFont);
+        if(graphicsToken)Gdiplus::GdiplusShutdown(graphicsToken);
     }
 
     HMENU handle() const { return root; }
@@ -329,15 +330,18 @@ inline void populateOptions(Menu& menu, const Settings& settings, int language) 
     HMENU root = menu.handle();
     add(root, 60, L"管理中心", Glyph::sliders);
     add(root, 61, L"混合 Office 标签组（实验）…", Glyph::stack);
-    add(root, 1, L"显示标签栏", Glyph::move, settings.visible);
-    add(root, 2, L"单任务栏模式", Glyph::stack, settings.group);
-    add(root, 4, L"单标签时自动隐藏", Glyph::none, settings.autoHide);
+    add(root, 17, L"最近关闭…", Glyph::history);
+    menu.separator();
+    HMENU settingsMenu=menu.submenu(root,104,tr(L"标签设置"),Glyph::sliders);
+    add(settingsMenu, 1, L"显示标签栏", Glyph::move, settings.visible);
+    add(settingsMenu, 2, L"单任务栏模式", Glyph::stack, settings.group);
+    add(settingsMenu, 4, L"单标签时自动隐藏", Glyph::none, settings.autoHide);
 
-    HMENU closing = menu.submenu(root, 100, tr(L"点击窗口关闭按钮时"), Glyph::close);
+    HMENU closing = menu.submenu(settingsMenu, 100, tr(L"点击窗口关闭按钮时"), Glyph::close);
     const wchar_t* actions[] = {L"每次询问", L"只关闭当前文档", L"关闭本组全部文档"};
     for (int i = 0; i < 3; ++i) add(closing, 40 + i, actions[i], Glyph::none, settings.frameCloseAction == i);
 
-    HMENU appearance = menu.submenu(root, 101, tr(L"标签外观"), Glyph::move);
+    HMENU appearance = menu.submenu(settingsMenu, 101, tr(L"标签外观"), Glyph::move);
     add(appearance, 23, L"融入应用背景（浅灰开口标签）", Glyph::none, settings.barStyle == 1);
     add(appearance, 24, L"独立标签栏（白色圆角面板）", Glyph::none, settings.barStyle == 0);
     menu.separator(appearance);
@@ -352,30 +356,20 @@ inline void populateOptions(Menu& menu, const Settings& settings, int language) 
     const wchar_t* themes[] = {L"跟随 Office / 系统（默认）", L"始终浅色", L"始终深色", L"仅跟随系统"};
     for (int i = 0; i < 4; ++i) add(theme, 30 + i, themes[i], Glyph::none, settings.themeMode == i);
 
-    HMENU languages = menu.submenu(root, 102, tr(L"语言 / Language"), Glyph::none);
+    HMENU languages = menu.submenu(settingsMenu, 102, tr(L"语言 / Language"), Glyph::none);
     add(languages, 50, L"跟随系统（默认）", Glyph::none, settings.language == 0);
     menu.add(languages, 51, L"简体中文", Glyph::none, true, settings.language == 1);
     menu.add(languages, 52, L"English", Glyph::none, true, settings.language == 2);
-    add(root, 5, L"双击标签关闭", Glyph::none, settings.doubleClose);
+    add(settingsMenu, 5, L"双击标签关闭", Glyph::none, settings.doubleClose);
     menu.separator();
 
-    add(root, 6, L"标签置于顶部", Glyph::none, settings.position == 1);
-    add(root, 7, L"标签置于底部", Glyph::none, settings.position == 3);
-    add(root, 8, L"恢复窗口排列与任务栏", Glyph::stack);
-    add(root, 12, L"默认标签宽度…", Glyph::sliders);
-    add(root, 17, L"最近关闭…", Glyph::history);
-    menu.add(root, 18, tr(L"清除本应用已记住的文件设置"), Glyph::trash, true, false, true);
-    menu.separator();
-
-    add(root, 13, L"加载诊断…", Glyph::info);
-    add(root, 14, L"导出脱敏诊断…", Glyph::saveAs);
+    add(settingsMenu, 6, L"标签置于顶部", Glyph::none, settings.position == 1);
+    add(settingsMenu, 7, L"标签置于底部", Glyph::none, settings.position == 3);
+    add(settingsMenu, 8, L"恢复窗口排列与任务栏", Glyph::stack);
+    add(settingsMenu, 12, L"默认标签宽度…", Glyph::sliders);
+    menu.add(settingsMenu, 18, tr(L"清除本应用已记住的文件设置"), Glyph::trash, true, false, true);
     add(root, 15, L"恢复标签栏与窗口", Glyph::move);
-    add(root, 16, L"新建为独立窗口", Glyph::external);
-    add(root, 9, L"打开文档…", Glyph::file);
-    add(root, 10, L"打开日志与设置文件夹", Glyph::folder);
-    add(root, 11, L"关于 openOfficeTab", Glyph::info);
 }
-
 constexpr UINT clearRecentId = 100;
 
 inline void populateRecent(Menu& menu, const std::vector<std::wstring>& files, int language) {

@@ -1,10 +1,10 @@
 ﻿param(
- [ValidateSet('Preflight','Run','Collect','Cleanup','Shutdown','RecoverFixtures')][string]$Action='Preflight',
+ [ValidateSet('Preflight','Run','Collect','Cleanup','Shutdown','RecoverFixtures','Inspect')][string]$Action='Preflight',
  [string]$JobId=('office-x86-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmss')+'-'+[guid]::NewGuid().ToString('N').Substring(0,8)),
  [string]$VMX='D:\VMs\Win11-LTSC-OfficeX86\Win11-LTSC-OfficeX86.vmx',
  [string]$Vmrun='C:\Program Files\VMware\VMware Workstation\vmrun.exe',
  [string]$CredentialPath=(Join-Path $env:USERPROFILE 'AppData\Local\openOfficetab.Development\office-x86.credential.xml'),
- [string]$DeliveryDirectory,[switch]$KeepVMRunning,[int]$TimeoutMinutes=20
+ [string]$DeliveryDirectory,[switch]$KeepVMRunning,[int]$TimeoutMinutes=20,[ValidateSet('full','mixed-office')][string]$Suite='full'
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
@@ -118,7 +118,10 @@ try{
  }
  Host-Phase 'list-virtual-machines'
  $running=& $Vmrun -T ws list 2>&1|Out-String
- if($running -notmatch [regex]::Escape($VMX)){[void](Vm 'start' @('gui'))}
+ if($running -notmatch [regex]::Escape($VMX)){
+  if($Action -eq 'Inspect'){throw 'Inspection requires an already-running VM; no VM was started.'}
+  [void](Vm 'start' @('gui'))
+ }
  Host-Phase 'check-tools'
  $tools=Vm 'checkToolsState' @()
  if($tools -ne 'running'){
@@ -132,8 +135,9 @@ try{
  foreach($path in 'C:\OOT-QA','C:\OOT-QA\runs',$guestDirectory){try{[void](Vm 'createDirectoryInGuest' @($path))}catch{[void](Vm 'listDirectoryInGuest' @($path))}}
  Host-Phase 'sync-executor'
  Sync-Executor
+ if($Action -eq 'Inspect'){Start-Worker 'Inspect';$inspection=Wait-Report 'inspection.json' 30;$inspection|ConvertTo-Json -Depth 8;return}
  if($Action -eq 'RecoverFixtures'){Start-Worker 'RecoverFixtures';$recovery=Wait-Report 'recovery.json' 120;if($recovery.status -ne 'passed'){throw 'Owned fixture recovery failed; documents preserved.'};$recovery|ConvertTo-Json -Depth 8;return}
- $request=@{schema=1;jobId=$JobId;version=$version;createdUtc=[DateTime]::UtcNow.ToString('o')}
+ $request=@{schema=1;jobId=$JobId;version=$version;suite=$Suite;createdUtc=[DateTime]::UtcNow.ToString('o')}
  if($Action -eq 'Run'){
   if(Test-Path (Join-Path $directory 'result.json')){throw 'This jobId already has runtime evidence. Use Collect or a fresh jobId.'}
   if((Vm 'fileExistsInGuest' @($guestDirectory+'\result.json')) -eq 'The file exists.'){throw 'Guest runtime evidence already exists; use Collect or a fresh jobId.'}
@@ -144,7 +148,7 @@ try{
   $request.x86Sha256=(Get-FileHash (Join-Path $root 'dist/x86/openOfficetab.dll')).Hash
   $request.x64Sha256=(Get-FileHash (Join-Path $root 'dist/x64/openOfficetab.dll')).Hash
   $qa=Join-Path $directory 'qa';New-Item -ItemType Directory -Force "$qa/tests/fixtures","$qa/build"|Out-Null
-  foreach($name in 'common.ps1','lifecycle-runtime.ps1','lifecycle-process-runtime.ps1','save-runtime.ps1','save-suite-runtime.ps1','language-runtime.ps1','desktop-install-runtime.ps1') {Copy-Item (Join-Path $root "tests/$name") "$qa/tests"}
+  foreach($name in 'common.ps1','lifecycle-runtime.ps1','lifecycle-process-runtime.ps1','save-runtime.ps1','save-suite-runtime.ps1','language-runtime.ps1','desktop-install-runtime.ps1','mixed-office-runtime.ps1','powerpoint-live-rename-runtime.ps1') {Copy-Item (Join-Path $root "tests/$name") "$qa/tests"}
   foreach($name in 'word-demo.docx','excel-demo.xlsx','powerpoint-demo.pptx'){Copy-Item (Join-Path $root "tests/fixtures/$name") "$qa/tests/fixtures"}
   Compress-Archive -Path "$qa/*" -DestinationPath (Join-Path $directory 'qa.zip') -Force
   $request.qaSha256=(Get-FileHash (Join-Path $directory 'qa.zip')).Hash

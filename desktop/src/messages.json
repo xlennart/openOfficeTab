@@ -1,4 +1,9 @@
 {
+  "请先打开所选 Office 应用的文档，并确认插件已加载。": "Open a document in the selected Office application and check that the add-in is loaded.",
+  "混合 Office 标签组": "Mixed Office groups",
+  "Office 应用": "Office application",
+  "选择文档分组…": "Choose documents to group…",
+  "请在 Office 窗口中选择文档。": "Choose a document in the Office window.",
   "更新通道": "Update channel",
   "正式版": "Stable",
   "Beta 版": "Beta",

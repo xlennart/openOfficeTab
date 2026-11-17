@@ -4,6 +4,8 @@
 
 标签上右键 → **重命名文件…** → 输入不含扩展名的新名称 → **重命名**。取消重命名对话框不会保存或改动文件。
 
+也可通过 **openOfficeTab 功能区 → 重命名文件…** 打开同一原生弹窗。混合组中只对当前应用拥有的标签启用重命名，远端标签先切换到所属应用再执行。
+
 - PowerPoint 普通和 Strict `.pptx` 通过 `SaveAs` 切换到新名称，演示文稿保持打开。插件先原子取得新名称并防止目标被移动或替换；核对保存状态、文件身份和格式后，才尝试清理旧文件。旧路径被改动或占用时保留并提示。
 - Word、Excel 和其他 PowerPoint 格式按原格式保存当前编辑，关闭文档，通过 Windows 在原目录内原子改名，再从新路径重新打开。遇到同名目标时保留两份文件。重开会重置撤销历史；如果重开失败，可从新路径手动打开。
 
@@ -40,3 +42,17 @@ pwsh -NoProfile -File scripts/preview-rename-dialog.ps1
 ![深色重命名弹窗](images/rename-dialog-dark.png)
 
 活动选择测试在重置默认设置时保留测试存储目录，避免刷新从真实用户配置加载强调线等外观偏好。此问题已在未修改的上游代码中复现，修正仅隔离测试配置，不更改插件行为。
+
+## English
+
+Right-click a tab → **Rename file…**, or use **openOfficeTab Ribbon → Rename file…**. Enter the name without its extension and choose **Rename**. Canceling the dialog does not save or modify the file. Mixed-group remote tabs must first be activated in their owning application.
+
+Regular and Strict PowerPoint `.pptx` files remain open using format-correct `SaveAs`. The plugin reserves the destination atomically and prevents its replacement, verifies saved path/identity/format, then attempts to remove the original. A changed or occupied original is retained with a warning. Word, Excel and other PowerPoint formats save, close, atomically rename in the same directory without overwriting an existing target, and reopen; reopening resets undo history. External references to the old path must be updated separately.
+
+Only saved, writable files are supported. Multiple-window documents, URL documents, case-only changes and PPTX formats that cannot be identified reliably are rejected. Offline tests cover names, paths, OPC format detection, save/close cancellation, late collisions, source replacement, failed reopen and preference inheritance. Run `scripts/test-native.ps1` for x64 and x86; these tests use simulated COM and do not establish Office acceptance.
+
+For desktop acceptance, use disposable documents and bind results to the Office build, architecture and DLL hash. Check the real context menu/dialog, regular/Strict format namespaces, supported macro/template/show formats, conflict/cancellation/failure preservation, native window transitions and preferences. Verify saved content after Office process exit. `scripts/preview-rename-dialog.ps1` checks bilingual themed off-screen dialogs only.
+
+The development driver `tests/powerpoint-live-rename-runtime.ps1 -Architecture x64` opens the production dialog through the Ribbon-equivalent command. On 2026-11-17, real x64 PowerPoint `16.0.20527.20150` passed ordinary/Strict PPTX rename, retained object/HWND, old-path cleanup, process exit and saved content/namespace checks. Final DLL and evidence are in [mixed Office validation](mixed-office-validation.md). Right-click automation failed and is not counted as passed; x86 Office and network-share runtime coverage remain outstanding.
+
+2026-11-17 开发实测：真实 x64 PowerPoint `16.0.20527.20150` 的普通/Strict PPTX 已通过上述生产弹窗驱动，保留原对象/HWND、清理旧路径，并在正常进程退出后核对内容和格式。最终 DLL 与证据见[混合组验证](mixed-office-validation.md)。右键自动化定位失败未计通过；x86 Office 与网络共享仍待实测。

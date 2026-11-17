@@ -1,10 +1,11 @@
-﻿param([ValidateSet('Preflight','Run','Cleanup','RecoverFixtures')][string]$Action='Preflight',[Parameter(Mandatory)][string]$JobDirectory)
+﻿param([ValidateSet('Preflight','Run','Cleanup','RecoverFixtures','Inspect')][string]$Action='Preflight',[Parameter(Mandatory)][string]$JobDirectory)
 $ErrorActionPreference='Stop'
 $jobDirectory=[IO.Path]::GetFullPath($JobDirectory)
 if([IO.Path]::GetDirectoryName($jobDirectory) -ne 'C:\OOT-QA\runs' -or [IO.Path]::GetFileName($jobDirectory) -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Invalid guest job directory.'}
 $request=Get-Content (Join-Path $jobDirectory 'request.json') -Raw|ConvertFrom-Json
 $jobId=[IO.Path]::GetFileName($jobDirectory);$root=Join-Path $jobDirectory 'package'
 if($request.schema -ne 1 -or $request.jobId -ne $jobId){throw 'Request identity mismatch.'}
+if($request.suite -and $request.suite -notin @('full','mixed-office')){throw 'Unknown validation suite.'}
 Add-Type @'
 using System;using System.Text;using System.Collections.Generic;using System.Runtime.InteropServices;
 public static class OfficeVmDesktop {
@@ -30,6 +31,20 @@ function Preflight {
  return @{jobId=$jobId;status='complete';utc=[DateTime]::UtcNow.ToString('o');unlocked=[OfficeVmDesktop]::Unlocked();session=(Get-Process -Id $PID).SessionId;dpi=[OfficeVmDesktop]::GetDpiForSystem();officeCount=@(Get-Process WINWORD,EXCEL,POWERPNT -ErrorAction SilentlyContinue).Count;centerCount=@(Get-Process openOfficetab.Center -ErrorAction SilentlyContinue).Count;sleepPolicy=(& powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE|Out-String)}
 }
 if($Action -eq 'Preflight'){Preflight|ConvertTo-Json -Depth 6|Set-Content (Join-Path $jobDirectory 'preflight.json') -Encoding UTF8;return}
+if($Action -eq 'Inspect'){
+ Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+ $windows=@()
+ foreach($process in @(Get-Process WINWORD,EXCEL,POWERPNT -ErrorAction SilentlyContinue)){
+  $condition=[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,$process.Id)
+  foreach($window in [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,$condition)){
+   $buttons=@();foreach($button in $window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))){
+    if($button.Current.Name -match '取消|Cancel|不保存|保存'){$buttons+=@{name=$button.Current.Name;hwnd=$button.Current.NativeWindowHandle;patterns=@($button.GetSupportedPatterns()|ForEach-Object Id)}}
+   }
+   $windows+=@{pid=$process.Id;startUtc=$process.StartTime.ToUniversalTime().ToString('o');title=$window.Current.Name;hwnd=$window.Current.NativeWindowHandle;class=$window.Current.ClassName;buttons=$buttons}
+  }
+ }
+ @{jobId=$jobId;status='passed';unlocked=[OfficeVmDesktop]::Unlocked();windows=$windows}|ConvertTo-Json -Depth 7|Set-Content (Join-Path $jobDirectory 'inspection.json') -Encoding UTF8;return
+}
 if($Action -eq 'Cleanup'){
  $cleanup=@{jobId=$jobId;status='blocked';utc=[DateTime]::UtcNow.ToString('o')}
  try{
@@ -70,12 +85,44 @@ function Run([string]$label,[string]$file,[string[]]$extra){
  $report.stages+=@{name=$label;pid=$childId;startedUtc=$started;exitCode=$child.ExitCode;status=$(if($child.ExitCode -eq 0){'passed'}else{'failed'})};Report
  if($child.ExitCode -ne 0){throw "Stage failed: $label"}
 }
-function Close-Fixtures {
+function Close-Fixtures([switch]$RecoverLifecycle) {
  . (Join-Path $root 'tests/common.ps1')
  foreach($hostName in 'Word','Excel','PowerPoint'){
+  $report.recoveryStep='attach-'+$hostName;Report
+  if($RecoverLifecycle -and -not @(Get-Process @{Word='WINWORD';Excel='EXCEL';PowerPoint='POWERPNT'}[$hostName] -ErrorAction SilentlyContinue).Count){
+   $report.stages+=@{name=('fixture-exit-'+$hostName);status='skipped';reason='not-running'};Report;continue
+  }
   $expected=Join-Path $root ('tests/fixtures/'+@{Word='word-demo.docx';Excel='excel-demo.xlsx';PowerPoint='powerpoint-demo.pptx'}[$hostName])
+  if($RecoverLifecycle -and $hostName -eq 'Word'){
+   $nativeProcess=@(Get-Process WINWORD);if($nativeProcess.Count -ne 1){throw 'Ambiguous Word recovery process.'};$nativeProcess=$nativeProcess[0]
+   if($nativeProcess.StartTime.ToUniversalTime() -lt [DateTime]::Parse($before.executorStartUtc).ToUniversalTime()){throw 'Word predates this job; preserved.'}
+   Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+   $condition=[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,$nativeProcess.Id)
+   foreach($window in [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,$condition)){
+    $buttons=$window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
+    foreach($button in $buttons){if($button.Current.Name -match '^(取消|Cancel)(\(|$)'){$pattern=$button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern);if($pattern){$pattern.Invoke();$report.stages+=@{name='cancel-owned-Word-save-prompt';status='passed'};Report;Start-Sleep -Milliseconds 200};break}}
+   }
+  }
   $app=[OfficeRot]::Attach($hostName)
   if($hostName -eq 'Word'){$docs=$app.Documents}elseif($hostName -eq 'Excel'){$docs=$app.Workbooks}else{$docs=$app.Presentations}
+  if($RecoverLifecycle -and $hostName -eq 'Word'){
+   if($docs.Count -gt 4){throw 'Unexpected recovery document count.'}
+   $owned=@();$hasMarker=$false;$hasFixture=$false
+   foreach($candidate in $docs){
+    if($candidate.FullName -eq $expected -and $candidate.Saved){$hasFixture=$true}
+    elseif(-not $candidate.Path){$text=$candidate.Content.Text.TrimEnd([char]13,[char]10);if($text -eq 'PRIVATE_TEST_MARKER_not_for_diagnostics'){$hasMarker=$true}elseif($text){throw 'Unknown unsaved content preserved.'}}
+    else{throw 'Unknown/edited document preserved during recovery.'}
+    $owned+=,$candidate
+   }
+   if($docs.Count -and -not $hasMarker -and -not $hasFixture){throw 'Lifecycle ownership could not be established.'}
+   if($hasMarker){$recovered=Join-Path $jobDirectory ('recovered-lifecycle-'+[guid]::NewGuid().ToString('N')+'.txt');[IO.File]::WriteAllText($recovered,'PRIVATE_TEST_MARKER_not_for_diagnostics');$report.stages+=@{name='preserve-owned-lifecycle-marker';status='passed';file=[IO.Path]::GetFileName($recovered)};Report}
+   foreach($candidate in $owned){$candidate.Close(0)}
+   try{$app.Quit(0)}catch{if(Get-Process -Id $nativeProcess.Id -ErrorAction SilentlyContinue){throw}}
+   foreach($value in @($owned)+@($docs,$app)){if($value -and [Runtime.InteropServices.Marshal]::IsComObject($value)){try{[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($value)}catch{}}}
+   $owned=@();$candidate=$null;$value=$null;$docs=$null;$app=$null;[GC]::Collect();[GC]::WaitForPendingFinalizers()
+   if(-not $nativeProcess.WaitForExit(30000)){throw 'Recovered Word process did not exit normally.'}
+   $report.stages+=@{name='fixture-exit-Word';pid=$nativeProcess.Id;status='passed'};Report;continue
+  }
   if($docs.Count -ne 1 -or $docs.Item(1).FullName -ne $expected -or -not $docs.Item(1).Saved){throw 'Unknown/edited document preserved during cleanup.'}
   $api=$app.COMAddIns.Item('openOfficetab.Connect').Object;$state=$api.GetState()|ConvertFrom-Json
   $process=@(Get-Process @{Word='WINWORD';Excel='EXCEL';PowerPoint='POWERPNT'}[$hostName]);if($process.Count -ne 1){throw 'Ambiguous fixture process.'}
@@ -94,7 +141,7 @@ if($Action -eq 'RecoverFixtures'){
  $report=@{jobId=$jobId;status='running';stages=@();action='recover-fixtures'}
  # Keep the initial failed result immutable. Recovery has its own report.
  function Report {Write-Report 'recovery.json'}
- try{Report;Ready;Close-Fixtures;$report.status='passed'}catch{$report.status='failed';$report.error=$_.Exception.Message}finally{Report}
+ try{Report;Ready;Close-Fixtures -RecoverLifecycle;$report.status='passed'}catch{$report.status='failed';$report.error=$_.Exception.Message;$report.stack=$_.ScriptStackTrace}finally{Report}
  return
 }
 $mutex=[Threading.Mutex]::new($false,'Local\openOfficetab.OfficeVmRuntime');$held=$false;$awake=0
@@ -125,10 +172,15 @@ try{
  if(-not $installed.ok){throw 'Unified installer reported failure.'}
  $report.stages+=@{name='unified-install';pid=$setup.Id;exitCode=$setup.ExitCode;status='passed'};Report
  Run 'registration' (Join-Path $root 'tests/desktop-install-runtime.ps1') @('-Architecture','x86','-ExpectedVersion',$request.version)
+ if($request.suite -ne 'mixed-office'){
  foreach($hostName in 'Word','Excel','PowerPoint'){Run ('lifecycle-'+$hostName) (Join-Path $root 'tests/lifecycle-process-runtime.ps1') @('-HostName',$hostName)}
  Run 'save' (Join-Path $root 'tests/save-suite-runtime.ps1') @('-Architecture','x86','-Root',$root)
  Run 'open-fixtures' (Join-Path $root 'tests/desktop-install-runtime.ps1') @('-Architecture','x86','-ExpectedVersion',$request.version,'-OpenFixtures')
  try{Run 'language' (Join-Path $root 'tests/language-runtime.ps1') @('-Architecture','x86','-ExpectedVersion',$request.version)}finally{Close-Fixtures}
+ }
+ $report.suite=if($request.suite){$request.suite}else{'full'}
+ Run 'mixed-office' (Join-Path $root 'tests/mixed-office-runtime.ps1') @('-Architecture','x86')
+ Run 'powerpoint-live-rename' (Join-Path $root 'tests/powerpoint-live-rename-runtime.ps1') @('-Architecture','x86')
  # Entry-point integration only: full management-center UI coverage is on
  # the x64 host. Exclude Tauri's hidden resize window by visibility and size.
  $centerPath=(Get-ItemProperty HKCU:\Software\openOfficetab).CenterPath

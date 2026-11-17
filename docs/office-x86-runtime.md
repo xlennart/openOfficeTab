@@ -28,6 +28,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-office-x86-
 
 Run 会验证 EXE、ZIP、QA 包及两种 DLL 哈希，按实际 Office PE 位数选择 x86，验证统一安装、三宿主生命周期、真实保存及进程退出后的 XML 内容、中英文及自动语言、管理中心入口与退出，以及修复、保留设置卸载和重装。运行由固定执行器串行处理并持有互斥锁；唤醒请求覆盖整个任务，在 finally 中释放，不改写电源计划。
 
+开发分支另串行运行 `tests/mixed-office-runtime.ps1 -Architecture x86` 与 `tests/powerpoint-live-rename-runtime.ps1 -Architecture x86`，分别检查三宿主混合组、共享宽度、整组窗口行为，以及普通/Strict PPTX 的原生重命名弹窗、原窗口保留、退出后内容和格式。对应脚本随 QA 包传入；阶段未运行或被预检阻塞时，不计为通过。
+
+专项复测使用 `-Suite mixed-office`，仅在统一 EXE 与 DLL 哈希相同时联合复用已通过的常规生命周期证据，原失败轮保留。`-Action Inspect -JobId <当前任务>` 只回收运行中客机的原生/UIA 状态，不启动已关机虚拟机；输出仍属于私有证据。
+
 宿主机负责同一 x64 管理中心的完整 UI/尺寸矩阵。客机入口检查排除 Tauri 的隐藏调整窗口，不冒充完整界面回归；COM/原生消息测试不证明人工鼠标拖动手感，未保存取消事件也不代表每个保存对话框按钮。
 
 ### 结果、复测和收尾
@@ -77,6 +81,10 @@ Build/package both Office architectures first. Use the commands above with a uni
 Preflight checks VMware Tools, the unlocked interactive desktop, session, DPI, existing Office/center processes and sleep policy. A Windows-update screen blocks testing until completion; the user must log in/unlock manually. Tools connectivity and old result files are not Office acceptance. Never force-reset the VM.
 
 Run binds hashes for the unified EXE, ZIP, QA overlay and both DLLs, checks actual Office PE architecture, and covers unified installation, all three Office hosts, lifecycle, native save plus post-exit XML verification, Chinese/English/Follow Windows, center entry/exit, repair, settings-preserving uninstall and reinstall. A mutex serializes guest jobs. A job-scoped wake request is released in finally without changing the power plan.
+
+The development branch also serially runs `tests/mixed-office-runtime.ps1 -Architecture x86` and `tests/powerpoint-live-rename-runtime.ps1 -Architecture x86`. They check three-host mixed groups, shared widths and group window behavior, plus native regular/Strict PPTX rename dialogs, retained editing windows, and post-exit content/format. Both scripts travel in the QA overlay. Unrun or preflight-blocked stages do not count as passed.
+
+Use `-Suite mixed-office` for focused retests only with identical unified EXE/DLL hashes and matching passed lifecycle evidence; retain original failed runs. `-Action Inspect -JobId <current-job>` collects native/UIA state from a running guest without starting a stopped VM. Its output remains private evidence.
 
 Run the full shared x64 center UI/size matrix on the host. Guest center entry checks exclude Tauri's hidden resize window. API/native-message tests do not establish physical drag smoothness or every save-dialog button.
 

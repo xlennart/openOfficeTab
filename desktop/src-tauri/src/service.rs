@@ -72,7 +72,7 @@ impl Default for Runtime { fn default() -> Self { Self { serial: Mutex::new(()),
 #[tauri::command]
 pub async fn service(action: String, mut request: Value, state: tauri::State<'_, Arc<Runtime>>) -> Result<Value, String> {
     if !request.is_object() { return Err("Invalid request.".into()); }
-    if !["state","language","appearance","hosts","install","repair","diagnostics","preferences","check-update","probe-routes","download-update","apply-update","uninstall"].contains(&action.as_str()) { return Err("Unsupported action.".into()); }
+    if !["state","mixed-group","language","appearance","hosts","install","repair","diagnostics","preferences","check-update","probe-routes","download-update","apply-update","uninstall"].contains(&action.as_str()) { return Err("Unsupported action.".into()); }
     request["preserveHosts"] = json!(false);
     let runtime = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {

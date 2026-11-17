@@ -103,7 +103,7 @@ inline constexpr Entry entries[]={
     {L"关闭本组全部文档",L"Close all documents in this group"},
     {L"点击窗口关闭按钮时",L"When clicking the window close button"},
     {L"标签外观",L"Tab appearance"},
-    {L"openOfficeTab 0.2.3\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"openOfficeTab 0.2.3\nFree and open source · MIT\nWord / Excel / PowerPoint\n\nBrowser-style tabs with Office's native documents and save flow.\nDrag to reorder, middle-click to close, right-click for more.\n\nTab locking prevents accidental tab-bar closes; it is not document protection."},
+    {L"openOfficeTab 0.3.0-beta.1\n永久免费 · MIT 开源\nWord / Excel / PowerPoint\n\n浏览器圆角标签 · 原生 Office 文档与保存流程\n拖动排序，中键关闭，右键更多操作。\n\n标签锁定仅防止标签栏误关，不替代 Office 文档保护。",L"openOfficeTab 0.3.0-beta.1\nFree and open source · MIT\nWord / Excel / PowerPoint\n\nBrowser-style tabs with Office's native documents and save flow.\nDrag to reorder, middle-click to close, right-click for more.\n\nTab locking prevents accidental tab-bar closes; it is not document protection."},
     {L"文档标签",L"Document tabs"},
     {L"openOfficeTab · + 新建 · ▾ 文档列表 · ⋯ 设置\n拖动排序，中键关闭，右键更多操作",L"openOfficeTab · + New · ▾ Document list · ⋯ Settings\nDrag to reorder, middle-click to close, right-click for more"},
     {L"openOfficeTab 标签栏",L"openOfficeTab tab bar"},
@@ -135,9 +135,10 @@ inline std::wstring closeSummary(int language,size_t count){
 struct RibbonLabel {const wchar_t* id;const wchar_t* key;};
 inline constexpr RibbonLabel ribbonLabels[]={
     {L"ootDocs",L"文档标签"},{L"ootNew",L"新建文档"},{L"ootNewIndependent",L"新建为独立窗口"},
-    {L"ootOpen",L"打开文档"},{L"ootSave",L"保存本组全部标签"},{L"ootRecent",L"最近关闭…"},
+    {L"ootOpen",L"打开文档"},{L"ootRename",L"重命名文件…"},{L"ootSave",L"保存本组全部标签"},{L"ootRecent",L"最近关闭…"},
     {L"ootWindows",L"标签与窗口"},{L"ootShow",L"显示 / 隐藏标签栏"},{L"ootGroup",L"单任务栏模式"},
     {L"ootDetach",L"独立窗口显示"},{L"ootJoin",L"加入 / 移动到标签组"},{L"ootRestore",L"恢复窗口排列"},
+    {L"ootMixed",L"混合 Office 标签组（实验）…"},
     {L"ootOptions",L"设置与恢复"},{L"ootCenter",L"管理中心"},{L"ootWidth",L"标签宽度"},{L"ootSettings",L"标签设置"},
     {L"ootRefresh",L"刷新标签"},{L"ootDiagnose",L"加载诊断"},{L"ootExport",L"导出脱敏诊断"},{L"ootRecover",L"恢复标签栏与窗口"}
 };

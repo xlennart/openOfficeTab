@@ -259,7 +259,7 @@ void previewOptionsMenu(HWND owner, bool dark, const wchar_t* path) {
     tabmenu::populateOptions(menu, settings, settings.language);
 
     HMENU root = menu.handle();
-    const UINT order[] = {60, 1, 2, 4, 100, 101, 102, 5, 0, 6, 7, 8, 12, 17, 18, 0, 13, 14, 15, 16, 9, 10, 11};
+    const UINT order[] = {60, 61, 17, 0, 104, 0, 15};
     assert(GetMenuItemCount(root) == (int)std::size(order));
     for (int index = 0; index < GetMenuItemCount(root); ++index) {
         MENUITEMINFOW item{sizeof(item)};
@@ -268,10 +268,11 @@ void previewOptionsMenu(HWND owner, bool dark, const wchar_t* path) {
         if (order[index]) assert(item.wID == order[index]);
         else assert(item.fType & MFT_SEPARATOR);
     }
-    for (UINT id : {1U, 2U, 4U, 7U}) assert(GetMenuState(root, id, MF_BYCOMMAND) & MF_CHECKED);
-    for (UINT id : {5U, 6U}) assert(!(GetMenuState(root, id, MF_BYCOMMAND) & MF_CHECKED));
+    HMENU settingsMenu=GetSubMenu(root,4);assert(settingsMenu);
+    for (UINT id : {1U, 2U, 4U, 7U}) assert(GetMenuState(settingsMenu, id, MF_BYCOMMAND) & MF_CHECKED);
+    for (UINT id : {5U, 6U}) assert(!(GetMenuState(settingsMenu, id, MF_BYCOMMAND) & MF_CHECKED));
 
-    HMENU closing = GetSubMenu(root, 4), appearance = GetSubMenu(root, 5), languages = GetSubMenu(root, 6);
+    HMENU closing = GetSubMenu(settingsMenu, 3), appearance = GetSubMenu(settingsMenu, 4), languages = GetSubMenu(settingsMenu, 5);
     assert(closing && appearance && languages);
     assert(GetMenuItemCount(closing) == 3 && GetMenuItemCount(appearance) == 11 && GetMenuItemCount(languages) == 3);
     HMENU themeMenu = GetSubMenu(appearance, 10);
@@ -285,7 +286,7 @@ void previewOptionsMenu(HWND owner, bool dark, const wchar_t* path) {
 
     dialogui::Theme theme;
     theme.initialize(owner, Host::Word, dark, settings.language);
-    captureMenu(owner, root, theme, 101, path);
+    captureMenu(owner, root, theme, 104, path);
     if (dark) captureMenu(owner, appearance, theme, 103, L"artifacts/options-appearance-menu-dark.png");
 }
 

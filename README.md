@@ -15,6 +15,8 @@ Free · Open source · Native C++ · Windows desktop Office
 
 **English** · [简体中文](README.zh-CN.md)
 
+**Beta: [0.3.0-beta.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.3.0-beta.1).** Try mixed Word/Excel/PowerPoint groups with tabs inside Office, shared tab widths and group window behavior. Open grouping from the openOfficeTab Ribbon, **…**, or the management center's Overview page. The shorter **…** menu keeps full preferences in **Tab settings**. Regular/Strict PPTX rename keeps the presentation open. See [trial steps and limits](docs/mixed-office-groups.md), [release notes](docs/release-notes-v0.3.0-beta.1.md) and [validation](docs/validation-v0.3.0-beta.1.md). Opt in through **About and updates → Update channel → Beta**. Stable remains 0.2.3.
+
 [Download](https://github.com/xlennart/openOfficeTab/releases/latest) · [User guide](#user-guide) · [Release history](#release-history) · [Report an issue](https://github.com/xlennart/openOfficeTab/issues) · [Development](docs/development.md)
 
 </div>

@@ -1,6 +1,6 @@
 {
   "name": "openofficetab-desktop-review",
-  "version": "0.2.3",
+  "version": "0.3.0-beta.1",
   "private": true,
   "type": "module",
   "license": "MIT",

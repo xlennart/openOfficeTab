@@ -6,7 +6,7 @@
 // A volatile, logon- and integrity-scoped ledger. No COM objects, process-local
 // pointers, file paths, credentials, or persistent workspace data cross it.
 namespace mixedoffice {
-constexpr uint32_t capacity=96, protocol=2;
+constexpr uint32_t capacity=96, protocol=3;
 // Preserve the existing signed 32-bit Automation argument contract.
 constexpr uint64_t remoteBit=uint64_t{1}<<30;
 constexpr wchar_t windowProperty[]=L"openOfficeTab.Mixed.v1";
@@ -16,7 +16,7 @@ struct Member {
     uint64_t key=0,owner=0,start=0,view=0,window=0,group=0,order=0,seen=0;
     uint64_t request=0,requestSource=0,requestTime=0;
     uint64_t selected=0;
-    uint32_t pid=0,host=0,ready=0,saved=1,locked=0,command=0,width=0,reserved=0;
+    uint32_t pid=0,host=0,ready=0,saved=1,locked=0,command=0,width=0,minimized=0;
     wchar_t title[256]{};
 };
 struct Ledger {uint32_t version=0,bytes=0,poison=0,reserved=0;uint64_t serial=0;Member members[capacity]{};};
@@ -70,7 +70,7 @@ public:
         BYTE integrity[256]{};DWORD size=sizeof(integrity);DWORD level=0;
         if(GetTokenInformation(token,TokenIntegrityLevel,integrity,size,&size)){auto sid=((TOKEN_MANDATORY_LABEL*)integrity)->Label.Sid;level=*GetSidSubAuthority(sid,*GetSidSubAuthorityCount(sid)-1);}
         CloseHandle(token);if(logon.empty()||!level||suffix.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")!=std::wstring::npos)return;
-        auto name=L"Local\\openOfficeTab.Mixed.v2."+logon+L"."+std::to_wstring(level)+suffix;
+        auto name=L"Local\\openOfficeTab.Mixed.v3."+logon+L"."+std::to_wstring(level)+suffix;
         PSECURITY_DESCRIPTOR descriptor=nullptr;auto acl=L"D:P(A;;GA;;;SY)(A;;GA;;;"+logon+L")";
         if(!ConvertStringSecurityDescriptorToSecurityDescriptorW(acl.c_str(),SDDL_REVISION_1,&descriptor,nullptr))return;
         SECURITY_ATTRIBUTES security{sizeof(security),descriptor,FALSE};
