@@ -32,5 +32,12 @@ inline bool validStem(const std::wstring& name,const std::wstring& suffix){
 inline std::wstring target(const std::wstring& path,const std::wstring& name){
     auto slash=path.find_last_of(L"\\/");return slash==std::wstring::npos?L"":path.substr(0,slash+1)+name+extension(path);
 }
-enum class Result {failed,renamed,reopenFailed};
+enum class Result {failed,renamed,reopenFailed,originalRetained};
+
+inline bool isPptx(const std::wstring& path) {
+    auto suffix = extension(path);
+    for (auto& character : suffix)
+        if (character >= L'A' && character <= L'Z') character += L'a' - L'A';
+    return suffix == L".pptx";
+}
 }
