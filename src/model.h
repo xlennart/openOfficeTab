@@ -90,6 +90,8 @@ public:
     long long queuedLayoutId=0,queuedLayoutTrace=0;
     diagnostic::Gate layoutDiagnosticGate,snapshotDiagnosticGate;
     std::map<HWND,std::shared_ptr<WindowMask>> windowMasks;
+    std::map<HWND,std::shared_ptr<WindowMask>> mixedMasks;
+    void mixedPresentation(HWND root,bool conceal);void restoreMixedPresentation();
     HWND maskSource=nullptr;
     ULONGLONG maskActivity=0;
     int officeTheme=-1;bool systemDark=false;ULONGLONG lastThemePoll=0;

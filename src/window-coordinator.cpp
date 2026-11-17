@@ -46,6 +46,17 @@ public:
     }
 };
 
+void Session::mixedPresentation(HWND root,bool conceal){
+    if(!owned(root))return;
+    if(!conceal){mixedMasks.erase(root);if(taskbar&&SUCCEEDED(taskbar->AddTab(root)))for(auto& v:views)if(v->hwnd==root)v->taskbarRemoved=false;return;}
+    if(!IsWindowEnabled(root)||GetAncestor(GetForegroundWindow(),GA_ROOTOWNER)==root)return;
+    if(!mixedMasks.count(root)){auto mask=std::make_shared<WindowMask>();if(!mask->conceal(root))return;mixedMasks[root]=mask;}
+    if(taskbar&&SUCCEEDED(taskbar->DeleteTab(root)))for(auto& v:views)if(v->hwnd==root)v->taskbarRemoved=true;
+}
+void Session::restoreMixedPresentation(){
+    mixedMasks.clear();for(auto& v:views)if(v->mixedGroup&&owned(v->hwnd)&&taskbar&&SUCCEEDED(taskbar->AddTab(v->hwnd)))v->taskbarRemoved=false;
+}
+
 // Observe only this Office STA. No injected helper, global hook, COM calls or
 // activation APIs: mouse coordinates come only from a managed document input.
 class WindowInputObserver {
@@ -130,6 +141,7 @@ class RootObserver:public std::enable_shared_from_this<RootObserver> {
         diagnostic::Scope cause(diagnostic::WindowMessage,0,false);
         auto self=((RootObserver*)ref)->shared_from_this();auto s=self->session;auto keep=s->shared_from_this();
         if(m==WM_NCDESTROY){RemoveWindowSubclass(w,proc,112);self->window=nullptr;if(s->maskSource==w)s->restoreWindowMasks();if(s->sizingRoot==w)s->sizingRoot=nullptr;if(s->queuedLayoutRoot==w){s->cancelLayoutDiagnostic(4);s->queuedLayoutRoot=nullptr;s->queuedLayoutCommand=false;}return DefSubclassProc(w,m,a,b);}
+        if((m==WM_ACTIVATE&&LOWORD(a)!=WA_INACTIVE)||(m==WM_ENABLE&&!a)){if(s->mixed&&s->mixed->contains(w))s->mixed->activated(*s,w);}
         if((m==WM_CLOSE||(m==WM_SYSCOMMAND&&(a&0xfff0)==SC_CLOSE))&&s->queueFrameClose(w))return 0;
         auto input=s->inputObserver;
         bool inputMessage=m==WM_ACTIVATE||m==WM_MOUSEACTIVATE||m==WM_NCLBUTTONDOWN||m==WM_NCLBUTTONUP||m==WM_NCLBUTTONDBLCLK;

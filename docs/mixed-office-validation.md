@@ -2,6 +2,20 @@
 
 2026-11-17 · Development branch `codex/mixed-office-tabs`; no release.
 
+## 试用反馈修正 / Review corrections
+
+用户反馈确认首版仅能切换，仍暴露多个窗口，且标签宽度不同步。新增整组合并、共享宽度、按当前成员遮蔽后台窗口与切换任务栏入口；后台选中端失去心跳时恢复其他成员。
+
+- 最终 x64 DLL：`36BE4288E03BF956A4BE0C6B65F557DA401108095FB7DD1BDF3EF615AC60E2FD`。
+- 最终 x86 DLL：`502EFBE64D7068BB1C628092DE3869453C13F701F1E496A2B3ADE7623E4132F6`。
+- 新实机结果：`artifacts/mixed-office-4bb2c5763fa5454cb4d3866d3ffc2e2b/result.json`。覆盖从两成员组向第三个应用整组合并、三端单标签宽度一致、真实切换时只有选中窗口未遮蔽且只有选中成员保留任务栏入口、解组后全部恢复。
+- 双架构原生回归通过；x86 Office 实机、人工拖放、模态保存取消及跨屏 DPI 尚未验收。
+- 已在真实桌面安装修正 DLL，沿用已保存的试用副本并保留三个进程。现场状态、加载哈希、后台遮蔽及任务栏入口记录为 `artifacts/mixed-review-7e6d5c86f8a54675a2466d8b12a004eb/fusion-ready.json`；同目录 `fusion-review.png` 是实际前台 Office 窗口截图，显示窗口内三种标签。
+
+The first review exposed multiple windows, inconsistent widths and group splitting. The correction adds whole-group merging, shared widths, reversible background concealment and selection-driven taskbar membership. A stale selected endpoint reveals surviving members. Earlier passing checks below cover the initial implementation only.
+
+The new real-Office run above passed whole-group merging onto a third app, matching per-tab widths, one unconcealed selected member and one retained taskbar entry after each switch, and recovery revealing all members. Both native architectures pass offline regression; x86 Office, human dragging, modal save cancellation and multi-monitor DPI remain unverified. The corrected x64 DLL is installed for user review; the retained fixture processes, loaded hashes, presentation state and actual Office screenshot are recorded in the review directory above. The x64/x86 hashes listed above identify the final payloads.
+
 ## 简体中文
 
 - x64、x86 原生构建及原生回归通过。包含隔离的共享内存跨进程 ABI、成员变更、忙碌/锁定保护、窗口身份失效与失败关闭测试。受限开发令牌无法打开仅限登录用户的 IPC，正常用户令牌下测试通过；这不是 Office 实机证据。

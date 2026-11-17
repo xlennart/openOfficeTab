@@ -6,7 +6,7 @@
 // A volatile, logon- and integrity-scoped ledger. No COM objects, process-local
 // pointers, file paths, credentials, or persistent workspace data cross it.
 namespace mixedoffice {
-constexpr uint32_t capacity=96, protocol=1;
+constexpr uint32_t capacity=96, protocol=2;
 // Preserve the existing signed 32-bit Automation argument contract.
 constexpr uint64_t remoteBit=uint64_t{1}<<30;
 constexpr wchar_t windowProperty[]=L"openOfficeTab.Mixed.v1";
@@ -15,13 +15,14 @@ enum Command:uint32_t {None,Activate,Close};
 struct Member {
     uint64_t key=0,owner=0,start=0,view=0,window=0,group=0,order=0,seen=0;
     uint64_t request=0,requestSource=0,requestTime=0;
-    uint32_t pid=0,host=0,ready=0,saved=1,locked=0,command=0;
+    uint64_t selected=0;
+    uint32_t pid=0,host=0,ready=0,saved=1,locked=0,command=0,width=0,reserved=0;
     wchar_t title[256]{};
 };
 struct Ledger {uint32_t version=0,bytes=0,poison=0,reserved=0;uint64_t serial=0;Member members[capacity]{};};
 #pragma pack(pop)
-static_assert(sizeof(Member)==624,"Mixed Office IPC layout must match x86/x64");
-static_assert(sizeof(Ledger)==59928,"Mixed Office IPC layout must match x86/x64");
+static_assert(sizeof(Member)==640,"Mixed Office IPC layout must match x86/x64");
+static_assert(sizeof(Ledger)==61464,"Mixed Office IPC layout must match x86/x64");
 inline HWND window(const Member& m){return (HWND)(UINT_PTR)m.window;}
 inline bool live(const Member& m){
     if(!m.key||!m.pid||!m.window||m.window>UINT32_MAX||m.host>2||!(m.key&remoteBit))return false;
@@ -33,16 +34,19 @@ inline Member* find(Ledger& state,uint64_t key){for(auto& m:state.members)if(key
 inline uint64_t next(Ledger& state){return state.serial<0x3ffffffe?remoteBit|++state.serial:0;}
 inline void normalize(Ledger& state){
     for(auto& m:state.members)if(m.key&&!live(m))m={};
-    for(auto& m:state.members)if(m.group){unsigned count=0;for(auto& n:state.members)if(n.key&&n.group==m.group)++count;if(count<2)m.group=0;}
+    for(auto& m:state.members)if(m.group){unsigned count=0;bool selected=false;uint64_t first=0;for(auto& n:state.members)if(n.key&&n.group==m.group){++count;if(!first)first=n.key;if(n.key==m.selected)selected=true;}if(count<2){m.group=0;m.selected=0;}else if(!selected)m.selected=first;}
 }
 inline bool join(Ledger& state,uint64_t source,uint64_t target,uint64_t now){
     auto a=find(state,source),b=find(state,target);
     if(!a||!b||a==b||!available(*a,now)||!available(*b,now))return false;
     if(a->group&&a->group==b->group)return true;
+    auto old=a->group;
     auto group=b->group?b->group:next(state);if(!group)return false;
     b->group=group;if(!b->order)b->order=b->key;
     uint64_t last=0;for(auto& m:state.members)if(m.group==group)last=std::max(last,m.order);
-    a->group=group;a->order=last+1;a->command=None;a->request=0;
+    auto selected=b->selected?b->selected:b->key;
+    for(auto& m:state.members)if(m.key&&(m.key==source||(old&&m.group==old))){m.group=group;m.order=++last;m.command=None;m.request=0;}
+    for(auto& m:state.members)if(m.group==group)m.selected=selected;
     normalize(state);return true;
 }
 inline bool enqueue(Ledger& state,uint64_t source,uint64_t target,Command command,uint64_t now){
@@ -66,7 +70,7 @@ public:
         BYTE integrity[256]{};DWORD size=sizeof(integrity);DWORD level=0;
         if(GetTokenInformation(token,TokenIntegrityLevel,integrity,size,&size)){auto sid=((TOKEN_MANDATORY_LABEL*)integrity)->Label.Sid;level=*GetSidSubAuthority(sid,*GetSidSubAuthorityCount(sid)-1);}
         CloseHandle(token);if(logon.empty()||!level||suffix.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")!=std::wstring::npos)return;
-        auto name=L"Local\\openOfficeTab.Mixed.v1."+logon+L"."+std::to_wstring(level)+suffix;
+        auto name=L"Local\\openOfficeTab.Mixed.v2."+logon+L"."+std::to_wstring(level)+suffix;
         PSECURITY_DESCRIPTOR descriptor=nullptr;auto acl=L"D:P(A;;GA;;;SY)(A;;GA;;;"+logon+L")";
         if(!ConvertStringSecurityDescriptorToSecurityDescriptorW(acl.c_str(),SDDL_REVISION_1,&descriptor,nullptr))return;
         SECURITY_ATTRIBUTES security{sizeof(security),descriptor,FALSE};

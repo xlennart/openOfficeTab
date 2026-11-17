@@ -135,7 +135,7 @@ unsigned long long Tabs::edgeAt(POINT p)const{
 }
 void Tabs::finishResize(bool cancel){
     auto id=resizing;resizing=0;
-    if(cancel&&session){auto v=session->find(id);if(v){v->manualTabWidth=resizeOriginalWidth;session->redraw();}}
+    if(cancel&&session){auto v=session->find(id);if(v){if(v->mixedGroup&&session->mixed)session->mixed->setWidth(*session,id,resizeOriginalWidth);else v->manualTabWidth=resizeOriginalWidth;session->redraw();}}
     if(id&&!cancel&&session){auto view=session->find(id);if(view)session->persistView(*view);}
     if(id&&hwnd&&GetCapture()==hwnd)ReleaseCapture();
     if(id&&hwnd&&GetFocus()==hwnd&&IsWindow(resizePreviousFocus))SetFocus(resizePreviousFocus);
@@ -265,7 +265,7 @@ void Tabs::click(UINT msg,WPARAM,LPARAM lp){
         return;
     }
     if(msg==WM_MOUSEMOVE&&resizing){
-        auto v=s->find(resizing);if(v){v->manualTabWidth=tablayout::resized(resizeStartWidth,p.x-down.x,dpi(hwnd));s->redraw();}else finishResize(false);
+        auto v=s->find(resizing);if(v){int width=tablayout::resized(resizeStartWidth,p.x-down.x,dpi(hwnd));if(v->mixedGroup&&s->mixed)s->mixed->setWidth(*s,resizing,width);else v->manualTabWidth=width;s->redraw();}else finishResize(false);
         SetCursor(LoadCursorW(nullptr,IDC_SIZEWE));return;
     }
     if(msg==WM_LBUTTONDOWN){auto edge=edgeAt(p);if(edge){auto v=s->find(edge);if(v){resizing=edge;resizeOriginalWidth=v->manualTabWidth;for(auto& x:hit)if(x.first==edge)resizeStartWidth=std::clamp(MulDiv(x.second.right-x.second.left+MulDiv(3,dpi(hwnd),96),96,dpi(hwnd)),tablayout::minWidth,tablayout::maxWidth);down=p;pressed=0;dragging=false;resizePreviousFocus=GetFocus();if(hwnd)SetFocus(hwnd);SetCapture(hwnd);SetCursor(LoadCursorW(nullptr,IDC_SIZEWE));}return;}}

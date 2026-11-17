@@ -765,7 +765,7 @@ void Session::updateTaskbar(){
     std::set<unsigned> ready;
     for(auto& v:views){
         if(!valid(v->hwnd))continue;
-        if(v->mixedGroup){if(v->taskbarRemoved&&SUCCEEDED(taskbar->AddTab(v->hwnd)))v->taskbarRemoved=false;continue;}
+        if(v->mixedGroup)continue; // Mixed presentation owns taskbar membership.
         bool grouped=settings.group&&showTabs(v->hwnd)&&!v->independent;
         if(grouped&&v->id==activeTabId(v->hwnd)){
             if(SUCCEEDED(taskbar->AddTab(v->hwnd))){v->taskbarRemoved=false;ready.insert(v->groupId);}
@@ -790,7 +790,7 @@ std::wstring Session::state()const{
     for(size_t i=0;i<views.size();i++){auto& v=views[i];if(i)r+=L",";r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"hwnd\":"+std::to_wstring((UINT_PTR)v->hwnd)+L",\"title\":"+json(v->title)+L",\"groupId\":"+std::to_wstring(v->groupId)+L",\"saved\":"+(v->saved?L"true":L"false")+L",\"readOnly\":"+(v->readOnly?L"true":L"false")+L",\"locked\":"+(v->locked?L"true":L"false")+L",\"independent\":"+(v->independent?L"true":L"false")+L",\"taskbarRemoved\":"+(v->taskbarRemoved?L"true":L"false")+L",\"manualTabWidth\":"+std::to_wstring(v->manualTabWidth)+L",\"moved\":"+(v->moved?L"true":L"false")+L"}";}
     r+=L"],\"mixedTabs\":[";
     auto current=find(activeId);bool firstMixed=true;
-    if(current&&current->mixedGroup)for(auto& v:tabViews(current->hwnd)){if(!firstMixed)r+=L",";firstMixed=false;r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"host\":"+std::to_wstring(v->tabHost)+L",\"title\":"+json(v->title)+L"}";}
+    if(current&&current->mixedGroup)for(auto& v:tabViews(current->hwnd)){if(!firstMixed)r+=L",";firstMixed=false;r+=L"{\"id\":"+std::to_wstring(v->id)+L",\"host\":"+std::to_wstring(v->tabHost)+L",\"width\":"+std::to_wstring(v->manualTabWidth)+L",\"title\":"+json(v->title)+L"}";}
     r+=L"],\"paneMetrics\":[";
     for(size_t i=0;i<panes.size();i++){
         if(i)r+=L",";auto& p=panes[i];HWND h=p.control?p.control->NativeWindow():nullptr;RECT rc{};if(h)GetWindowRect(h,&rc);
@@ -807,8 +807,9 @@ void Session::menu(HWND owner,unsigned long long id,POINT pt){
         tabmenu::Menu menu(owner,host,darkMode(),language());
         menu.add(menu.handle(),1,tr(L"切换到此文档"));menu.add(menu.handle(),5,tr(L"关闭当前标签"),tabmenu::Glyph::close,!v->locked);
         menu.add(menu.handle(),2,tr(L"保存"),tabmenu::Glyph::save,!(id&mixedoffice::remoteBit)&&!v->readOnly);
+        menu.add(menu.handle(),61,tr(L"混合 Office 标签组（实验）…"),tabmenu::Glyph::stack);
         menu.separator();menu.add(menu.handle(),62,tr(L"退出混合标签组"),tabmenu::Glyph::external);
-        auto choice=menu.track(pt);if(choice==1)activate(id,owner);if(choice==5)close(id);if(choice==2)save(id);if(choice==62&&mixed)mixed->leave(*this,id);return;
+        auto choice=menu.track(pt);if(choice==1)activate(id,owner);if(choice==5)close(id);if(choice==2)save(id);if(choice==61&&mixed)mixed->choose(*this,owner,id,pt);if(choice==62&&mixed)mixed->leave(*this,id);return;
     }
     UINT command = 0;
     {

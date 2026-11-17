@@ -78,6 +78,7 @@ void Session::colorDialog(HWND owner){
 }
 bool Session::setViewWidth(unsigned long long id,int width){
     auto v=find(id);if(!v||stopped||width<0||(width!=0&&!tablayout::validWidth(width,0)))return false;
+    if(v->mixedGroup&&mixed)return mixed->setWidth(*this,id,width);
     v->manualTabWidth=width;persistView(*v);redraw();return true;
 }
 void Session::renameDialog(HWND owner,unsigned long long id){

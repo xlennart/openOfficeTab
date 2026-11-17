@@ -11,7 +11,7 @@ Client::Client(){
 }
 Client::~Client()=default;
 uint64_t Client::localKey(const Session& s,uint64_t id)const{
-    if(id&remoteBit)return id;
+    if(id&remoteBit)return remote(id)?id:0;
     for(auto& m:snapshot)if(m.owner==owner&&m.start==start&&m.view==id&&m.pid==GetCurrentProcessId()){
         for(auto& v:s.views)if(v->id==id&&v->hwnd==window(m))return m.key;
     }
@@ -24,7 +24,7 @@ std::shared_ptr<View> Client::remote(uint64_t key)const{
         bool shared=false;for(auto& a:snapshot)if(a.owner==owner&&a.group==m.group&&live(a))shared=true;
         if(!shared)return {};
         auto v=std::make_shared<View>();v->id=key;v->hwnd=window(m);v->title.assign(m.title,wcsnlen_s(m.title,256));
-        v->saved=m.saved!=0;v->locked=m.locked!=0;v->readOnly=true;v->mixedGroup=m.group;v->tabHost=(int)m.host;return v;
+        v->saved=m.saved!=0;v->locked=m.locked!=0;v->readOnly=true;v->mixedGroup=m.group;v->tabHost=(int)m.host;v->manualTabWidth=(int)m.width;return v;
     }
     return {};
 }
@@ -69,13 +69,18 @@ void Client::tick(Session& s){
             Member* current=nullptr;for(auto& m:state.members)if(m.owner==owner&&m.view==v->id&&window(m)==v->hwnd)current=&m;
             if(!current)for(auto& m:state.members)if(!m.key){auto key=next(state);if(!key)break;
                 if(!SetPropW(v->hwnd,windowProperty,(HANDLE)(UINT_PTR)(key&0x7fffffff)))break;
-                m={};m.key=key;m.owner=owner;m.start=start;m.pid=pid;m.view=v->id;m.window=(uint64_t)(UINT_PTR)v->hwnd;current=&m;break;}
+                m={};m.key=key;m.owner=owner;m.start=start;m.pid=pid;m.view=v->id;m.window=(uint64_t)(UINT_PTR)v->hwnd;m.width=v->manualTabWidth;current=&m;break;}
             if(!current)continue;
             current->host=(uint32_t)s.host;current->seen=now;current->ready=ready&&IsWindowEnabled(v->hwnd);current->saved=v->saved;current->locked=v->locked;
             wcsncpy_s(current->title,v->title.c_str(),_TRUNCATE);
             if(current->command){commands.push_back(*current);current->command=None;current->request=0;}
         }
-        normalize(state);for(auto& m:state.members)if(m.key)nextSnapshot.push_back(m);
+        normalize(state);
+        HWND foreground=GetAncestor(GetForegroundWindow(),GA_ROOTOWNER);
+        for(auto& m:state.members)if(m.group&&window(m)==foreground&&live(m)){
+            auto key=m.key,group=m.group;for(auto& n:state.members)if(n.group==group)n.selected=key;break;
+        }
+        for(auto& m:state.members)if(m.key)nextSnapshot.push_back(m);
     });
     if(!ok&&!store.failed())return;
     if(ok)snapshot=std::move(nextSnapshot);else snapshot.clear();
@@ -87,8 +92,9 @@ void Client::tick(Session& s){
             if(v->taskbarRemoved&&s.taskbar)s.taskbar->AddTab(v->hwnd);v->taskbarRemoved=false;
             windowlayout::capture(v->hwnd,v->original,v->originalBounds);v->moved=false;
             v->groupId=s.nextGroupId++;s.groupActives[v->groupId]=v->id;v->independent=false;changed=true;
-        }else if(!group&&v->mixedGroup){s.restoreView(*v);s.groupActives.erase(v->groupId);v->groupId=v->mixedOriginalGroup;v->independent=v->mixedOriginalIndependent;changed=true;}
+        }else if(!group&&v->mixedGroup){s.mixedPresentation(v->hwnd,false);s.restoreView(*v);s.groupActives.erase(v->groupId);v->groupId=v->mixedOriginalGroup;v->independent=v->mixedOriginalIndependent;changed=true;}
         if(group!=v->mixedGroup)changed=true;v->mixedGroup=group;
+        for(auto& m:snapshot)if(group&&m.owner==owner&&m.view==v->id&&m.width<=360)v->manualTabWidth=(int)m.width;
     }
     // Only the actual foreground member supplies the slot. Each STA moves
     // its own windows and retains their placement restoration bookkeeping.
@@ -102,6 +108,13 @@ void Client::tick(Session& s){
             }
     }
     if(changed){s.syncPanes();s.updateTaskbar();}
+    for(auto& v:s.views)if(v->mixedGroup){
+        const Member* selected=nullptr;for(auto& m:snapshot)if(m.owner==owner&&m.view==v->id)for(auto& n:snapshot)if(n.key==m.selected&&n.group==m.group)selected=&n;
+        // A nonresponsive selected endpoint cannot strand its siblings.
+        bool healthy=selected&&live(*selected)&&now>=selected->seen&&now-selected->seen<2000;
+        if(!healthy||window(*selected)==v->hwnd||!IsWindowEnabled(v->hwnd))s.mixedPresentation(v->hwnd,false);
+        else s.mixedPresentation(v->hwnd,true);
+    }
     // Titles, order and modifications can change in another process.
     if(ok&&std::any_of(s.views.begin(),s.views.end(),[](auto& v){return v->mixedGroup!=0;}))s.redraw();
     for(auto& command:commands){
@@ -110,10 +123,14 @@ void Client::tick(Session& s){
            GetTickCount64()-command.requestTime>1500||GetAncestor(GetForegroundWindow(),GA_ROOT)!=window(*source))continue;
         std::shared_ptr<View> target;for(auto& v:s.views)if(v->id==command.view&&v->hwnd==window(command)&&v->mixedGroup==command.group)target=v;
         if(!target||!live(command)||!IsWindowEnabled(target->hwnd))continue;
+        s.mixedPresentation(target->hwnd,false);
+        WINDOWPLACEMENT slot{sizeof(slot)};RECT bounds{};
+        if(windowlayout::capture(window(*source),slot,bounds)&&!windowlayout::minimized(slot))windowlayout::apply(target->hwnd,slot,bounds);
         s.activate(target->id,target->hwnd);
         bool activated=GetAncestor(GetForegroundWindow(),GA_ROOT)==target->hwnd;
         logEvent(L"mixed.activate",{{"command",command.command},{"activated",activated}});
         s.lastOperation=activated?L"mixed.activated":L"mixed.activation.blocked";s.lastError=activated?S_OK:E_PENDING;
+        if(activated)this->activated(s,target->hwnd);
         if(activated&&command.command==Close&&!target->locked)s.close(target->id);
     }
 }
@@ -125,6 +142,7 @@ void Client::leave(Session& s,uint64_t id){
     });tick(s);
 }
 void Client::stop(Session& s){
+    s.restoreMixedPresentation();
     for(auto& m:snapshot)if(m.owner==owner&&live(m))RemovePropW(window(m),windowProperty);
     store.access([&](Ledger& state){for(auto& m:state.members)if(m.owner==owner){if(live(m))RemovePropW(window(m),windowProperty);m={};}normalize(state);});
     for(auto& v:s.views)if(v->mixedGroup){s.restoreView(*v);v->groupId=v->mixedOriginalGroup;v->independent=v->mixedOriginalIndependent;v->mixedGroup=0;}
@@ -132,8 +150,19 @@ void Client::stop(Session& s){
 }
 bool Client::drop(Session& s,uint64_t id,POINT point){
     HWND hit=WindowFromPoint(point);wchar_t name[80]{};GetClassNameW(hit,name,80);
+    for(int i=0;hit&&wcscmp(name,L"openOfficetab.Tabs")&&i<8;i++){hit=GetParent(hit);GetClassNameW(hit,name,80);}
     if(wcscmp(name,L"openOfficetab.Tabs"))return false;
     return joinInto(s,id,GetAncestor(hit,GA_ROOT));
+}
+void Client::activated(Session& s,HWND root){
+    s.mixedPresentation(root,false);
+    store.access([&](Ledger& state){for(auto& m:state.members)if(m.owner==owner&&window(m)==root&&m.group){auto group=m.group,key=m.key;for(auto& n:state.members)if(n.group==group)n.selected=key;break;}});
+}
+bool Client::setWidth(Session& s,uint64_t id,int width){
+    if(width!=0&&(width<80||width>360))return false;
+    auto key=localKey(s,id);bool done=false;
+    store.access([&](Ledger& state){auto m=find(state,key);if(!m||!m->group)return;bool shared=false;for(auto& n:state.members)if(n.owner==owner&&n.group==m->group)shared=true;if(shared){m->width=(uint32_t)width;done=true;}});
+    if(done){for(auto& m:snapshot)if(m.key==key)m.width=(uint32_t)width;for(auto& v:s.views)if(localKey(s,v->id)==key)v->manualTabWidth=width;s.redraw();}return done;
 }
 bool Client::joinInto(Session& s,uint64_t id,HWND root){
     tick(s);auto source=localKey(s,id);bool joined=false;

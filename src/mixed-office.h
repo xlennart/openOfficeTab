@@ -19,6 +19,8 @@ public:
     bool reorder(Session&,uint64_t,uint64_t);
     bool drop(Session&,uint64_t,POINT);
     bool joinInto(Session&,uint64_t,HWND);
+    bool setWidth(Session&,uint64_t,int);
+    void activated(Session&,HWND);
     void choose(Session&,HWND,uint64_t,POINT);
     void leave(Session&,uint64_t);
 };

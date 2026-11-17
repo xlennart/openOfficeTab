@@ -22,6 +22,8 @@
 
 ### 界面验收
 
+混合 Office 标签组继续使用窗口内的现有标签控件。同组呈现一个当前文档窗口和一个任务栏入口，其他成员保持遮蔽且可恢复；切换后在同一位置显示真实文档和功能区。宽度与顺序属于共享组视图，合并已有组时保留全部成员。验收须检查窗口是否实际暴露及能否恢复，不能只检查前台 HWND。
+
 - PR 作者优先在自己可用的环境中亲自验证一次受影响界面，附实际结果和前后对照，说明未覆盖项。缺少环境时与维护者约定补测；完整实机矩阵可由维护者承担。最终记录标注测试提交、程序及载荷哈希、应用、语言、主题、窗口尺寸和显示缩放，原生菜单和弹窗在实际 Office 中检查相关宿主及键盘操作。
 - 以当前配置的默认和最小尺寸验收管理中心与更新窗口。当前管理中心为 920 × 700 和 420 × 480，更新窗口为 560 × 530 和 360 × 400，均为逻辑像素。检查换行、边界、窗口按钮与底部操作区。
 - 分开记录离线检查、预览和实机证据。AI 生成的说明、模拟测试和离屏预览不能替代实际程序验收。缺少完整环境不自动要求草稿；代码审查及必要验收通过后再合并、发版。见[贡献指南](CONTRIBUTING.zh-CN.md)。
@@ -45,6 +47,8 @@
 - Use the shared language preference for Follow Windows, Simplified Chinese, and English. Localize control names, dynamic states, and errors. Display document names, paths, and content as provided. Use the actual localized control names in instructions.
 
 ### UI acceptance
+
+Mixed Office groups keep the existing tab control inside the Office frame. A group presents one active document window and one taskbar entry, with the other members concealed and recoverable. Selecting a tab changes the real document and Ribbon in the same slot. Widths and ordering belong to the shared group view; merging an existing group must keep all members. Validate actual window exposure and recovery, not only foreground HWND changes.
 
 - Authors should first personally check affected surfaces in an available environment, attach actual results and before/after captures, and explain gaps. Agree on maintainer testing when environments are unavailable; maintainers may provide the full runtime matrix. Final records identify the tested commit, program and payload hashes, app, language, theme, window size, and display scale. Check native menus and dialogs inside Office, covering relevant hosts and keyboard interaction.
 - Check the management center and update window at the configured default and minimum sizes. The current management center uses 920 × 700 and 420 × 480, and the update window uses 560 × 530 and 360 × 400, all in logical pixels. Check wrapping, control bounds, window buttons, and the bottom action area.
