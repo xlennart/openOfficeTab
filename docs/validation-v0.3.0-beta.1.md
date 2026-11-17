@@ -2,6 +2,14 @@
 
 2026-11-17。混合 Office 标签组公开测试版；正式通道保持 0.2.3。 / Public mixed-Office beta; stable remains 0.2.3.
 
+## 发布核验 / Publication verification
+
+发行源码提交：`33ec7e5538473b0072da5f3365c43e3a8295f5f6`，标签 `v0.3.0-beta.1`；已合入并推送两端 main，PR #6 最终 head 已合并。2026-11-17 核验 [GitHub](https://github.com/xlennart/openOfficeTab/releases/tag/v0.3.0-beta.1) 与 [CNB](https://cnb.cool/xlennart/openofficetab/-/releases/tag/v0.3.0-beta.1) 均公开且为 prerelease，稳定 latest 保持 v0.2.3。两端各四个附件匿名完整下载，与本地逐字节身份一致，Beta RSA 签名通过。CNB 元数据 API 匿名返回 401，发布状态通过授权 API 核对；稳定 latest 另通过公开页面重定向核对，不将认证查询写成匿名成功。
+
+[OSS 版本目录](https://openofficetab-xlennart.oss-cn-chengdu.aliyuncs.com/releases/v0.3.0-beta.1/SHA256SUMS.txt) 的四个附件同样经匿名下载、大小、SHA-256 与签名核验；OSS 稳定签名指针仍为 0.2.3。官网默认稳定版不变；本版截图只用于 Beta 展示。凭据、MCP 运行依赖、本机规则及认知均不在公开源码与发行包中。
+
+Release source commit: `33ec7e5538473b0072da5f3365c43e3a8295f5f6`, tag `v0.3.0-beta.1`, merged and pushed to both main branches. GitHub/CNB releases are public prereleases; stable latest remains v0.2.3. All four assets on each platform were downloaded anonymously and matched local size/SHA-256; Beta RSA signatures passed. CNB's metadata API returned anonymous 401, so release status used authenticated API checks while stable latest was independently checked by public-page redirection. All four OSS versioned objects also passed anonymous size/hash/signature checks; its stable signed pointer remains 0.2.3. The stable website is unchanged. Private credentials, MCP dependencies and governance assets are excluded.
+
 ## 载荷 / Payload identity
 
 | Payload | SHA-256 |

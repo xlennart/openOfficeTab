@@ -4,7 +4,7 @@
 
 ## 简体中文
 
-此功能目前在 `codex/mixed-office-tabs` 开发分支，尚未发布。Word、Excel、PowerPoint 的原生编辑窗口可以加入同一临时标签组。标签栏继续使用各宿主窗口内的现有控件，切换后显示目标 Office 的功能区和文档。
+此功能已随 [0.3.0-beta.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.3.0-beta.1) 公开测试，并已合入主分支；默认正式版仍为 0.2.3。Word、Excel、PowerPoint 的原生编辑窗口可以加入同一临时标签组。标签栏继续使用各宿主窗口内的现有控件，切换后显示目标 Office 的功能区和文档。
 
 ### 试用
 
@@ -44,7 +44,7 @@
 
 ## English
 
-This feature is under development on `codex/mixed-office-tabs` and is not released. Native Word, Excel and PowerPoint editing windows can share a temporary tab group. Tabs remain inside each Office window using the existing control; selecting a tab brings up the target application's real Ribbon and document.
+This experimental feature is publicly available in [0.3.0-beta.1](https://github.com/xlennart/openOfficeTab/releases/tag/v0.3.0-beta.1) and merged into main; stable remains 0.2.3. Native Word, Excel and PowerPoint editing windows can share a temporary tab group. Tabs remain inside each Office window using the existing control; selecting a tab brings up the target application's real Ribbon and document.
 
 ### Try it
 
